@@ -1,5 +1,5 @@
-// ElmerCpp - C++移植版Elmer FEM主头文件
-// 基于Elmer FEM架构设计的现代C++接口
+// ElmerCpp - C++ port of Elmer FEM main header file
+// Modern C++ interface based on Elmer FEM architecture
 
 #ifndef ELMER_CPP_H
 #define ELMER_CPP_H
@@ -12,11 +12,11 @@
 
 namespace elmer {
 
-// 基础类型定义
+// Basic type definitions
 using Real = double;
 using Integer = int;
 
-// 前向声明
+// Forward declarations
 class Mesh;
 class Solver;
 class Matrix;
@@ -24,21 +24,19 @@ class Vector;
 class Model;
 class Variable;
 
-// 核心数据结构
+// Core data structures
 struct Element {
     Integer id;
     std::vector<Integer> nodes;
     std::vector<Real> coordinates;
-    // 其他元素属性
 };
 
 struct Node {
     Integer id;
     Real x, y, z;
-    // 其他节点属性
 };
 
-// 并行环境
+// Parallel environment
 class ParallelEnvironment {
 public:
     static std::shared_ptr<ParallelEnvironment> Init();
@@ -50,7 +48,7 @@ private:
     Integer num_pe_ = 1;
 };
 
-// 矩阵接口（对应CRSMatrix.F90）
+// Matrix interface (corresponds to CRSMatrix.F90)
 class Matrix {
 public:
     enum class Format { CRS, LIST, BAND };
@@ -61,12 +59,12 @@ public:
     virtual Real GetElement(Integer i, Integer j) const = 0;
     virtual void AddToElement(Integer i, Integer j, Real value) = 0;
     
-    // 工厂方法
+    // Factory methods
     static std::unique_ptr<Matrix> CreateCRS(Integer nrows, Integer ncols);
     static std::unique_ptr<Matrix> CreateBand(Integer nrows, Integer bandwidth);
 };
 
-// 向量接口
+// Vector interface
 class Vector {
 public:
     virtual ~Vector() = default;
@@ -78,7 +76,7 @@ public:
     static std::unique_ptr<Vector> Create(Integer size);
 };
 
-// 网格类（对应MeshUtils.F90）
+// Mesh class (corresponds to MeshUtils.F90)
 class Mesh {
 public:
     virtual ~Mesh() = default;
@@ -87,11 +85,10 @@ public:
     virtual const Node& GetNode(Integer id) const = 0;
     virtual const Element& GetElement(Integer id) const = 0;
     
-    // 工厂方法
     static std::unique_ptr<Mesh> LoadFromFile(const std::string& filename);
 };
 
-// 求解器基类（对应各种物理场求解器）
+// Solver base class (corresponds to various physics solvers)
 class Solver {
 public:
     virtual ~Solver() = default;
@@ -99,33 +96,32 @@ public:
     virtual void Execute() = 0;
     virtual void Finalize() = 0;
     
-    // 求解器注册机制
-    static void RegisterSolver(const std::string& name, 
-                              std::function<std::unique_ptr<Solver>()> factory);
-    static std::unique_ptr<Solver> CreateSolver(const std::string& name);
+    virtual void SetName(const std::string& name) = 0;
+    virtual std::string GetName() const = 0;
 };
 
-// 主模型类（对应Model_t结构）
+// Model class (main simulation container)
 class Model {
 public:
-    Model();
-    ~Model();
+    virtual ~Model() = default;
+    virtual void AddSolver(std::unique_ptr<Solver> solver) = 0;
+    virtual void SetMesh(std::unique_ptr<Mesh> mesh) = 0;
+    virtual void Run() = 0;
     
-    void LoadSifFile(const std::string& filename);
-    void AddSolver(std::unique_ptr<Solver> solver);
-    void Solve();
-    
-    std::shared_ptr<Mesh> GetMesh() const { return mesh_; }
-    std::shared_ptr<ParallelEnvironment> GetParallelEnv() const { return parallel_env_; }
-    
-private:
-    std::shared_ptr<Mesh> mesh_;
-    std::shared_ptr<ParallelEnvironment> parallel_env_;
-    std::vector<std::unique_ptr<Solver>> solvers_;
-    std::map<std::string, std::shared_ptr<Variable>> variables_;
+    static std::unique_ptr<Model> Create();
 };
 
-// 主求解器类（对应ElmerSolver.F90）
+// Variable class (field variables)
+class Variable {
+public:
+    virtual ~Variable() = default;
+    virtual void SetName(const std::string& name) = 0;
+    virtual std::string GetName() const = 0;
+    virtual void SetValues(const std::vector<Real>& values) = 0;
+    virtual const std::vector<Real>& GetValues() const = 0;
+};
+
+// Main solver class (entry point)
 class ElmerSolver {
 public:
     ElmerSolver();
@@ -133,13 +129,6 @@ public:
     void Initialize(Integer argc, char** argv);
     void Run();
     void Finalize();
-    
-    // Fortran互操作性接口
-    extern "C" {
-        void elmer_solver_init_cpp(int* initialize);
-        void elmer_solver_run_cpp();
-        void elmer_solver_finalize_cpp();
-    }
     
 private:
     std::unique_ptr<Model> model_;

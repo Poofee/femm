@@ -1,15 +1,38 @@
-// Matrix.cpp - 线性代数矩阵实现
-// 对应Elmer FEM的CRSMatrix.F90功能
+// Matrix.cpp - Linear algebra matrix implementation
+// Corresponds to Elmer FEM's CRSMatrix.F90 functionality
 
 #include "ElmerCpp.h"
-#include <Eigen/Sparse>
+#include "../eigen-5.0.1/Eigen/Sparse"
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include <iostream>
 
 namespace elmer {
 
-// CRS矩阵实现（对应CRSMatrix.F90）
+// Simple Vector implementation
+class SimpleVector : public Vector {
+public:
+    SimpleVector(Integer size) : data_(size, 0.0) {}
+    
+    Integer Size() const override { return data_.size(); }
+    
+    Real& operator[](Integer i) override { return data_[i]; }
+    
+    const Real& operator[](Integer i) const override { return data_[i]; }
+    
+    void Zero() override { std::fill(data_.begin(), data_.end(), 0.0); }
+    
+private:
+    std::vector<Real> data_;
+};
+
+// Vector factory method implementation
+std::unique_ptr<Vector> Vector::Create(Integer size) {
+    return std::make_unique<SimpleVector>(size);
+}
+
+// CRS matrix implementation (corresponds to CRSMatrix.F90)
 class CRSMatrix : public Matrix {
 public:
     CRSMatrix(Integer nrows, Integer ncols) 
@@ -24,7 +47,7 @@ public:
     }
     
     void SetElement(Integer i, Integer j, Real value) override {
-        // 查找或插入元素
+        // Find or insert element
         auto pos = FindElementPosition(i, j);
         if (pos != values_.end()) {
             *pos = value;
@@ -47,7 +70,7 @@ public:
         }
     }
     
-    // 获取矩阵-向量乘积（对应Fortran中的矩阵向量操作）
+    // Get matrix-vector product (corresponds to Fortran matrix-vector operations)
     void Multiply(const Vector& x, Vector& y) const {
         for (Integer i = 0; i < nrows_; ++i) {
             Real sum = 0.0;
@@ -58,13 +81,13 @@ public:
         }
     }
     
-    // 排序矩阵（对应CRS_SortMatrix）
+    // Sort matrix (corresponds to CRS_SortMatrix)
     void SortRows() {
         for (Integer i = 0; i < nrows_; ++i) {
             Integer start = rows_[i];
             Integer end = rows_[i + 1];
             
-            // 对当前行的列索引进行排序
+            // Sort column indices for current row
             std::vector<Integer> indices(end - start);
             std::vector<Real> temp_values(end - start);
             
@@ -73,7 +96,7 @@ public:
                 temp_values[k] = values_[start + k];
             }
             
-            // 使用列索引排序
+            // Sort using column indices
             std::vector<Integer> sort_indices(end - start);
             for (Integer k = 0; k < end - start; ++k) sort_indices[k] = k;
             
@@ -82,7 +105,7 @@ public:
                          return indices[a] < indices[b]; 
                      });
             
-            // 重新排列列和值
+            // Rearrange columns and values
             for (Integer k = 0; k < end - start; ++k) {
                 cols_[start + k] = indices[sort_indices[k]];
                 values_[start + k] = temp_values[sort_indices[k]];
@@ -92,11 +115,11 @@ public:
     
 private:
     Integer nrows_, ncols_;
-    std::vector<Integer> rows_;  // 行指针
-    std::vector<Integer> cols_;  // 列索引
-    std::vector<Real> values_;   // 非零值
+    std::vector<Integer> rows_;  // Row pointers
+    std::vector<Integer> cols_;  // Column indices
+    std::vector<Real> values_;   // Non-zero values
     
-    // 查找元素位置
+    // Find element position
     std::vector<Real>::iterator FindElementPosition(Integer i, Integer j) {
         Integer start = rows_[i];
         Integer end = rows_[i + 1];
@@ -121,29 +144,29 @@ private:
         return values_.end();
     }
     
-    // 插入新元素
+    // Insert new element
     void InsertElement(Integer i, Integer j, Real value) {
         Integer start = rows_[i];
         Integer end = rows_[i + 1];
         
-        // 找到插入位置
+        // Find insertion position
         Integer insert_pos = start;
         while (insert_pos < end && cols_[insert_pos] < j) {
             ++insert_pos;
         }
         
-        // 插入新元素
+        // Insert new element
         cols_.insert(cols_.begin() + insert_pos, j);
         values_.insert(values_.begin() + insert_pos, value);
         
-        // 更新行指针
+        // Update row pointers
         for (Integer k = i + 1; k <= nrows_; ++k) {
             rows_[k]++;
         }
     }
 };
 
-// 带状矩阵实现（对应BandMatrix.F90）
+// Band matrix implementation (corresponds to BandMatrix.F90)
 class BandMatrix : public Matrix {
 public:
     BandMatrix(Integer nrows, Integer bandwidth) 
@@ -183,7 +206,7 @@ private:
     }
 };
 
-// 工厂方法实现
+// Matrix factory methods
 std::unique_ptr<Matrix> Matrix::CreateCRS(Integer nrows, Integer ncols) {
     return std::make_unique<CRSMatrix>(nrows, ncols);
 }
@@ -192,35 +215,18 @@ std::unique_ptr<Matrix> Matrix::CreateBand(Integer nrows, Integer bandwidth) {
     return std::make_unique<BandMatrix>(nrows, bandwidth);
 }
 
-// Eigen矩阵包装器（可选，用于高性能计算）
-class EigenMatrixWrapper : public Matrix {
-public:
-    EigenMatrixWrapper(Integer nrows, Integer ncols) 
-        : matrix_(nrows, ncols) {}
-    
-    void Zero() override {
-        matrix_.setZero();
+// Utility function to convert to Eigen sparse matrix
+Eigen::SparseMatrix<Real> ConvertToEigen(const Matrix& matrix) {
+    // For simplicity, assume it's a CRSMatrix
+    const CRSMatrix* crs_matrix = dynamic_cast<const CRSMatrix*>(&matrix);
+    if (!crs_matrix) {
+        throw std::runtime_error("Only CRSMatrix can be converted to Eigen");
     }
     
-    void SetElement(Integer i, Integer j, Real value) override {
-        matrix_.coeffRef(i, j) = value;
-    }
-    
-    Real GetElement(Integer i, Integer j) const override {
-        return matrix_.coeff(i, j);
-    }
-    
-    void AddToElement(Integer i, Integer j, Real value) override {
-        matrix_.coeffRef(i, j) += value;
-    }
-    
-    // 转换为Eigen稀疏矩阵
-    const Eigen::SparseMatrix<Real>& GetEigenMatrix() const { 
-        return matrix_; 
-    }
-    
-private:
-    Eigen::SparseMatrix<Real> matrix_;
-};
+    // Implementation would extract CRS data and build Eigen sparse matrix
+    // This is a placeholder for actual implementation
+    Eigen::SparseMatrix<Real> eigen_matrix(1, 1);
+    return eigen_matrix;
+}
 
 } // namespace elmer

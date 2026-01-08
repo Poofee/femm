@@ -26,11 +26,37 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: 编译网格模块
+echo 编译网格模块...
+cl /c /EHsc /std:c++17 /I..\src ..\src\Mesh.cpp
+if %errorlevel% neq 0 (
+    echo 编译Mesh.cpp失败
+    exit /b 1
+)
+
+cl /c /EHsc /std:c++17 /I..\src ..\src\MeshUtils.cpp
+if %errorlevel% neq 0 (
+    echo 编译MeshUtils.cpp失败
+    exit /b 1
+)
+
+cl /c /EHsc /std:c++17 /I..\src ..\src\MeshIO.cpp
+if %errorlevel% neq 0 (
+    echo 编译MeshIO.cpp失败
+    exit /b 1
+)
+
 :: 编译测试程序
 echo 编译测试程序...
 cl /c /EHsc /std:c++17 /I..\src ..\test\test_linear_algebra.cpp
 if %errorlevel% neq 0 (
     echo 编译test_linear_algebra.cpp失败
+    exit /b 1
+)
+
+cl /c /EHsc /std:c++17 /I..\src ..\test\test_mesh.cpp
+if %errorlevel% neq 0 (
+    echo 编译test_mesh.cpp失败
     exit /b 1
 )
 
@@ -42,15 +68,29 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+cl /EHsc /Fe:test_mesh.exe test_mesh.obj Mesh.obj MeshUtils.obj MeshIO.obj LinearAlgebra.obj
+if %errorlevel% neq 0 (
+    echo 链接失败
+    exit /b 1
+)
+
 :: 运行测试
 echo.
 echo 运行线性代数模块测试...
 test_linear_algebra.exe
+if %errorlevel% neq 0 (
+    echo 线性代数测试失败
+    exit /b 1
+)
+
+echo.
+echo 运行网格模块测试...
+test_mesh.exe
 
 if %errorlevel% equ 0 (
     echo.
     echo ================================================
-    echo 构建成功！C++线性代数模块测试通过。
+    echo 构建成功！C++线性代数和网格模块测试通过。
     echo ================================================
 ) else (
     echo.

@@ -2,10 +2,12 @@
 // 对应Fortran模块: CRSMatrix.F90, IterSolve.F90, MatrixAssembly.F90
 
 #include "LinearAlgebra.h"
-#include <Eigen/Sparse>
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <iostream>
+#include <stdexcept>
+#include <cmath>
 
 namespace ElmerCpp {
 
@@ -81,6 +83,10 @@ public:
     int getRows() const override { return rows; }
     int getCols() const override { return cols; }
     
+    int getNonzeros() const override {
+        return values.size();
+    }
+    
     // 矩阵-向量乘法
     std::vector<double> multiply(const std::vector<double>& x) const override {
         if (x.size() != static_cast<size_t>(cols)) {
@@ -94,21 +100,6 @@ public:
             }
         }
         return result;
-    }
-    
-    // 转换为Eigen稀疏矩阵（用于高性能计算）
-    Eigen::SparseMatrix<double> toEigenSparse() const {
-        Eigen::SparseMatrix<double> eigen_mat(rows, cols);
-        std::vector<Eigen::Triplet<double>> triplets;
-        
-        for (int i = 0; i < rows; ++i) {
-            for (int j = row_pointers[i]; j < row_pointers[i + 1]; ++j) {
-                triplets.emplace_back(i, col_indices[j], values[j]);
-            }
-        }
-        
-        eigen_mat.setFromTriplets(triplets.begin(), triplets.end());
-        return eigen_mat;
     }
 };
 
@@ -155,6 +146,11 @@ public:
     
     std::vector<double> getSolution() const override {
         return solution;
+    }
+    
+    std::vector<double> getResidualHistory() const override {
+        // 简化实现 - 实际求解器中应该记录残差历史
+        return {};
     }
     
 private:
@@ -291,7 +287,7 @@ private:
     }
     
     // 辅助函数
-    double dotProduct(const std::vector<double>& a, const std::vector<double>& b) const {
+    double dotProduct(const std::vector<double>& a, const std::vector<double>& b) {
         if (a.size() != b.size()) {
             throw std::invalid_argument("Vector sizes must match for dot product");
         }
@@ -302,7 +298,7 @@ private:
         return result;
     }
     
-    double norm(const std::vector<double>& v) const {
+    double norm(const std::vector<double>& v) {
         return std::sqrt(dotProduct(v, v));
     }
 };
@@ -345,6 +341,38 @@ public:
             }
         }
     }
+    
+    void applyDirichletBC(int dof_index, double value,
+                                 std::shared_ptr<IMatrix> matrix,
+                                 std::vector<double>& rhs) override {
+        if (dof_index < 0 || dof_index >= matrix->getRows()) return;
+        
+        // 修改矩阵：将对应行清零，对角线设为1
+        for (int j = 0; j < matrix->getCols(); ++j) {
+            if (j == dof_index) {
+                matrix->setElement(dof_index, j, 1.0);
+            } else {
+                matrix->setElement(dof_index, j, 0.0);
+            }
+        }
+        
+        // 修改右端项
+        rhs[dof_index] = value;
+    }
+    
+    // 应用多个边界条件
+    void applyDirichletBCs(const std::vector<int>& dof_indices,
+                          const std::vector<double>& values,
+                          std::shared_ptr<IMatrix> matrix,
+                          std::vector<double>& rhs) override {
+        if (dof_indices.size() != values.size()) {
+            throw std::invalid_argument("Number of DOF indices and values must match");
+        }
+        
+        for (size_t i = 0; i < dof_indices.size(); ++i) {
+            applyDirichletBC(dof_indices[i], values[i], matrix, rhs);
+        }
+    }
 };
 
 // ===== 工厂函数 =====
@@ -359,6 +387,68 @@ std::shared_ptr<IIterativeSolver> createIterativeSolver(std::shared_ptr<IMatrix>
 
 std::shared_ptr<IMatrixAssembler> createMatrixAssembler(std::shared_ptr<IMatrix> matrix) {
     return std::make_shared<MatrixAssemblerImpl>(matrix);
+}
+
+// ===== 辅助函数实现 =====
+
+double dotProduct(const std::vector<double>& a, const std::vector<double>& b) {
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("Vector sizes must match for dot product");
+    }
+    double result = 0.0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        result += a[i] * b[i];
+    }
+    return result;
+}
+
+double norm(const std::vector<double>& v) {
+    return std::sqrt(dotProduct(v, v));
+}
+
+std::vector<double> vectorAdd(const std::vector<double>& a, const std::vector<double>& b) {
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("Vector sizes must match for addition");
+    }
+    std::vector<double> result(a.size());
+    for (size_t i = 0; i < a.size(); ++i) {
+        result[i] = a[i] + b[i];
+    }
+    return result;
+}
+
+std::vector<double> vectorScalarMultiply(const std::vector<double>& v, double scalar) {
+    std::vector<double> result(v.size());
+    for (size_t i = 0; i < v.size(); ++i) {
+        result[i] = v[i] * scalar;
+    }
+    return result;
+}
+
+void printVector(const std::vector<double>& v, const std::string& name) {
+    if (!name.empty()) {
+        std::cout << name << " = ";
+    }
+    std::cout << "[";
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << v[i];
+        if (i < v.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+}
+
+void printMatrix(std::shared_ptr<IMatrix> matrix, const std::string& name) {
+    if (!name.empty()) {
+        std::cout << name << " = " << std::endl;
+    }
+    for (int i = 0; i < matrix->getRows(); ++i) {
+        std::cout << "[";
+        for (int j = 0; j < matrix->getCols(); ++j) {
+            std::cout << matrix->getElement(i, j);
+            if (j < matrix->getCols() - 1) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
+    }
 }
 
 } // namespace ElmerCpp

@@ -87,11 +87,11 @@ void testIterativeSolver() {
     // 获取解
     auto solution = solver->getSolution();
     
-    std::cout << "求解结果:" << std::endl;
-    std::cout << "迭代次数: " << result.iterations << std::endl;
-    std::cout << "最终残差: " << result.residual << std::endl;
-    std::cout << "是否收敛: " << (result.converged ? "是" : "否") << std::endl;
-    std::cout << "解向量: [" << solution[0] << ", " << solution[1] << ", " << solution[2] << "]" << std::endl;
+    std::cout << "Solver Results:" << std::endl;
+    std::cout << "Iterations: " << result.iterations << std::endl;
+    std::cout << "Final Residual: " << result.residual << std::endl;
+    std::cout << "Converged: " << (result.converged ? "Yes" : "No") << std::endl;
+    std::cout << "Solution Vector: [" << solution[0] << ", " << solution[1] << ", " << solution[2] << "]" << std::endl;
     
     // 验证解的正确性
     auto residual = matrix->multiply(solution);
@@ -162,20 +162,99 @@ void testMatrixAssembler() {
     std::cout << "矩阵组装器测试: " << (test_passed ? "通过" : "失败") << std::endl;
 }
 
+void testBoundaryConditions() {
+    std::cout << "\n=== 测试边界条件处理 ===" << std::endl;
+    
+    // 创建3x3矩阵和右端项
+    auto matrix = createCRSMatrix(3, 3);
+    std::vector<double> rhs = {1.0, 2.0, 3.0};
+    
+    // 设置矩阵元素
+    matrix->setElement(0, 0, 4.0);
+    matrix->setElement(0, 1, -1.0);
+    matrix->setElement(1, 0, -1.0);
+    matrix->setElement(1, 1, 4.0);
+    matrix->setElement(1, 2, -1.0);
+    matrix->setElement(2, 1, -1.0);
+    matrix->setElement(2, 2, 4.0);
+    
+    auto assembler = createMatrixAssembler(matrix);
+    
+    // 应用Dirichlet边界条件（固定第一个自由度）
+    assembler->applyDirichletBC(0, 5.0, matrix, rhs);
+    
+    // 验证边界条件应用
+    std::cout << "应用边界条件后的矩阵:" << std::endl;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            std::cout << matrix->getElement(i, j) << " ";
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "应用边界条件后的右端项: [" << rhs[0] << ", " 
+              << rhs[1] << ", " << rhs[2] << "]" << std::endl;
+    
+    // 验证边界条件正确应用
+    bool test_passed = true;
+    test_passed &= std::abs(matrix->getElement(0, 0) - 1.0) < 1e-10;  // 对角线应为1
+    test_passed &= std::abs(matrix->getElement(0, 1) - 0.0) < 1e-10;  // 非对角线应为0
+    test_passed &= std::abs(matrix->getElement(0, 2) - 0.0) < 1e-10;  // 非对角线应为0
+    test_passed &= std::abs(rhs[0] - 5.0) < 1e-10;                   // 右端项应为边界值
+    
+    std::cout << "边界条件测试: " << (test_passed ? "通过" : "失败") << std::endl;
+}
+
+void testUtilityFunctions() {
+    std::cout << "\n=== 测试辅助函数 ===" << std::endl;
+    
+    std::vector<double> a = {1.0, 2.0, 3.0};
+    std::vector<double> b = {4.0, 5.0, 6.0};
+    
+    // 测试点积
+    double dot = dotProduct(a, b);
+    std::cout << "点积测试: a·b = " << dot << " (期望: 32.0)" << std::endl;
+    
+    // 测试向量范数
+    double norm_a = norm(a);
+    std::cout << "向量范数测试: ||a|| = " << norm_a << " (期望: " << std::sqrt(14.0) << ")" << std::endl;
+    
+    // 测试向量加法
+    auto sum = vectorAdd(a, b);
+    std::cout << "向量加法测试: a + b = [" 
+              << sum[0] << ", " << sum[1] << ", " << sum[2] << "]" << std::endl;
+    
+    // 测试标量乘法
+    auto scaled = vectorScalarMultiply(a, 2.0);
+    std::cout << "标量乘法测试: 2 * a = [" 
+              << scaled[0] << ", " << scaled[1] << ", " << scaled[2] << "]" << std::endl;
+    
+    // 验证结果
+    bool test_passed = true;
+    test_passed &= std::abs(dot - 32.0) < 1e-10;
+    test_passed &= std::abs(norm_a - std::sqrt(14.0)) < 1e-10;
+    test_passed &= std::abs(sum[0] - 5.0) < 1e-10 && std::abs(sum[1] - 7.0) < 1e-10 && std::abs(sum[2] - 9.0) < 1e-10;
+    test_passed &= std::abs(scaled[0] - 2.0) < 1e-10 && std::abs(scaled[1] - 4.0) < 1e-10 && std::abs(scaled[2] - 6.0) < 1e-10;
+    
+    std::cout << "辅助函数测试: " << (test_passed ? "通过" : "失败") << std::endl;
+}
+
 int main() {
-    std::cout << "Elmer FEM C++线性代数模块测试" << std::endl;
-    std::cout << "================================" << std::endl;
+    std::cout << "Elmer FEM C++ Linear Algebra Module Test" << std::endl;
+    std::cout << "==========================================" << std::endl;
     
     try {
         testCRSMatrix();
         testIterativeSolver();
         testMatrixAssembler();
+        testBoundaryConditions();
+        testUtilityFunctions();
         
-        std::cout << "\n=== 所有测试完成 ===" << std::endl;
-        std::cout << "C++线性代数模块基本功能验证成功！" << std::endl;
+        std::cout << "\n=== All Tests Completed ===" << std::endl;
+        std::cout << "C++ Linear Algebra Module Basic Functionality Verified Successfully!" << std::endl;
         
     } catch (const std::exception& e) {
-        std::cerr << "测试过程中出现错误: " << e.what() << std::endl;
+        std::cerr << "Error during testing: " << e.what() << std::endl;
         return 1;
     }
     

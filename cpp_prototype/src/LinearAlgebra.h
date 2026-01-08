@@ -95,6 +95,12 @@ public:
     virtual void applyDirichletBC(int dof_index, double value,
                                  std::shared_ptr<IMatrix> matrix,
                                  std::vector<double>& rhs) = 0;
+    
+    // 应用多个边界条件
+    virtual void applyDirichletBCs(const std::vector<int>& dof_indices,
+                                  const std::vector<double>& values,
+                                  std::shared_ptr<IMatrix> matrix,
+                                  std::vector<double>& rhs) = 0;
 };
 
 // ===== 工厂函数声明 =====

@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set compiler flags
 if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8")
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 endif()
@@ -23,6 +23,16 @@ add_library(ElmerCppMatrixAssembly
     src/MatrixAssembly.h
     src/MatrixAssembly.cpp
     src/Matrix.cpp
+    src/CRSMatrix.h
+    src/IterativeSolver.h
+    src/IterativeSolver.cpp
+    src/BoundaryConditions.h
+    src/BoundaryConditions.cpp
+    src/LinearAlgebra.h
+    src/LinearAlgebra.cpp
+    src/Mesh.h
+    src/MeshUtils.h
+    src/MeshUtils.cpp
 )
 
 # Create test executables
@@ -34,9 +44,19 @@ add_executable(test_matrix_assembly
     test/test_matrix_assembly.cpp
 )
 
+add_executable(test_linear_algebra
+    test/test_linear_algebra.cpp
+)
+
+add_executable(test_boundary_conditions
+    src/test_boundary_conditions.cpp
+)
+
 # Link test executables with library
 target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
+target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
+target_link_libraries(test_boundary_conditions ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)

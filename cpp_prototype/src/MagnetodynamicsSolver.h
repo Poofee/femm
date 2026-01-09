@@ -1,11 +1,12 @@
 #pragma once
 
-#include "ElectromagneticMaterial.h"
+#include "Material.h"
 #include "ShapeFunctions.h"
 #include "GaussIntegration.h"
 #include "ElementMatrix.h"
 #include "LinearAlgebra.h"
 #include "Mesh.h"
+#include "BoundaryConditions.h"
 #include <memory>
 #include <vector>
 #include <array>
@@ -14,28 +15,17 @@
 namespace elmer {
 
 /**
- * @brief Boundary condition types for electromagnetic simulations
- */
-enum class EM_BoundaryType {
-    DIRICHLET,          ///< Fixed potential/field value
-    NEUMANN,            ///< Fixed flux/current density
-    ROBIN,              ///< Mixed boundary condition
-    PERIODIC,           ///< Periodic boundary condition
-    SYMMETRY,           ///< Symmetry boundary condition
-    ANTISYMMETRY        ///< Antisymmetry boundary condition
-};
-
-/**
- * @brief Boundary condition for electromagnetic simulations
+ * @brief Boundary condition for electromagnetic simulations (legacy structure)
+ * @deprecated Use the new BoundaryCondition class hierarchy instead
  */
 struct EMBoundaryCondition {
-    EM_BoundaryType type;
+    BoundaryConditionType type;
     std::vector<int> nodeIndices;     ///< Nodes affected by this BC
     std::vector<double> values;       ///< Boundary values
     std::vector<double> valuesImag;   ///< Imaginary values (for harmonic analysis)
     std::string name;                 ///< Boundary condition name
     
-    EMBoundaryCondition(EM_BoundaryType t = EM_BoundaryType::DIRICHLET, 
+    EMBoundaryCondition(BoundaryConditionType t = BoundaryConditionType::DIRICHLET, 
                        const std::string& n = "")
         : type(t), name(n) {}
 };
@@ -114,7 +104,8 @@ private:
     std::shared_ptr<Vector> rhsVector;
     
     // Boundary conditions
-    std::vector<EMBoundaryCondition> boundaryConditions;
+    std::vector<EMBoundaryCondition> boundaryConditions; ///< Legacy boundary conditions
+    BoundaryConditionManager bcManager;          ///< New boundary condition manager
     
 public:
     /**
@@ -133,6 +124,13 @@ public:
     }
     
     /**
+     * @brief Set material database
+     */
+    void setMaterialDatabase(const MaterialDatabase& db) {
+        materialDB = db;
+    }
+    
+    /**
      * @brief Set solver parameters
      */
     void setParameters(const MagnetodynamicsParameters& params) {
@@ -140,10 +138,36 @@ public:
     }
     
     /**
-     * @brief Add a boundary condition
+     * @brief Add a boundary condition (legacy interface)
      */
     void addBoundaryCondition(const EMBoundaryCondition& bc) {
         boundaryConditions.push_back(bc);
+        
+        // Also add to new boundary condition manager for compatibility
+        auto newBC = BoundaryConditionUtils::createBoundaryCondition(
+            bc.type, bc.name, bc.nodeIndices, bc.values);
+        bcManager.addBoundaryCondition(newBC);
+    }
+    
+    /**
+     * @brief Add a boundary condition using new interface
+     */
+    void addBoundaryCondition(std::shared_ptr<BoundaryCondition> bc) {
+        bcManager.addBoundaryCondition(bc);
+    }
+    
+    /**
+     * @brief Get boundary condition manager
+     */
+    BoundaryConditionManager& getBoundaryConditionManager() {
+        return bcManager;
+    }
+    
+    /**
+     * @brief Get boundary condition manager (const version)
+     */
+    const BoundaryConditionManager& getBoundaryConditionManager() const {
+        return bcManager;
     }
     
     /**
@@ -306,29 +330,24 @@ private:
      * @brief Apply boundary conditions to the system
      */
     void applyBoundaryConditions() {
-        for (const auto& bc : boundaryConditions) {
-            applyBoundaryCondition(bc);
+        // Use new boundary condition manager
+        if (mesh) {
+            std::vector<int> dofMap = createDOFMap();
+            bcManager.applyBoundaryConditions(stiffnessMatrix, *rhsVector, dofMap);
         }
     }
     
     /**
-     * @brief Apply a single boundary condition
+     * @brief Apply a single boundary condition (legacy method)
      */
     void applyBoundaryCondition(const EMBoundaryCondition& bc) {
-        // Implementation depends on boundary condition type
-        switch (bc.type) {
-            case EM_BoundaryType::DIRICHLET:
-                applyDirichletBC(bc);
-                break;
-            case EM_BoundaryType::NEUMANN:
-                applyNeumannBC(bc);
-                break;
-            case EM_BoundaryType::ROBIN:
-                applyRobinBC(bc);
-                break;
-            default:
-                // Handle other boundary types
-                break;
+        // Convert legacy BC to new format and apply
+        auto newBC = BoundaryConditionUtils::createBoundaryCondition(
+            bc.type, bc.name, bc.nodeIndices, bc.values);
+        
+        if (mesh) {
+            std::vector<int> dofMap = createDOFMap();
+            newBC->apply(stiffnessMatrix, *rhsVector, dofMap);
         }
     }
     
@@ -355,7 +374,26 @@ private:
     }
     
     /**
-     * @brief Apply Neumann boundary condition
+     * @brief Create DOF mapping from node indices to DOF indices
+     */
+    std::vector<int> createDOFMap() const {
+        if (!mesh) {
+            return {};
+        }
+        
+        int nNodes = mesh->getNodes().size();
+        int dofPerNode = 4; // A_x, A_y, A_z, φ for 3D problems
+        
+        std::vector<int> dofMap(nNodes * dofPerNode);
+        for (int i = 0; i < nNodes * dofPerNode; ++i) {
+            dofMap[i] = i; // Simple 1-to-1 mapping for now
+        }
+        
+        return dofMap;
+    }
+    
+    /**
+     * @brief Apply Neumann boundary condition (legacy method)
      */
     void applyNeumannBC(const EMBoundaryCondition& bc) {
         // Neumann conditions are natural boundary conditions in FEM

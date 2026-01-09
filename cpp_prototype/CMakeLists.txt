@@ -51,6 +51,7 @@ add_library(ElmerCppCore
     src/Mesh.cpp
     src/MeshIO.cpp
     src/MeshUtils.cpp
+    src/Integration.cpp
 )
 
 # 链接库
@@ -82,6 +83,14 @@ add_executable(elmer_cpp
 add_executable(test_linear_algebra
     test/test_linear_algebra.cpp
 )
+
+target_link_libraries(test_linear_algebra ElmerCppCore)
+
+add_executable(test_integration
+    test/test_integration.cpp
+)
+
+target_link_libraries(test_integration ElmerCppCore)
 
 # 原型测试程序
 add_executable(test_prototype

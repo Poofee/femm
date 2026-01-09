@@ -24,6 +24,18 @@ class Vector;
 class Model;
 class Variable;
 
+// Interpolation module forward declaration
+namespace Interpolation {
+    class QuadrantTree;
+    double InterpolateInElement(const Element& element,
+                               const std::vector<Real>& nodalValues,
+                               Real u, Real v, Real w);
+    bool PointInElement(const Element& element,
+                       const std::vector<Node>& elementNodes,
+                       const std::vector<Real>& point,
+                       std::vector<Real>& localCoordinates);
+}
+
 // Core data structures
 struct Element {
     Integer id;

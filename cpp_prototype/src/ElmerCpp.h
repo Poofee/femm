@@ -15,6 +15,10 @@ enum class ElementType;
 // Forward declaration for CRSMatrix
 class CRSMatrix;
 
+// Forward declaration for Lists module
+class List;
+class Lists;
+
 // Type aliases for numerical types
 using Integer = int;
 using Real = double;

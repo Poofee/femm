@@ -33,6 +33,8 @@ add_library(ElmerCppMatrixAssembly
     src/Mesh.h
     src/MeshUtils.h
     src/MeshUtils.cpp
+    src/DefUtils.h
+    src/DefUtils.cpp
 )
 
 # Create test executables
@@ -48,15 +50,25 @@ add_executable(test_linear_algebra
     test/test_linear_algebra.cpp
 )
 
-add_executable(test_boundary_conditions
-    src/test_boundary_conditions.cpp
+add_executable(test_def_utils
+    test/test_def_utils.cpp
+)
+
+add_executable(test_simple
+    test/test_simple.cpp
+)
+
+add_executable(simple_test
+    test/simple_test.cpp
 )
 
 # Link test executables with library
 target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
 target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
-target_link_libraries(test_boundary_conditions ElmerCppMatrixAssembly)
+target_link_libraries(test_def_utils ElmerCppMatrixAssembly)
+target_link_libraries(test_simple ElmerCppMatrixAssembly)
+target_link_libraries(simple_test ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)

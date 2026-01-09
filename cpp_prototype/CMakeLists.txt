@@ -47,8 +47,16 @@ add_library(ElmerCppMatrixAssembly
 )
 
 # Create test executables
-add_executable(test_shape_functions
-    test/test_shape_functions.cpp
+add_executable(test_mesh
+    test/test_mesh.cpp
+)
+
+add_executable(test_integration
+    test/test_integration.cpp
+)
+
+add_executable(test_shapefunctions
+    test/test_shapefunctions.cpp
 )
 
 add_executable(test_matrix_assembly
@@ -71,10 +79,6 @@ add_executable(simple_test
     test/simple_test.cpp
 )
 
-add_executable(test_integration
-    test/test_integration.cpp
-)
-
 add_executable(test_element_utils
     test/test_element_utils.cpp
 )
@@ -92,12 +96,26 @@ add_executable(test_interpolation
 )
 
 # Set include directories for test executables
+target_include_directories(test_mesh PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_shapefunctions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_crs_matrix PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_lists PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link test executables with library
-target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
+target_link_libraries(test_mesh ElmerCppMatrixAssembly)
+target_link_libraries(test_integration ElmerCppMatrixAssembly)
+target_link_libraries(test_shapefunctions ElmerCppMatrixAssembly)
+target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
+target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
+target_link_libraries(test_def_utils ElmerCppMatrixAssembly)
+target_link_libraries(test_simple ElmerCppMatrixAssembly)
+target_link_libraries(simple_test ElmerCppMatrixAssembly)
+target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
+target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
+target_link_libraries(test_lists ElmerCppMatrixAssembly)
+target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
 target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
 target_link_libraries(test_def_utils ElmerCppMatrixAssembly)

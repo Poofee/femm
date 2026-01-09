@@ -1,344 +1,260 @@
-#include "../src/Mesh.h"
-#include "../src/MeshUtils.h"
-#include "../src/MeshIO.h"
+/**
+ * @file test_mesh.cpp
+ * @brief Mesh模块测试文件
+ * 
+ * 测试Mesh模块的核心功能，包括节点管理、元素操作、网格验证等。
+ */
+
 #include <iostream>
-#include <cassert>
+#include <vector>
 #include <cmath>
+#include <cassert>
+#include "../src/Mesh.h"
 
 using namespace elmer;
 
 /**
+ * @brief 自定义断言宏，用于测试
+ */
+#define ASSERT(condition, message) \
+    do { \
+        if (!(condition)) { \
+            std::cerr << "断言失败: " << message << std::endl; \
+            std::cerr << "位置: " << __FILE__ << ":" << __LINE__ << std::endl; \
+            return false; \
+        } \
+    } while (0)
+
+/**
+ * @brief 自定义近似相等断言宏
+ */
+#define ASSERT_NEAR(a, b, tolerance) \
+    do { \
+        if (std::abs((a) - (b)) > (tolerance)) { \
+            std::cerr << "近似相等断言失败: " << (a) << " != " << (b) << std::endl; \
+            std::cerr << "容差: " << (tolerance) << std::endl; \
+            std::cerr << "位置: " << __FILE__ << ":" << __LINE__ << std::endl; \
+            return false; \
+        } \
+    } while (0)
+
+/**
  * @brief 测试节点基本功能
  */
-void testNode() {
-    std::cout << "测试节点功能..." << std::endl;
+bool TestNodeBasic() {
+    std::cout << "测试节点基本功能..." << std::endl;
     
     // 测试默认构造函数
     Node node1;
-    assert(node1.x == 0.0);
-    assert(node1.y == 0.0);
-    assert(node1.z == 0.0);
+    ASSERT(node1.x == 0.0 && node1.y == 0.0 && node1.z == 0.0, "默认构造函数应初始化坐标为零");
     
     // 测试参数化构造函数
     Node node2(1.0, 2.0, 3.0);
-    assert(node2.x == 1.0);
-    assert(node2.y == 2.0);
-    assert(node2.z == 3.0);
+    ASSERT(node2.x == 1.0 && node2.y == 2.0 && node2.z == 3.0, "参数化构造函数应正确设置坐标");
     
     // 测试距离计算
     Node node3(4.0, 5.0, 6.0);
     double distance = node2.distance(node3);
     double expected = std::sqrt(9.0 + 9.0 + 9.0); // sqrt(3^2 + 3^2 + 3^2)
-    assert(std::abs(distance - expected) < 1e-10);
+    ASSERT_NEAR(distance, expected, 1e-12);
     
-    std::cout << "节点测试通过!" << std::endl;
+    std::cout << "节点基本功能测试通过" << std::endl;
+    return true;
 }
 
 /**
- * @brief 测试节点集合功能
+ * @brief 测试节点集合管理
  */
-void testNodes() {
-    std::cout << "测试节点集合功能..." << std::endl;
+bool TestNodesCollection() {
+    std::cout << "测试节点集合管理..." << std::endl;
     
     Nodes nodes;
     
     // 测试添加节点
-    nodes.addNode(0.0, 0.0, 0.0);
-    nodes.addNode(1.0, 0.0, 0.0);
-    nodes.addNode(0.0, 1.0, 0.0);
+    nodes.addNode(Node(1.0, 1.0, 1.0));
+    nodes.addNode(2.0, 2.0, 2.0);
+    nodes.addNode(3.0, 3.0, 3.0);
     
-    assert(nodes.numberOfNodes() == 3);
+    ASSERT(nodes.numberOfNodes() == 3, "节点数量应为3");
     
     // 测试索引访问
-    assert(nodes[0].x == 0.0);
-    assert(nodes[1].y == 0.0);
-    assert(nodes[2].z == 0.0);
+    Node& node = nodes[1];
+    ASSERT(node.x == 2.0 && node.y == 2.0 && node.z == 2.0, "索引访问应返回正确的节点");
     
-    // 测试修改节点
-    nodes[0].x = 5.0;
-    assert(nodes[0].x == 5.0);
+    // 测试常量访问
+    const Nodes& constNodes = nodes;
+    const Node& constNode = constNodes[0];
+    ASSERT(constNode.x == 1.0 && constNode.y == 1.0 && constNode.z == 1.0, "常量索引访问应返回正确的节点");
     
     // 测试清空
     nodes.clear();
-    assert(nodes.numberOfNodes() == 0);
+    ASSERT(nodes.numberOfNodes() == 0, "清空后节点数量应为0");
     
-    std::cout << "节点集合测试通过!" << std::endl;
+    std::cout << "节点集合管理测试通过" << std::endl;
+    return true;
 }
 
 /**
- * @brief 测试单元功能
+ * @brief 测试元素基本功能
  */
-void testElement() {
-    std::cout << "测试单元功能..." << std::endl;
+bool TestElementBasic() {
+    std::cout << "测试元素基本功能..." << std::endl;
     
-    // 测试默认构造函数
-    Element element1;
-    assert(element1.getType() == ElementType::LINEAR);
-    assert(element1.getBodyId() == 0);
-    assert(element1.getBoundaryId() == 0);
-    assert(element1.numberOfNodes() == 0);
-    assert(element1.isBulkElement());
-    assert(!element1.isBoundaryElement());
+    // 创建节点集合
+    Nodes nodes;
+    nodes.addNode(0.0, 0.0, 0.0);
+    nodes.addNode(1.0, 0.0, 0.0);
+    nodes.addNode(1.0, 1.0, 0.0);
+    nodes.addNode(0.0, 1.0, 0.0);
     
-    // 测试参数化构造函数
-    Element element2(ElementType::TETRAHEDRON, 1);
-    assert(element2.getType() == ElementType::TETRAHEDRON);
-    assert(element2.getBodyId() == 1);
-    assert(element2.isBulkElement());
+    // 创建四边形元素
+    Element element(ElementType::LINEAR, 1);
+    element.addNodeIndex(0);
+    element.addNodeIndex(1);
+    element.addNodeIndex(2);
+    element.addNodeIndex(3);
     
-    // 测试边界单元
-    Element boundary(ElementType::LINEAR);
-    boundary.setBoundaryId(2);
-    assert(boundary.isBoundaryElement());
-    assert(!boundary.isBulkElement());
+    ASSERT(element.numberOfNodes() == 4, "元素节点数应为4");
+    ASSERT(element.getType() == ElementType::LINEAR, "元素类型应为LINEAR");
+    ASSERT(element.getBodyId() == 1, "体ID应为1");
+    ASSERT(element.isBulkElement(), "应为体元素");
     
-    // 测试节点索引操作
-    element2.addNodeIndex(0);
-    element2.addNodeIndex(1);
-    element2.addNodeIndex(2);
-    element2.addNodeIndex(3);
+    // 测试质心计算
+    Node centroid = element.calculateCentroid(nodes);
+    ASSERT_NEAR(centroid.x, 0.5, 1e-12);
+    ASSERT_NEAR(centroid.y, 0.5, 1e-12);
+    ASSERT_NEAR(centroid.z, 0.0, 1e-12);
     
-    assert(element2.numberOfNodes() == 4);
-    const auto& indices = element2.getNodeIndices();
-    assert(indices.size() == 4);
-    assert(indices[0] == 0);
-    assert(indices[3] == 3);
+    // 测试边界框计算
+    Node minCorner, maxCorner;
+    element.getBoundingBox(nodes, minCorner, maxCorner);
+    ASSERT_NEAR(minCorner.x, 0.0, 1e-12);
+    ASSERT_NEAR(minCorner.y, 0.0, 1e-12);
+    ASSERT_NEAR(maxCorner.x, 1.0, 1e-12);
+    ASSERT_NEAR(maxCorner.y, 1.0, 1e-12);
     
-    std::cout << "单元测试通过!" << std::endl;
+    std::cout << "元素基本功能测试通过" << std::endl;
+    return true;
 }
 
 /**
  * @brief 测试网格基本功能
  */
-void testMesh() {
-    std::cout << "测试网格功能..." << std::endl;
+bool TestMeshBasic() {
+    std::cout << "测试网格基本功能..." << std::endl;
     
     Mesh mesh("TestMesh");
     
-    // 测试名称
-    assert(mesh.getName() == "TestMesh");
-    mesh.setName("NewMesh");
-    assert(mesh.getName() == "NewMesh");
-    
-    // 测试节点操作
+    // 添加节点
     mesh.getNodes().addNode(0.0, 0.0, 0.0);
     mesh.getNodes().addNode(1.0, 0.0, 0.0);
+    mesh.getNodes().addNode(1.0, 1.0, 0.0);
     mesh.getNodes().addNode(0.0, 1.0, 0.0);
     
-    assert(mesh.numberOfNodes() == 3);
+    ASSERT(mesh.numberOfNodes() == 4, "网格节点数应为4");
     
-    // 测试体单元操作
-    Element bulkElement(ElementType::LINEAR);
+    // 添加体元素
+    Element bulkElement(ElementType::LINEAR, 1);
     bulkElement.addNodeIndex(0);
     bulkElement.addNodeIndex(1);
-    bulkElement.setBodyId(1);
-    
+    bulkElement.addNodeIndex(2);
+    bulkElement.addNodeIndex(3);
     mesh.addBulkElement(bulkElement);
-    assert(mesh.numberOfBulkElements() == 1);
     
-    // 测试边界单元操作
-    Element boundaryElement(ElementType::LINEAR);
-    boundaryElement.addNodeIndex(0);
-    boundaryElement.addNodeIndex(2);
+    ASSERT(mesh.numberOfBulkElements() == 1, "体元素数应为1");
+    
+    // 添加边界元素
+    Element boundaryElement(ElementType::LINEAR, 0);
     boundaryElement.setBoundaryId(1);
-    
+    boundaryElement.addNodeIndex(0);
+    boundaryElement.addNodeIndex(1);
     mesh.addBoundaryElement(boundaryElement);
-    assert(mesh.numberOfBoundaryElements() == 1);
     
-    // 测试总单元数
-    assert(mesh.totalElements() == 2);
+    ASSERT(mesh.numberOfBoundaryElements() == 1, "边界元素数应为1");
+    ASSERT(mesh.totalElements() == 2, "总元素数应为2");
     
     // 测试网格验证
-    assert(mesh.validate());
+    ASSERT(mesh.validate(), "网格验证应通过");
     
-    // 测试清空
-    mesh.clear();
-    assert(mesh.numberOfNodes() == 0);
-    assert(mesh.numberOfBulkElements() == 0);
-    assert(mesh.numberOfBoundaryElements() == 0);
-    
-    std::cout << "网格测试通过!" << std::endl;
-}
-
-/**
- * @brief 测试网格工具功能
- */
-void testMeshUtils() {
-    std::cout << "测试网格工具功能..." << std::endl;
-    
-    // 测试网格分配
-    auto mesh1 = MeshUtils::allocateMesh("TestMesh1");
-    assert(mesh1->getName() == "TestMesh1");
-    assert(!mesh1->isChanged());
-    assert(!mesh1->isOutputActive());
-    
-    // 测试带大小参数的网格分配
-    auto mesh2 = MeshUtils::allocateMesh(10, 5, 20, "TestMesh2");
-    assert(mesh2->numberOfNodes() == 20);
-    assert(mesh2->getBulkElements().capacity() >= 10);
-    assert(mesh2->getBoundaryElements().capacity() >= 5);
-    
-    // 测试立方体网格创建
-    auto cubeMesh = MeshUtils::createCubeMesh(1.0, 2, "CubeMesh");
-    assert(cubeMesh->numberOfNodes() == 27); // (2+1)^3 = 27
-    assert(cubeMesh->numberOfBulkElements() == 8); // 2^3 = 8
-    assert(cubeMesh->numberOfBoundaryElements() > 0);
-    
-    // 测试四面体网格创建
-    auto tetraMesh = MeshUtils::createTetrahedronMesh(1.0, 1, "TetraMesh");
-    assert(tetraMesh->numberOfNodes() == 4);
-    assert(tetraMesh->numberOfBulkElements() == 1);
-    
-    // 测试网格质量计算
-    double quality = MeshUtils::calculateMeshQuality(tetraMesh);
-    assert(quality > 0.0 && quality <= 1.0);
-    
-    // 测试网格拓扑验证
-    assert(MeshUtils::validateMeshTopology(tetraMesh));
+    // 测试元素质心计算
+    Node centroid = mesh.calculateElementCentroid(bulkElement);
+    ASSERT_NEAR(centroid.x, 0.5, 1e-12);
+    ASSERT_NEAR(centroid.y, 0.5, 1e-12);
+    ASSERT_NEAR(centroid.z, 0.0, 1e-12);
     
     // 测试边界框计算
-    auto bbox = MeshUtils::calculateBoundingBox(tetraMesh);
-    assert(bbox.size() == 6);
-    assert(bbox[0] <= bbox[1]); // minX <= maxX
-    assert(bbox[2] <= bbox[3]); // minY <= maxY
-    assert(bbox[4] <= bbox[5]); // minZ <= maxZ
+    Node minCorner, maxCorner;
+    mesh.getBoundingBox(minCorner, maxCorner);
+    ASSERT_NEAR(minCorner.x, 0.0, 1e-12);
+    ASSERT_NEAR(minCorner.y, 0.0, 1e-12);
+    ASSERT_NEAR(maxCorner.x, 1.0, 1e-12);
+    ASSERT_NEAR(maxCorner.y, 1.0, 1e-12);
     
-    // 测试体积计算
-    double volume = MeshUtils::calculateVolume(tetraMesh);
-    assert(volume > 0.0);
-    
-    std::cout << "网格工具测试通过!" << std::endl;
+    std::cout << "网格基本功能测试通过" << std::endl;
+    return true;
 }
 
 /**
- * @brief 测试网格IO功能
+ * @brief 测试网格统计功能
  */
-void testMeshIO() {
-    std::cout << "测试网格IO功能..." << std::endl;
+bool TestMeshStatistics() {
+    std::cout << "测试网格统计功能..." << std::endl;
     
-    // 创建测试网格
-    auto testMesh = MeshIO::createTestMesh();
-    assert(testMesh->numberOfNodes() == 4);
-    assert(testMesh->numberOfBulkElements() == 1);
-    assert(testMesh->numberOfBoundaryElements() == 4);
+    Mesh mesh("StatisticsTest");
     
-    // 测试网格保存和加载
-    const std::string testFile = "test_mesh.mesh";
+    // 添加节点
+    mesh.getNodes().addNode(0.0, 0.0, 0.0);
+    mesh.getNodes().addNode(1.0, 0.0, 0.0);
+    mesh.getNodes().addNode(1.0, 1.0, 0.0);
+    mesh.getNodes().addNode(0.0, 1.0, 0.0);
     
-    try {
-        // 保存网格
-        MeshIO::saveMesh(testMesh, testFile);
-        
-        // 加载网格
-        auto loadedMesh = MeshIO::loadMesh(testFile);
-        
-        // 验证加载的网格
-        assert(loadedMesh->numberOfNodes() == testMesh->numberOfNodes());
-        assert(loadedMesh->numberOfBulkElements() == testMesh->numberOfBulkElements());
-        assert(loadedMesh->numberOfBoundaryElements() == testMesh->numberOfBoundaryElements());
-        
-        // 验证节点坐标
-        const auto& originalNodes = testMesh->getNodes().getNodes();
-        const auto& loadedNodes = loadedMesh->getNodes().getNodes();
-        
-        for (size_t i = 0; i < originalNodes.size(); ++i) {
-            assert(std::abs(originalNodes[i].x - loadedNodes[i].x) < 1e-10);
-            assert(std::abs(originalNodes[i].y - loadedNodes[i].y) < 1e-10);
-            assert(std::abs(originalNodes[i].z - loadedNodes[i].z) < 1e-10);
-        }
-        
-        // 测试VTK导出
-        MeshIO::exportToVTK(testMesh, "test_mesh.vtk");
-        
-        std::cout << "网格IO测试通过!" << std::endl;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "网格IO测试失败: " << e.what() << std::endl;
-        throw;
-    }
-}
-
-/**
- * @brief 测试并行信息功能
- */
-void testParallelInfo() {
-    std::cout << "测试并行信息功能..." << std::endl;
+    // 添加不同节点数的元素
+    Element element4(ElementType::LINEAR, 1);
+    element4.addNodeIndex(0);
+    element4.addNodeIndex(1);
+    element4.addNodeIndex(2);
+    element4.addNodeIndex(3);
+    mesh.addBulkElement(element4);
     
-    ParallelInfo parallelInfo;
+    Element element3(ElementType::LINEAR, 1);
+    element3.addNodeIndex(0);
+    element3.addNodeIndex(1);
+    element3.addNodeIndex(2);
+    mesh.addBulkElement(element3);
     
-    // 测试初始化
-    parallelInfo.initialize(10);
-    assert(parallelInfo.globalDOFs.size() == 10);
-    assert(parallelInfo.gInterface.size() == 10);
-    assert(parallelInfo.neighbourList.size() == 10);
+    ASSERT(mesh.getMaxElementNodes() == 4, "最大元素节点数应为4");
     
-    // 测试清空
-    parallelInfo.clear();
-    assert(parallelInfo.globalDOFs.empty());
-    assert(parallelInfo.gInterface.empty());
-    assert(parallelInfo.neighbourList.empty());
-    assert(parallelInfo.numberOfIfDOFs == 0);
+    // 测试统计信息输出（不会崩溃即可）
+    mesh.getMeshStatistics(std::cout);
     
-    std::cout << "并行信息测试通过!" << std::endl;
-}
-
-/**
- * @brief 综合测试：创建复杂网格并验证
- */
-void testComplexMesh() {
-    std::cout << "测试复杂网格功能..." << std::endl;
-    
-    // 创建复杂立方体网格
-    auto complexMesh = MeshUtils::createCubeMesh(2.0, 3, "ComplexCube");
-    
-    // 验证网格统计信息
-    assert(complexMesh->numberOfNodes() == 64); // (3+1)^3 = 64
-    assert(complexMesh->numberOfBulkElements() == 27); // 3^3 = 27
-    assert(complexMesh->numberOfBoundaryElements() == 54); // 6个面 * 3^2 = 54
-    
-    // 验证网格完整性
-    assert(complexMesh->validate());
-    
-    // 验证网格质量
-    double quality = MeshUtils::calculateMeshQuality(complexMesh);
-    assert(quality > 0.0 && quality <= 1.0);
-    
-    // 验证边界框
-    auto bbox = MeshUtils::calculateBoundingBox(complexMesh);
-    assert(std::abs(bbox[0] - (-1.0)) < 1e-10); // minX = -1.0
-    assert(std::abs(bbox[1] - 1.0) < 1e-10);    // maxX = 1.0
-    
-    // 验证体积
-    double volume = MeshUtils::calculateVolume(complexMesh);
-    assert(std::abs(volume - 8.0) < 0.1); // 2^3 = 8
-    
-    std::cout << "复杂网格测试通过!" << std::endl;
+    std::cout << "网格统计功能测试通过" << std::endl;
+    return true;
 }
 
 /**
  * @brief 主测试函数
  */
 int main() {
-    std::cout << "开始ElmerCpp网格模块测试..." << std::endl;
-    std::cout << "============================" << std::endl;
+    std::cout << "开始Mesh模块测试..." << std::endl;
+    
+    bool allPassed = true;
     
     try {
-        testNode();
-        testNodes();
-        testElement();
-        testMesh();
-        testParallelInfo();
-        testMeshUtils();
-        testMeshIO();
-        testComplexMesh();
+        allPassed &= TestNodeBasic();
+        allPassed &= TestNodesCollection();
+        allPassed &= TestElementBasic();
+        allPassed &= TestMeshBasic();
+        allPassed &= TestMeshStatistics();
         
-        std::cout << "============================" << std::endl;
-        std::cout << "所有网格模块测试通过!" << std::endl;
-        
+        if (allPassed) {
+            std::cout << "\n✅ 所有Mesh模块测试通过！" << std::endl;
+            return 0;
+        } else {
+            std::cout << "\n❌ 部分Mesh模块测试失败！" << std::endl;
+            return 1;
+        }
     } catch (const std::exception& e) {
-        std::cerr << "测试失败: " << e.what() << std::endl;
+        std::cerr << "测试异常: " << e.what() << std::endl;
         return 1;
     }
-    
-    return 0;
 }

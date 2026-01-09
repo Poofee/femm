@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 编译器选项
 if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /utf-8")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi")
 else()
@@ -46,7 +46,11 @@ endif()
 # 定义目标
 add_library(ElmerCppCore
     src/Matrix.cpp
+    src/IterativeSolver.cpp
     src/LinearAlgebra.cpp
+    src/Mesh.cpp
+    src/MeshIO.cpp
+    src/MeshUtils.cpp
 )
 
 # 链接库
@@ -71,15 +75,32 @@ endif()
 
 # 主可执行文件
 add_executable(elmer_cpp
-    src/Matrix.cpp
-    src/IterativeSolver.cpp
-    src/LinearAlgebra.cpp
+    main.cpp
 )
 
 # 测试可执行文件
 add_executable(test_linear_algebra
     test/test_linear_algebra.cpp
-    src/LinearAlgebra.cpp
+)
+
+# 原型测试程序
+add_executable(test_prototype
+    main.cpp
+)
+
+# 集成测试程序
+add_executable(test_integrated
+    main_integrated.cpp
+)
+
+# 简单测试程序
+add_executable(simple_test
+    simple_test.cpp
+)
+
+# 网格测试程序
+add_executable(mesh_test
+    mesh_test.cpp
 )
 
 target_link_libraries(elmer_cpp
@@ -87,6 +108,22 @@ target_link_libraries(elmer_cpp
 )
 
 target_link_libraries(test_linear_algebra
+    ElmerCppCore
+)
+
+target_link_libraries(test_prototype
+    ElmerCppCore
+)
+
+target_link_libraries(test_integrated
+    ElmerCppCore
+)
+
+target_link_libraries(simple_test
+    ElmerCppCore
+)
+
+target_link_libraries(mesh_test
     ElmerCppCore
 )
 

@@ -104,4 +104,42 @@ enum class ElementType {
     QUADRILATERAL = 5
 };
 
+// Type aliases for numerical types
+using Integer = int;
+using Real = double;
+
+/**
+ * @brief Vector interface for linear algebra operations
+ */
+class Vector {
+public:
+    virtual ~Vector() = default;
+    
+    virtual Integer Size() const = 0;
+    virtual Real& operator[](Integer i) = 0;
+    virtual const Real& operator[](Integer i) const = 0;
+    virtual void Zero() = 0;
+    
+    // Factory method for creating vectors
+    static std::unique_ptr<Vector> Create(Integer size);
+};
+
+/**
+ * @brief Matrix interface for linear algebra operations
+ */
+class Matrix {
+public:
+    virtual ~Matrix() = default;
+    
+    virtual void Zero() = 0;
+    virtual void SetElement(Integer i, Integer j, Real value) = 0;
+    virtual Real GetElement(Integer i, Integer j) const = 0;
+    virtual void AddToElement(Integer i, Integer j, Real value) = 0;
+    
+    // Factory methods for creating different matrix types
+    static std::unique_ptr<Matrix> CreateCRS(Integer nrows, Integer ncols);
+    static std::unique_ptr<Matrix> CreateBand(Integer nrows, Integer bandwidth);
+    static std::unique_ptr<Matrix> CreateDense(Integer nrows, Integer ncols);
+};
+
 } // namespace elmer

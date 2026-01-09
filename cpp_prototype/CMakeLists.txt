@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ElmerCppShapeFunctions)
+project(ElmerCppMatrixAssembly)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -16,19 +16,27 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
 # Create library
-add_library(ElmerCppShapeFunctions
+add_library(ElmerCppMatrixAssembly
     src/ElmerCpp.h
     src/ShapeFunctions.h
     src/ShapeFunctions.cpp
+    src/MatrixAssembly.h
+    src/MatrixAssembly.cpp
+    src/Matrix.cpp
 )
 
-# Create test executable
+# Create test executables
 add_executable(test_shape_functions
     test/test_shape_functions.cpp
 )
 
-# Link test executable with library
-target_link_libraries(test_shape_functions ElmerCppShapeFunctions)
+add_executable(test_matrix_assembly
+    test/test_matrix_assembly.cpp
+)
+
+# Link test executables with library
+target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
+target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)
@@ -37,12 +45,12 @@ if(BUILD_TESTING)
 endif()
 
 # Installation (optional)
-install(TARGETS ElmerCppShapeFunctions
+install(TARGETS ElmerCppMatrixAssembly
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
 )
 
-install(FILES src/ElmerCpp.h src/ShapeFunctions.h
+install(FILES src/ElmerCpp.h src/ShapeFunctions.h src/MatrixAssembly.h
     DESTINATION include/elmer
 )

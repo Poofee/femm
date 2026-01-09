@@ -81,6 +81,13 @@ public:
         }
     }
     
+    // Accessors for CRS data (needed for Eigen conversion)
+    Integer GetNumRows() const { return nrows_; }
+    Integer GetNumCols() const { return ncols_; }
+    const std::vector<Integer>& GetRowPointers() const { return rows_; }
+    const std::vector<Integer>& GetColumnIndices() const { return cols_; }
+    const std::vector<Real>& GetValues() const { return values_; }
+    
     // Sort matrix (corresponds to CRS_SortMatrix)
     void SortRows() {
         for (Integer i = 0; i < nrows_; ++i) {
@@ -215,6 +222,42 @@ std::unique_ptr<Matrix> Matrix::CreateBand(Integer nrows, Integer bandwidth) {
     return std::make_unique<BandMatrix>(nrows, bandwidth);
 }
 
+// Simple dense matrix implementation (for testing and small problems)
+class DenseMatrix : public Matrix {
+public:
+    DenseMatrix(Integer nrows, Integer ncols) 
+        : nrows_(nrows), ncols_(ncols) {
+        data_.resize(nrows * ncols, 0.0);
+    }
+    
+    void Zero() override {
+        std::fill(data_.begin(), data_.end(), 0.0);
+    }
+    
+    void SetElement(Integer i, Integer j, Real value) override {
+        data_[i * ncols_ + j] = value;
+    }
+    
+    Real GetElement(Integer i, Integer j) const override {
+        return data_[i * ncols_ + j];
+    }
+    
+    void AddToElement(Integer i, Integer j, Real value) override {
+        data_[i * ncols_ + j] += value;
+    }
+    
+    Integer GetNumRows() const { return nrows_; }
+    Integer GetNumCols() const { return ncols_; }
+    
+private:
+    Integer nrows_, ncols_;
+    std::vector<Real> data_;
+};
+
+std::unique_ptr<Matrix> Matrix::CreateDense(Integer nrows, Integer ncols) {
+    return std::make_unique<DenseMatrix>(nrows, ncols);
+}
+
 // Utility function to convert to Eigen sparse matrix
 Eigen::SparseMatrix<Real> ConvertToEigen(const Matrix& matrix) {
     // For simplicity, assume it's a CRSMatrix
@@ -223,9 +266,37 @@ Eigen::SparseMatrix<Real> ConvertToEigen(const Matrix& matrix) {
         throw std::runtime_error("Only CRSMatrix can be converted to Eigen");
     }
     
-    // Implementation would extract CRS data and build Eigen sparse matrix
-    // This is a placeholder for actual implementation
-    Eigen::SparseMatrix<Real> eigen_matrix(1, 1);
+    // Extract CRS data and build Eigen sparse matrix
+    // Get the internal data from CRSMatrix using public accessors
+    const std::vector<Integer>& rows = crs_matrix->GetRowPointers();
+    const std::vector<Integer>& cols = crs_matrix->GetColumnIndices();
+    const std::vector<Real>& values = crs_matrix->GetValues();
+    
+    Integer nrows = crs_matrix->GetNumRows();
+    Integer ncols = crs_matrix->GetNumCols();
+    
+    // Count total non-zero elements
+    Integer nnz = values.size();
+    
+    // Create Eigen sparse matrix
+    Eigen::SparseMatrix<Real> eigen_matrix(nrows, ncols);
+    eigen_matrix.reserve(nnz);
+    
+    // Fill the Eigen sparse matrix using triplets
+    std::vector<Eigen::Triplet<Real>> triplets;
+    triplets.reserve(nnz);
+    
+    for (Integer i = 0; i < nrows; ++i) {
+        Integer start = rows[i];
+        Integer end = rows[i + 1];
+        
+        for (Integer k = start; k < end; ++k) {
+            triplets.emplace_back(i, cols[k], values[k]);
+        }
+    }
+    
+    eigen_matrix.setFromTriplets(triplets.begin(), triplets.end());
+    
     return eigen_matrix;
 }
 

@@ -344,16 +344,25 @@ ShapeFunctions::ShapeResult ShapeFunctions::computeShapeFunctions(ElementType el
     // Compute natural derivatives based on element type
     switch (elementType) {
         case ElementType::LINEAR:
-            result = compute1DShapeFunctions(nodes, xi);
-            break;
-        case ElementType::QUADRILATERAL:
-            result = compute2DQuadrilateralShapeFunctions(nodes, xi, eta);
+            // For LINEAR type, determine dimensionality based on node count
+            if (nNodes == 2) {
+                // 1D linear element
+                result = compute1DShapeFunctions(nodes, xi);
+            } else if (nNodes == 3) {
+                // Triangle element
+                result = computeTriangleShapeFunctions(nodes, xi, eta);
+            } else if (nNodes == 4) {
+                // Quadrilateral element
+                result = compute2DQuadrilateralShapeFunctions(nodes, xi, eta);
+            } else if (nNodes == 8) {
+                // Hexahedron element
+                result = compute3DHexahedronShapeFunctions(nodes, xi, eta, zeta);
+            } else {
+                throw std::invalid_argument("Unsupported number of nodes for LINEAR element type");
+            }
             break;
         case ElementType::HEXAHEDRON:
             result = compute3DHexahedronShapeFunctions(nodes, xi, eta, zeta);
-            break;
-        case ElementType::TRIANGLE:
-            result = computeTriangleShapeFunctions(nodes, xi, eta);
             break;
         case ElementType::TETRAHEDRON:
             result = computeTetrahedronShapeFunctions(nodes, xi, eta, zeta);
@@ -445,12 +454,8 @@ int ShapeFunctions::getNumberOfNodes(ElementType elementType, int order) {
     switch (elementType) {
         case ElementType::LINEAR:
             return order + 1;  // 2 for linear, 3 for quadratic
-        case ElementType::QUADRILATERAL:
-            return (order == 1) ? 4 : 8;  // 4 for linear, 8 for quadratic
         case ElementType::HEXAHEDRON:
             return (order == 1) ? 8 : 20; // 8 for linear, 20 for quadratic
-        case ElementType::TRIANGLE:
-            return (order == 1) ? 3 : 6;  // 3 for linear, 6 for quadratic
         case ElementType::TETRAHEDRON:
             return (order == 1) ? 4 : 10; // 4 for linear, 10 for quadratic
         default:
@@ -460,9 +465,7 @@ int ShapeFunctions::getNumberOfNodes(ElementType elementType, int order) {
 
 bool ShapeFunctions::isSupported(ElementType elementType) {
     return (elementType == ElementType::LINEAR ||
-            elementType == ElementType::QUADRILATERAL ||
             elementType == ElementType::HEXAHEDRON ||
-            elementType == ElementType::TRIANGLE ||
             elementType == ElementType::TETRAHEDRON);
 }
 
@@ -470,9 +473,6 @@ int ShapeFunctions::getDimension(ElementType elementType) {
     switch (elementType) {
         case ElementType::LINEAR:
             return 1;
-        case ElementType::QUADRILATERAL:
-        case ElementType::TRIANGLE:
-            return 2;
         case ElementType::HEXAHEDRON:
         case ElementType::TETRAHEDRON:
             return 3;

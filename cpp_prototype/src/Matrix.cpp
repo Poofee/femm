@@ -42,6 +42,9 @@ public:
     
     ~CRSMatrix() override = default;
     
+    Integer GetNumRows() const override { return nrows_; }
+    Integer GetNumCols() const override { return ncols_; }
+    
     void Zero() override {
         std::fill(values_.begin(), values_.end(), 0.0);
     }
@@ -71,7 +74,7 @@ public:
     }
     
     // Get matrix-vector product (corresponds to Fortran matrix-vector operations)
-    void Multiply(const Vector& x, Vector& y) const {
+    void Multiply(const Vector& x, Vector& y) const override {
         for (Integer i = 0; i < nrows_; ++i) {
             Real sum = 0.0;
             for (Integer k = rows_[i]; k < rows_[i + 1]; ++k) {
@@ -81,9 +84,18 @@ public:
         }
     }
     
+    // Matrix-vector multiplication with scaling: y = alpha * A * x + beta * y
+    void Multiply(Real alpha, const Vector& x, Real beta, Vector& y) const override {
+        for (Integer i = 0; i < nrows_; ++i) {
+            Real sum = 0.0;
+            for (Integer k = rows_[i]; k < rows_[i + 1]; ++k) {
+                sum += values_[k] * x[cols_[k]];
+            }
+            y[i] = alpha * sum + beta * y[i];
+        }
+    }
+    
     // Accessors for CRS data (needed for Eigen conversion)
-    Integer GetNumRows() const { return nrows_; }
-    Integer GetNumCols() const { return ncols_; }
     const std::vector<Integer>& GetRowPointers() const { return rows_; }
     const std::vector<Integer>& GetColumnIndices() const { return cols_; }
     const std::vector<Real>& GetValues() const { return values_; }
@@ -128,8 +140,18 @@ private:
     
     // Find element position
     std::vector<Real>::iterator FindElementPosition(Integer i, Integer j) {
+        // Check bounds
+        if (i < 0 || i >= nrows_ || j < 0 || j >= ncols_) {
+            return values_.end();
+        }
+        
         Integer start = rows_[i];
         Integer end = rows_[i + 1];
+        
+        // Check if start and end are valid
+        if (start < 0 || end > cols_.size() || start > end) {
+            return values_.end();
+        }
         
         for (Integer k = start; k < end; ++k) {
             if (cols_[k] == j) {
@@ -140,8 +162,18 @@ private:
     }
     
     std::vector<Real>::const_iterator FindElementPosition(Integer i, Integer j) const {
+        // Check bounds
+        if (i < 0 || i >= nrows_ || j < 0 || j >= ncols_) {
+            return values_.end();
+        }
+        
         Integer start = rows_[i];
         Integer end = rows_[i + 1];
+        
+        // Check if start and end are valid
+        if (start < 0 || end > cols_.size() || start > end) {
+            return values_.end();
+        }
         
         for (Integer k = start; k < end; ++k) {
             if (cols_[k] == j) {
@@ -153,6 +185,11 @@ private:
     
     // Insert new element
     void InsertElement(Integer i, Integer j, Real value) {
+        // Check bounds
+        if (i < 0 || i >= nrows_ || j < 0 || j >= ncols_) {
+            return;
+        }
+        
         Integer start = rows_[i];
         Integer end = rows_[i + 1];
         
@@ -168,7 +205,9 @@ private:
         
         // Update row pointers
         for (Integer k = i + 1; k <= nrows_; ++k) {
-            rows_[k]++;
+            if (k < rows_.size()) {
+                rows_[k]++;
+            }
         }
     }
 };
@@ -180,6 +219,11 @@ public:
         : nrows_(nrows), bandwidth_(bandwidth) {
         data_.resize(nrows * (2 * bandwidth + 1), 0.0);
     }
+    
+    ~BandMatrix() override = default;
+    
+    Integer GetNumRows() const override { return nrows_; }
+    Integer GetNumCols() const override { return nrows_; } // Band matrix is square
     
     void Zero() override {
         std::fill(data_.begin(), data_.end(), 0.0);
@@ -201,6 +245,40 @@ public:
     void AddToElement(Integer i, Integer j, Real value) override {
         if (std::abs(i - j) <= bandwidth_) {
             data_[GetIndex(i, j)] += value;
+        }
+    }
+    
+    // Matrix-vector multiplication: y = A * x
+    void Multiply(const Vector& x, Vector& y) const override {
+        if (x.Size() != nrows_ || y.Size() != nrows_) {
+            throw std::runtime_error("Matrix-vector multiplication dimension mismatch");
+        }
+        
+        for (Integer i = 0; i < nrows_; ++i) {
+            Real sum = 0.0;
+            for (Integer j = std::max(0, i - bandwidth_); j <= std::min(nrows_ - 1, i + bandwidth_); ++j) {
+                if (std::abs(i - j) <= bandwidth_) {
+                    sum += data_[GetIndex(i, j)] * x[j];
+                }
+            }
+            y[i] = sum;
+        }
+    }
+    
+    // Matrix-vector multiplication with scaling: y = alpha * A * x + beta * y
+    void Multiply(Real alpha, const Vector& x, Real beta, Vector& y) const override {
+        if (x.Size() != nrows_ || y.Size() != nrows_) {
+            throw std::runtime_error("Matrix-vector multiplication dimension mismatch");
+        }
+        
+        for (Integer i = 0; i < nrows_; ++i) {
+            Real sum = 0.0;
+            for (Integer j = std::max(0, i - bandwidth_); j <= std::min(nrows_ - 1, i + bandwidth_); ++j) {
+                if (std::abs(i - j) <= bandwidth_) {
+                    sum += data_[GetIndex(i, j)] * x[j];
+                }
+            }
+            y[i] = alpha * sum + beta * y[i];
         }
     }
     
@@ -230,6 +308,11 @@ public:
         data_.resize(nrows * ncols, 0.0);
     }
     
+    ~DenseMatrix() override = default;
+    
+    Integer GetNumRows() const override { return nrows_; }
+    Integer GetNumCols() const override { return ncols_; }
+    
     void Zero() override {
         std::fill(data_.begin(), data_.end(), 0.0);
     }
@@ -246,8 +329,35 @@ public:
         data_[i * ncols_ + j] += value;
     }
     
-    Integer GetNumRows() const { return nrows_; }
-    Integer GetNumCols() const { return ncols_; }
+    // Matrix-vector multiplication: y = A * x
+    void Multiply(const Vector& x, Vector& y) const override {
+        if (x.Size() != ncols_ || y.Size() != nrows_) {
+            throw std::runtime_error("Matrix-vector multiplication dimension mismatch");
+        }
+        
+        for (Integer i = 0; i < nrows_; ++i) {
+            Real sum = 0.0;
+            for (Integer j = 0; j < ncols_; ++j) {
+                sum += data_[i * ncols_ + j] * x[j];
+            }
+            y[i] = sum;
+        }
+    }
+    
+    // Matrix-vector multiplication with scaling: y = alpha * A * x + beta * y
+    void Multiply(Real alpha, const Vector& x, Real beta, Vector& y) const override {
+        if (x.Size() != ncols_ || y.Size() != nrows_) {
+            throw std::runtime_error("Matrix-vector multiplication dimension mismatch");
+        }
+        
+        for (Integer i = 0; i < nrows_; ++i) {
+            Real sum = 0.0;
+            for (Integer j = 0; j < ncols_; ++j) {
+                sum += data_[i * ncols_ + j] * x[j];
+            }
+            y[i] = alpha * sum + beta * y[i];
+        }
+    }
     
 private:
     Integer nrows_, ncols_;

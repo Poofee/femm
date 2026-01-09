@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ElmerCpp.h"
+#include "Mesh.h"
 #include <vector>
 #include <array>
 #include <functional>

@@ -54,6 +54,10 @@ public:
         }
     }
     
+    void set(int i, int j, double value) override {
+        setElement(i, j, value);
+    }
+    
     double getElement(int i, int j) const override {
         if (i < 0 || i >= rows || j < 0 || j >= cols) {
             return 0.0;
@@ -74,10 +78,28 @@ public:
         return 0.0;
     }
     
+    double get(int i, int j) const override {
+        return getElement(i, j);
+    }
+    
     void zero() override {
         values.clear();
         col_indices.clear();
         row_pointers.assign(rows + 1, 0);
+    }
+    
+    void zeroRow(int row) override {
+        if (row < 0 || row >= rows) {
+            throw std::out_of_range("Row index out of range");
+        }
+        
+        int start = row_pointers[row];
+        int end = row_pointers[row + 1];
+        
+        // 清零该行的所有元素
+        for (int i = start; i < end; ++i) {
+            values[i] = 0.0;
+        }
     }
     
     int getRows() const override { return rows; }

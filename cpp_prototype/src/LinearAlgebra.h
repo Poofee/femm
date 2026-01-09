@@ -42,11 +42,20 @@ public:
     // 设置矩阵元素
     virtual void setElement(int i, int j, double value) = 0;
     
+    // 设置矩阵元素（别名，用于边界条件）
+    virtual void set(int i, int j, double value) = 0;
+    
     // 获取矩阵元素
     virtual double getElement(int i, int j) const = 0;
     
+    // 获取矩阵元素（别名，用于边界条件）
+    virtual double get(int i, int j) const = 0;
+    
     // 矩阵清零
     virtual void zero() = 0;
+    
+    // 清零矩阵行（用于边界条件）
+    virtual void zeroRow(int row) = 0;
     
     // 获取矩阵维度
     virtual int getRows() const = 0;

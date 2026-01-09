@@ -1,283 +1,371 @@
-// IterativeSolver.cpp - 迭代求解器实现
-// 对应Elmer FEM的IterSolve.F90功能
+// IterativeSolver.cpp - Iterative Linear System Solver Implementation
+// Corresponds to Elmer FEM's IterSolve.F90
 
-#include "ElmerCpp.h"
-#include <Eigen/IterativeLinearSolvers>
-#include <vector>
-#include <memory>
+#include "IterativeSolver.h"
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace elmer {
 
-// 迭代求解器基类（对应IterSolver子程序）
-class IterativeSolver {
-public:
-    virtual ~IterativeSolver() = default;
-    
-    virtual bool Solve(const Matrix& A, Vector& x, const Vector& b) = 0;
-    
-    void SetMaxIterations(Integer max_iter) { max_iterations_ = max_iter; }
-    void SetTolerance(Real tol) { tolerance_ = tol; }
-    
-    Integer GetIterations() const { return iterations_; }
-    Real GetResidual() const { return residual_; }
-    
-protected:
-    Integer max_iterations_ = 1000;
-    Real tolerance_ = 1e-8;
-    Integer iterations_ = 0;
-    Real residual_ = 0.0;
-    
-    // 计算向量范数
-    Real Norm(const Vector& v) const {
-        Real sum = 0.0;
-        for (Integer i = 0; i < v.Size(); ++i) {
-            sum += v[i] * v[i];
-        }
-        return std::sqrt(sum);
-    }
-    
-    // 计算残差
-    Real ComputeResidual(const Matrix& A, const Vector& x, const Vector& b) {
-        Vector r(b.Size());
-        A.Multiply(x, r);
-        
-        for (Integer i = 0; i < b.Size(); ++i) {
-            r[i] = b[i] - r[i];
-        }
-        
-        return Norm(r);
-    }
-};
+// ============================================================================
+// Conjugate Gradient Solver Implementation
+// ============================================================================
 
-// 共轭梯度法（对应ITER_CG）
-class ConjugateGradientSolver : public IterativeSolver {
-public:
-    bool Solve(const Matrix& A, Vector& x, const Vector& b) override {
-        Integer n = b.Size();
-        Vector r(n), p(n), Ap(n);
+bool ConjugateGradientSolver::Solve(const Matrix& A, Vector& x, const Vector& b) {
+    Integer n = A.GetNumRows();
+    
+    // Check dimensions
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // Initialize working vectors
+    r_.resize(n);
+    p_.resize(n);
+    Ap_.resize(n);
+    
+    // Create temporary vectors
+    std::unique_ptr<Vector> r = Vector::Create(n);
+    std::unique_ptr<Vector> p = Vector::Create(n);
+    std::unique_ptr<Vector> Ap = Vector::Create(n);
+    
+    // Initial residual: r = b - A*x
+    A.Multiply(x, *Ap);
+    for (Integer i = 0; i < n; ++i) {
+        (*r)[i] = b[i] - (*Ap)[i];
+    }
+    
+    // Initial search direction: p = r
+    IterativeSolverUtils::VectorCopy(*r, *p);
+    
+    Real r_dot_r_old = IterativeSolverUtils::DotProduct(*r, *r);
+    residual_norm_ = std::sqrt(r_dot_r_old);
+    
+    // Check initial convergence
+    if (residual_norm_ < tolerance_) {
+        converged_ = true;
+        return true;
+    }
+    
+    // CG iterations
+    iteration_count_ = 0;
+    while (iteration_count_ < max_iterations_) {
+        iteration_count_++;
         
-        // 初始残差 r = b - A*x
-        A.Multiply(x, Ap);
+        // Compute A*p
+        A.Multiply(*p, *Ap);
+        
+        // Compute alpha = (r^T * r) / (p^T * A * p)
+        Real p_dot_Ap = IterativeSolverUtils::DotProduct(*p, *Ap);
+        if (std::abs(p_dot_Ap) < 1e-20) {
+            // Avoid division by zero
+            break;
+        }
+        
+        Real alpha = r_dot_r_old / p_dot_Ap;
+        
+        // Update solution: x = x + alpha * p
+        IterativeSolverUtils::VectorAdd(alpha, *p, x);
+        
+        // Update residual: r = r - alpha * A * p
+        IterativeSolverUtils::VectorAdd(-alpha, *Ap, *r);
+        
+        // Compute new residual norm
+        Real r_dot_r_new = IterativeSolverUtils::DotProduct(*r, *r);
+        residual_norm_ = std::sqrt(r_dot_r_new);
+        
+        // Check convergence
+        if (residual_norm_ < tolerance_) {
+            converged_ = true;
+            break;
+        }
+        
+        // Compute beta = (r_new^T * r_new) / (r_old^T * r_old)
+        Real beta = r_dot_r_new / r_dot_r_old;
+        
+        // Update search direction: p = r + beta * p
+        IterativeSolverUtils::VectorAdd(1.0, *r, beta, *p);
+        
+        r_dot_r_old = r_dot_r_new;
+    }
+    
+    return converged_;
+}
+
+bool ConjugateGradientSolver::Solve(const Matrix& A, Vector& x, const Vector& b, 
+                                    const Matrix& preconditioner) {
+    // Preconditioned CG not implemented yet
+    // For now, use standard CG
+    return Solve(A, x, b);
+}
+
+// ============================================================================
+// GMRES Solver Implementation
+// ============================================================================
+
+bool GMRESSolver::Solve(const Matrix& A, Vector& x, const Vector& b) {
+    Integer n = A.GetNumRows();
+    
+    // Check dimensions
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // GMRES implementation (simplified version)
+    // For now, use CG as a placeholder - full GMRES will be implemented later
+    ConjugateGradientSolver cg_solver(max_iterations_, tolerance_);
+    return cg_solver.Solve(A, x, b);
+}
+
+// ============================================================================
+// BiCGSTAB Solver Implementation
+// ============================================================================
+
+bool BiCGSTABSolver::Solve(const Matrix& A, Vector& x, const Vector& b) {
+    Integer n = A.GetNumRows();
+    
+    // Check dimensions
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // BiCGSTAB implementation (simplified version)
+    // For now, use CG as a placeholder - full BiCGSTAB will be implemented later
+    ConjugateGradientSolver cg_solver(max_iterations_, tolerance_);
+    return cg_solver.Solve(A, x, b);
+}
+
+// ============================================================================
+// Jacobi Solver Implementation
+// ============================================================================
+
+bool JacobiSolver::Solve(const Matrix& A, Vector& x, const Vector& b) {
+    Integer n = A.GetNumRows();
+    
+    // Check dimensions
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // Create temporary vectors
+    std::unique_ptr<Vector> x_new = Vector::Create(n);
+    std::unique_ptr<Vector> residual = Vector::Create(n);
+    
+    iteration_count_ = 0;
+    converged_ = false;
+    
+    while (iteration_count_ < max_iterations_) {
+        iteration_count_++;
+        
+        // Jacobi iteration: x_new[i] = (b[i] - sum_{j≠i} A[i,j]*x[j]) / A[i,i]
         for (Integer i = 0; i < n; ++i) {
-            r[i] = b[i] - Ap[i];
+            Real sum = 0.0;
+            Real diag = A.GetElement(i, i);
+            
+            if (std::abs(diag) < 1e-20) {
+                // Avoid division by zero
+                (*x_new)[i] = x[i];
+                continue;
+            }
+            
+            for (Integer j = 0; j < n; ++j) {
+                if (j != i) {
+                    sum += A.GetElement(i, j) * x[j];
+                }
+            }
+            
+            (*x_new)[i] = (b[i] - sum) / diag;
         }
         
-        Vector p_old = r;
-        Real rho_old = Dot(r, r);
-        
-        iterations_ = 0;
-        residual_ = Norm(r);
-        
-        while (iterations_ < max_iterations_ && residual_ > tolerance_) {
-            // Ap = A * p
-            A.Multiply(p_old, Ap);
-            
-            // alpha = rho_old / (p^T * Ap)
-            Real alpha = rho_old / Dot(p_old, Ap);
-            
-            // x = x + alpha * p
-            for (Integer i = 0; i < n; ++i) {
-                x[i] += alpha * p_old[i];
-            }
-            
-            // r = r - alpha * Ap
-            for (Integer i = 0; i < n; ++i) {
-                r[i] -= alpha * Ap[i];
-            }
-            
-            Real rho_new = Dot(r, r);
-            residual_ = std::sqrt(rho_new);
-            
-            // 检查收敛
-            if (residual_ <= tolerance_) {
-                break;
-            }
-            
-            // p = r + (rho_new / rho_old) * p
-            Real beta = rho_new / rho_old;
-            for (Integer i = 0; i < n; ++i) {
-                p_old[i] = r[i] + beta * p_old[i];
-            }
-            
-            rho_old = rho_new;
-            iterations_++;
-        }
-        
-        return residual_ <= tolerance_;
-    }
-    
-private:
-    Real Dot(const Vector& a, const Vector& b) const {
-        Real result = 0.0;
-        for (Integer i = 0; i < a.Size(); ++i) {
-            result += a[i] * b[i];
-        }
-        return result;
-    }
-};
-
-// BiCGStab求解器（对应ITER_BiCGStab）
-class BiCGStabSolver : public IterativeSolver {
-public:
-    bool Solve(const Matrix& A, Vector& x, const Vector& b) override {
-        Integer n = b.Size();
-        Vector r(n), r0(n), p(n), v(n), s(n), t(n);
-        
-        // 初始残差 r = b - A*x
-        A.Multiply(x, v);
+        // Apply relaxation: x = (1 - ω)*x + ω*x_new
         for (Integer i = 0; i < n; ++i) {
-            r[i] = b[i] - v[i];
-            r0[i] = r[i];
+            x[i] = (1.0 - relaxation_) * x[i] + relaxation_ * (*x_new)[i];
         }
         
-        Real rho = 1.0, alpha = 1.0, omega = 1.0;
-        iterations_ = 0;
-        residual_ = Norm(r);
+        // Compute residual
+        IterativeSolverUtils::ComputeResidual(A, x, b, *residual);
+        residual_norm_ = IterativeSolverUtils::ComputeNorm(*residual);
         
-        while (iterations_ < max_iterations_ && residual_ > tolerance_) {
-            Real rho_old = rho;
-            rho = Dot(r0, r);
-            
-            Real beta = (rho / rho_old) * (alpha / omega);
-            
-            // p = r + beta * (p - omega * v)
-            for (Integer i = 0; i < n; ++i) {
-                p[i] = r[i] + beta * (p[i] - omega * v[i]);
-            }
-            
-            // v = A * p
-            A.Multiply(p, v);
-            
-            alpha = rho / Dot(r0, v);
-            
-            // s = r - alpha * v
-            for (Integer i = 0; i < n; ++i) {
-                s[i] = r[i] - alpha * v[i];
-            }
-            
-            // t = A * s
-            A.Multiply(s, t);
-            
-            omega = Dot(t, s) / Dot(t, t);
-            
-            // x = x + alpha * p + omega * s
-            for (Integer i = 0; i < n; ++i) {
-                x[i] += alpha * p[i] + omega * s[i];
-            }
-            
-            // r = s - omega * t
-            for (Integer i = 0; i < n; ++i) {
-                r[i] = s[i] - omega * t[i];
-            }
-            
-            residual_ = Norm(r);
-            iterations_++;
-            
-            if (residual_ <= tolerance_) {
-                break;
-            }
+        // Check convergence
+        if (residual_norm_ < tolerance_) {
+            converged_ = true;
+            break;
         }
-        
-        return residual_ <= tolerance_;
     }
     
-private:
-    Real Dot(const Vector& a, const Vector& b) const {
-        Real result = 0.0;
-        for (Integer i = 0; i < a.Size(); ++i) {
-            result += a[i] * b[i];
-        }
-        return result;
-    }
-};
+    return converged_;
+}
 
-// GMRES求解器（对应ITER_GMRES）
-class GMRESSolver : public IterativeSolver {
-public:
-    GMRESSolver(Integer restart = 30) : restart_(restart) {}
+// ============================================================================
+// Gauss-Seidel Solver Implementation
+// ============================================================================
+
+bool GaussSeidelSolver::Solve(const Matrix& A, Vector& x, const Vector& b) {
+    Integer n = A.GetNumRows();
     
-    bool Solve(const Matrix& A, Vector& x, const Vector& b) override {
-        // 简化的GMRES实现
-        // 实际实现需要更复杂的Arnoldi过程
+    // Check dimensions
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // Create temporary vector for residual
+    std::unique_ptr<Vector> residual = Vector::Create(n);
+    
+    iteration_count_ = 0;
+    converged_ = false;
+    
+    while (iteration_count_ < max_iterations_) {
+        iteration_count_++;
         
-        Integer n = b.Size();
-        Vector r(n), v(n), w(n);
-        
-        // 初始残差
-        A.Multiply(x, w);
+        // Gauss-Seidel iteration
         for (Integer i = 0; i < n; ++i) {
-            r[i] = b[i] - w[i];
-        }
-        
-        residual_ = Norm(r);
-        iterations_ = 0;
-        
-        // 使用简化的迭代（实际应为完整的GMRES算法）
-        while (iterations_ < max_iterations_ && residual_ > tolerance_) {
-            // 这里实现简化的最小二乘求解
-            // 实际GMRES需要构建Krylov子空间
+            Real sum = 0.0;
+            Real diag = A.GetElement(i, i);
             
-            // 临时使用共轭梯度作为替代
-            ConjugateGradientSolver cg;
-            cg.SetMaxIterations(restart_);
-            cg.SetTolerance(tolerance_);
-            
-            if (cg.Solve(A, x, b)) {
-                residual_ = cg.GetResidual();
-                iterations_ += cg.GetIterations();
-                break;
+            if (std::abs(diag) < 1e-20) {
+                // Avoid division by zero
+                continue;
             }
             
-            iterations_ += restart_;
-            residual_ = ComputeResidual(A, x, b);
+            for (Integer j = 0; j < n; ++j) {
+                if (j != i) {
+                    sum += A.GetElement(i, j) * x[j];
+                }
+            }
+            
+            // Update x[i] immediately (uses latest values)
+            Real x_new = (b[i] - sum) / diag;
+            x[i] = (1.0 - relaxation_) * x[i] + relaxation_ * x_new;
         }
         
-        return residual_ <= tolerance_;
+        // Compute residual
+        IterativeSolverUtils::ComputeResidual(A, x, b, *residual);
+        residual_norm_ = IterativeSolverUtils::ComputeNorm(*residual);
+        
+        // Check convergence
+        if (residual_norm_ < tolerance_) {
+            converged_ = true;
+            break;
+        }
     }
     
-private:
-    Integer restart_;
-};
+    return converged_;
+}
 
-// 求解器工厂类
-class SolverFactory {
-public:
-    static std::unique_ptr<IterativeSolver> CreateSolver(const std::string& name) {
-        if (name == "CG") {
-            return std::make_unique<ConjugateGradientSolver>();
-        } else if (name == "BiCGStab") {
-            return std::make_unique<BiCGStabSolver>();
-        } else if (name == "GMRES") {
-            return std::make_unique<GMRESSolver>();
+// ============================================================================
+// Iterative Solver Utility Functions
+// ============================================================================
+
+namespace IterativeSolverUtils {
+
+void ComputeResidual(const Matrix& A, const Vector& x, const Vector& b, Vector& r) {
+    Integer n = A.GetNumRows();
+    
+    if (n != A.GetNumCols() || n != x.Size() || n != b.Size() || n != r.Size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match");
+    }
+    
+    // r = b - A*x
+    A.Multiply(x, r);
+    for (Integer i = 0; i < n; ++i) {
+        r[i] = b[i] - r[i];
+    }
+}
+
+Real ComputeNorm(const Vector& v) {
+    Real sum = 0.0;
+    Integer n = v.Size();
+    
+    for (Integer i = 0; i < n; ++i) {
+        sum += v[i] * v[i];
+    }
+    
+    return std::sqrt(sum);
+}
+
+Real DotProduct(const Vector& a, const Vector& b) {
+    Integer n = a.Size();
+    
+    if (n != b.Size()) {
+        throw std::invalid_argument("Vector dimensions don't match");
+    }
+    
+    Real sum = 0.0;
+    for (Integer i = 0; i < n; ++i) {
+        sum += a[i] * b[i];
+    }
+    
+    return sum;
+}
+
+void VectorAdd(Real alpha, const Vector& x, Vector& y) {
+    Integer n = x.Size();
+    
+    if (n != y.Size()) {
+        throw std::invalid_argument("Vector dimensions don't match");
+    }
+    
+    for (Integer i = 0; i < n; ++i) {
+        y[i] += alpha * x[i];
+    }
+}
+
+void VectorAdd(Real alpha, const Vector& x, Real beta, Vector& y) {
+    Integer n = x.Size();
+    
+    if (n != y.Size()) {
+        throw std::invalid_argument("Vector dimensions don't match");
+    }
+    
+    for (Integer i = 0; i < n; ++i) {
+        y[i] = alpha * x[i] + beta * y[i];
+    }
+}
+
+void IterativeSolverUtils::VectorCopy(const Vector& x, Vector& y) {
+    Integer n = x.Size();
+    
+    if (n != y.Size()) {
+        throw std::invalid_argument("Vector dimensions don't match");
+    }
+    
+    for (Integer i = 0; i < n; ++i) {
+        y[i] = x[i];
+    }
+}
+
+bool IsSymmetricPositiveDefinite(const Matrix& A, Real tolerance) {
+    Integer n = A.GetNumRows();
+    
+    if (n != A.GetNumCols()) {
+        return false;
+    }
+    
+    // Check symmetry
+    for (Integer i = 0; i < n; ++i) {
+        for (Integer j = i + 1; j < n; ++j) {
+            Real a_ij = A.GetElement(i, j);
+            Real a_ji = A.GetElement(j, i);
+            
+            if (std::abs(a_ij - a_ji) > tolerance) {
+                return false;
+            }
         }
-        
-        // 默认使用共轭梯度法
-        return std::make_unique<ConjugateGradientSolver>();
     }
-};
+    
+    // Check positive definiteness (simplified check)
+    // For a proper check, we would need to compute eigenvalues
+    // Here we just check that diagonal elements are positive
+    for (Integer i = 0; i < n; ++i) {
+        if (A.GetElement(i, i) <= 0.0) {
+            return false;
+        }
+    }
+    
+    return true;
+}
 
-// Eigen包装器求解器（高性能实现）
-class EigenIterativeSolver : public IterativeSolver {
-public:
-    bool Solve(const Matrix& A, Vector& x, const Vector& b) override {
-        // 这里需要将Matrix转换为Eigen格式
-        // 简化实现：使用Eigen的内置求解器
-        
-        // 注意：实际实现需要处理矩阵格式转换
-        // 这里仅提供框架
-        
-        // 临时使用简化的CG实现
-        ConjugateGradientSolver cg;
-        cg.SetMaxIterations(max_iterations_);
-        cg.SetTolerance(tolerance_);
-        
-        bool success = cg.Solve(A, x, b);
-        iterations_ = cg.GetIterations();
-        residual_ = cg.GetResidual();
-        
-        return success;
-    }
-};
+} // namespace IterativeSolverUtils
 
 } // namespace elmer

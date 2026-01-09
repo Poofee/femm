@@ -7,23 +7,24 @@
 #include <limits>
 #include <stdexcept>
 #include <cmath>
+#include <algorithm>
 
-namespace ElmerCpp {
+namespace elmer {
 
 /**
- * @brief 网格工具类 - 提供网格创建、初始化和操作功能
+ * @brief Mesh utility class - provides mesh creation, initialization and operation functions
  */
 class MeshUtils {
 public:
     /**
-     * @brief 分配网格结构并返回智能指针
-     * @param name 网格名称
-     * @return 分配的网格对象
+     * @brief Allocate mesh structure and return smart pointer
+     * @param name Mesh name
+     * @return Allocated mesh object
      */
     static std::shared_ptr<Mesh> allocateMesh(const std::string& name = "") {
         auto mesh = std::make_shared<Mesh>(name);
         
-        // 初始化默认值
+        // Initialize default values
         mesh->setChanged(false);
         mesh->setOutputActive(false);
         mesh->setAdaptiveDepth(0);
@@ -34,13 +35,13 @@ public:
     }
     
     /**
-     * @brief 分配网格结构并指定大小
-     * @param numberOfBulkElements 体单元数量
-     * @param numberOfBoundaryElements 边界单元数量
-     * @param numberOfNodes 节点数量
-     * @param name 网格名称
-     * @param initParallel 是否初始化并行信息
-     * @return 分配的网格对象
+     * @brief Allocate mesh structure with specified size
+     * @param numberOfBulkElements Number of bulk elements
+     * @param numberOfBoundaryElements Number of boundary elements
+     * @param numberOfNodes Number of nodes
+     * @param name Mesh name
+     * @param initParallel Whether to initialize parallel information
+     * @return Allocated mesh object
      */
     static std::shared_ptr<Mesh> allocateMesh(
         size_t numberOfBulkElements,
@@ -51,21 +52,21 @@ public:
     ) {
         auto mesh = allocateMesh(name);
         
-        // 设置网格大小信息
+        // Set mesh size information
         mesh->getNodes().clear();
         mesh->getBulkElements().clear();
         mesh->getBoundaryElements().clear();
         
-        // 预留空间
+        // Reserve space
         mesh->getBulkElements().reserve(numberOfBulkElements);
         mesh->getBoundaryElements().reserve(numberOfBoundaryElements);
         
-        // 初始化节点空间
+        // Initialize node space
         for (size_t i = 0; i < numberOfNodes; ++i) {
             mesh->getNodes().addNode(0.0, 0.0, 0.0);
         }
         
-        // 初始化并行信息
+        // Initialize parallel information
         if (initParallel) {
             mesh->initializeParallelInfo();
         }
@@ -74,9 +75,9 @@ public:
     }
     
     /**
-     * @brief 初始化网格结构
-     * @param mesh 要初始化的网格
-     * @param initParallel 是否初始化并行信息
+     * @brief Initialize mesh structure
+     * @param mesh Mesh to initialize
+     * @param initParallel Whether to initialize parallel information
      */
     static void initializeMesh(std::shared_ptr<Mesh> mesh, bool initParallel = false) {
         if (!mesh.get()) {
@@ -87,7 +88,7 @@ public:
         size_t numberOfBulkElements = mesh->numberOfBulkElements();
         size_t numberOfBoundaryElements = mesh->numberOfBoundaryElements();
         
-        // 验证网格完整性
+        // Validate mesh integrity
         if (numberOfNodes == 0) {
             throw std::runtime_error("Mesh has zero nodes!");
         }
@@ -96,21 +97,21 @@ public:
             throw std::runtime_error("Mesh has zero elements!");
         }
         
-        // 初始化并行信息
+        // Initialize parallel information
         if (initParallel) {
             mesh->initializeParallelInfo();
         }
         
-        // 更新统计信息
-        mesh->getBulkElements(); // 触发统计更新
-        mesh->getBoundaryElements(); // 触发统计更新
+        // Update statistics
+        mesh->getBulkElements(); // Trigger statistics update
+        mesh->getBoundaryElements(); // Trigger statistics update
     }
     
     /**
-     * @brief 创建简单立方体网格
-     * @param size 立方体大小
-     * @param divisions 每个方向的划分数量
-     * @return 创建的网格对象
+     * @brief Create simple cube mesh
+     * @param size Cube size
+     * @param divisions Number of divisions in each direction
+     * @return Created mesh object
      */
     static std::shared_ptr<Mesh> createCubeMesh(
         double size = 1.0,
@@ -119,7 +120,7 @@ public:
     ) {
         auto mesh = allocateMesh(name);
         
-        // 创建节点
+        // Create nodes
         double step = size / divisions;
         for (int k = 0; k <= divisions; ++k) {
             for (int j = 0; j <= divisions; ++j) {
@@ -132,14 +133,14 @@ public:
             }
         }
         
-        // 创建立方体单元（六面体）
+        // Create cube elements (hexahedrons)
         int nodesPerDirection = divisions + 1;
         for (int k = 0; k < divisions; ++k) {
             for (int j = 0; j < divisions; ++j) {
                 for (int i = 0; i < divisions; ++i) {
                     Element element(ElementType::HEXAHEDRON);
                     
-                    // 计算六面体单元的8个节点索引
+                    // Calculate 8 node indices for hexahedron element
                     int base = k * nodesPerDirection * nodesPerDirection + j * nodesPerDirection + i;
                     
                     element.addNodeIndex(base);
@@ -157,17 +158,17 @@ public:
             }
         }
         
-        // 创建边界单元
+        // Create boundary elements
         createBoundaryElements(mesh, divisions);
         
         return mesh;
     }
     
     /**
-     * @brief 创建简单四面体网格
-     * @param size 网格大小
-     * @param divisions 划分数量
-     * @return 创建的网格对象
+     * @brief Create simple tetrahedron mesh
+     * @param size Mesh size
+     * @param divisions Number of divisions
+     * @return Created mesh object
      */
     static std::shared_ptr<Mesh> createTetrahedronMesh(
         double size = 1.0,
@@ -176,13 +177,13 @@ public:
     ) {
         auto mesh = allocateMesh(name);
         
-        // 创建简单四面体的四个节点
+        // Create four nodes for simple tetrahedron
         mesh->getNodes().addNode(0.0, 0.0, 0.0);
         mesh->getNodes().addNode(size, 0.0, 0.0);
         mesh->getNodes().addNode(0.0, size, 0.0);
         mesh->getNodes().addNode(0.0, 0.0, size);
         
-        // 创建四面体单元
+        // Create tetrahedron element
         Element element(ElementType::TETRAHEDRON);
         element.addNodeIndex(0);
         element.addNodeIndex(1);
@@ -195,28 +196,30 @@ public:
     }
     
     /**
-     * @brief 计算网格质量指标
-     * @param mesh 要计算的网格
-     * @return 质量指标（0-1，1表示完美质量）
+     * @brief Calculate mesh quality metric
+     * @param mesh Mesh to calculate
+     * @return Quality metric (0-1, 1 means perfect quality)
      */
     static double calculateMeshQuality(const std::shared_ptr<Mesh>& mesh) {
-        if (!mesh.get() || mesh->totalElements() == 0) {
+        if (!mesh || mesh->totalElements() == 0) {
             return 0.0;
         }
         
         double totalQuality = 0.0;
         size_t elementCount = 0;
         
-        // 计算体单元质量
-        for (const auto& element : mesh->getBulkElements()) {
-            double quality = 1.0; // 简化版本，返回固定质量值
+        // Calculate bulk element quality
+        const auto& bulkElements = mesh->getBulkElements();
+        for (const auto& element : bulkElements) {
+            double quality = 1.0; // Simplified version, returns fixed quality value
             totalQuality += quality;
             elementCount++;
         }
         
-        // 计算边界单元质量
-        for (const auto& element : mesh->getBoundaryElements()) {
-            double quality = 1.0; // 简化版本，返回固定质量值
+        // Calculate boundary element quality
+        const auto& boundaryElements = mesh->getBoundaryElements();
+        for (const auto& element : boundaryElements) {
+            double quality = 1.0; // Simplified version, returns fixed quality value
             totalQuality += quality;
             elementCount++;
         }
@@ -225,24 +228,25 @@ public:
     }
     
     /**
-     * @brief 验证网格拓扑结构
-     * @param mesh 要验证的网格
-     * @return 验证结果
+     * @brief Validate mesh topology
+     * @param mesh Mesh to validate
+     * @return Validation result
      */
     static bool validateMeshTopology(const std::shared_ptr<Mesh>& mesh) {
-        if (!mesh.get()) {
+        if (!mesh) {
             return false;
         }
         
-        // 检查基本完整性
+        // Check basic integrity
         if (!mesh->validate()) {
             return false;
         }
         
-        // 检查节点索引范围
+        // Check node index range
         size_t numberOfNodes = mesh->numberOfNodes();
         
-        for (const auto& element : mesh->getBulkElements()) {
+        const auto& bulkElements = mesh->getBulkElements();
+        for (const auto& element : bulkElements) {
             for (size_t nodeIndex : element.getNodeIndices()) {
                 if (nodeIndex >= numberOfNodes) {
                     return false;
@@ -250,7 +254,8 @@ public:
             }
         }
         
-        for (const auto& element : mesh->getBoundaryElements()) {
+        const auto& boundaryElements = mesh->getBoundaryElements();
+        for (const auto& element : boundaryElements) {
             for (size_t nodeIndex : element.getNodeIndices()) {
                 if (nodeIndex >= numberOfNodes) {
                     return false;
@@ -262,9 +267,9 @@ public:
     }
     
     /**
-     * @brief 计算网格边界框
-     * @param mesh 要计算的网格
-     * @return 边界框[minX, maxX, minY, maxY, minZ, maxZ]
+     * @brief Calculate mesh bounding box
+     * @param mesh Mesh to calculate
+     * @return Bounding box [minX, maxX, minY, maxY, minZ, maxZ]
      */
     static std::vector<double> calculateBoundingBox(const std::shared_ptr<Mesh>& mesh) {
         if (!mesh || mesh->numberOfNodes() == 0) {
@@ -292,9 +297,9 @@ public:
     }
     
     /**
-     * @brief 计算网格体积
-     * @param mesh 要计算的网格
-     * @return 网格体积
+     * @brief Calculate mesh volume
+     * @param mesh Mesh to calculate
+     * @return Mesh volume
      */
     static double calculateVolume(const std::shared_ptr<Mesh>& mesh) {
         if (!mesh || mesh->numberOfBulkElements() == 0) {
@@ -304,7 +309,8 @@ public:
         double totalVolume = 0.0;
         const auto& nodes = mesh->getNodes().getNodes();
         
-        for (const auto& element : mesh->getBulkElements()) {
+        const auto& bulkElements = mesh->getBulkElements();
+        for (const auto& element : bulkElements) {
             totalVolume += calculateElementVolume(element, nodes);
         }
         
@@ -313,19 +319,19 @@ public:
     
 private:
     /**
-     * @brief 为立方体网格创建边界单元
+     * @brief Create boundary elements for cube mesh
      */
     static void createBoundaryElements(std::shared_ptr<Mesh> mesh, int divisions) {
         int nodesPerDirection = divisions + 1;
         
-        // 创建六个面的边界单元
+        // Create boundary elements for six faces
         for (int face = 0; face < 6; ++face) {
             for (int j = 0; j < divisions; ++j) {
                 for (int i = 0; i < divisions; ++i) {
                     Element boundaryElement(ElementType::LINEAR);
                     boundaryElement.setBoundaryId(face + 1);
                     
-                    // 根据面计算节点索引
+                    // Calculate node indices based on face
                     std::vector<size_t> indices = calculateFaceIndices(face, i, j, divisions, nodesPerDirection);
                     boundaryElement.setNodeIndices(indices);
                     
@@ -336,28 +342,30 @@ private:
     }
     
     /**
-     * @brief 计算立方体面的节点索引
+     * @brief Calculate node indices for cube face
      */
     static std::vector<size_t> calculateFaceIndices(int face, int i, int j, int divisions, int nodesPerDirection) {
         std::vector<size_t> indices;
         
         switch (face) {
-            case 0: // 底面 z=0
+            case 0: { // Bottom face z=0
                 indices.push_back(j * nodesPerDirection + i);
                 indices.push_back(j * nodesPerDirection + i + 1);
                 indices.push_back((j + 1) * nodesPerDirection + i + 1);
                 indices.push_back((j + 1) * nodesPerDirection + i);
                 break;
-            case 1: // 顶面 z=divisions
+            }
+            case 1: { // Top face z=divisions
                 size_t base = divisions * nodesPerDirection * nodesPerDirection;
                 indices.push_back(base + j * nodesPerDirection + i);
                 indices.push_back(base + j * nodesPerDirection + i + 1);
                 indices.push_back(base + (j + 1) * nodesPerDirection + i + 1);
                 indices.push_back(base + (j + 1) * nodesPerDirection + i);
                 break;
-            // 其他四个面类似处理
+            }
+            // Other four faces handled similarly
             default:
-                // 简化处理，实际实现需要完整处理所有面
+                // Simplified handling, actual implementation needs complete face processing
                 break;
         }
         
@@ -365,18 +373,18 @@ private:
     }
     
     /**
-     * @brief 计算单元质量
+     * @brief Calculate element quality
      */
     static double calculateElementQuality(const Element& element, const Nodes& nodes) {
-        // 简化实现：基于单元形状计算质量指标
-        // 实际实现需要根据单元类型进行具体计算
+        // Simplified implementation: calculate quality metric based on element shape
+        // Actual implementation needs specific calculation based on element type
         
         size_t nodeCount = element.numberOfNodes();
         if (nodeCount < 3) {
             return 0.0;
         }
         
-        // 计算节点间距离的方差作为质量指标
+        // Calculate variance of distances between nodes as quality metric
         std::vector<double> distances;
         const auto& indices = element.getNodeIndices();
         
@@ -391,7 +399,7 @@ private:
             return 0.0;
         }
         
-        // 计算距离的平均值和标准差
+        // Calculate mean and standard deviation of distances
         double mean = 0.0;
         for (double dist : distances) {
             mean += dist;
@@ -404,15 +412,15 @@ private:
         }
         variance /= distances.size();
         
-        // 质量指标：方差越小，质量越好
+        // Quality metric: smaller variance means better quality
         return 1.0 / (1.0 + std::sqrt(variance));
     }
     
     /**
-     * @brief 计算单元体积
+     * @brief Calculate element volume
      */
     static double calculateElementVolume(const Element& element, const std::vector<Node>& nodes) {
-        // 简化实现：仅处理四面体和六面体
+        // Simplified implementation: only handles tetrahedrons and hexahedrons
         const auto& indices = element.getNodeIndices();
         
         switch (element.getType()) {
@@ -425,7 +433,7 @@ private:
                 
             case ElementType::HEXAHEDRON:
                 if (indices.size() == 8) {
-                    // 将六面体分解为5个四面体计算体积
+                    // Decompose hexahedron into 5 tetrahedrons to calculate volume
                     return calculateHexahedronVolume(nodes, indices);
                 }
                 break;
@@ -438,14 +446,14 @@ private:
     }
     
     /**
-     * @brief 计算四面体体积
+     * @brief Calculate tetrahedron volume
      */
     static double calculateTetrahedronVolume(const Node& a, const Node& b, const Node& c, const Node& d) {
         double v1x = b.x - a.x, v1y = b.y - a.y, v1z = b.z - a.z;
         double v2x = c.x - a.x, v2y = c.y - a.y, v2z = c.z - a.z;
         double v3x = d.x - a.x, v3y = d.y - a.y, v3z = d.z - a.z;
         
-        // 计算标量三重积
+        // Calculate scalar triple product
         double volume = std::abs(
             v1x * (v2y * v3z - v2z * v3y) -
             v1y * (v2x * v3z - v2z * v3x) +
@@ -456,13 +464,13 @@ private:
     }
     
     /**
-     * @brief 计算六面体体积
+     * @brief Calculate hexahedron volume
      */
     static double calculateHexahedronVolume(const std::vector<Node>& nodes, const std::vector<size_t>& indices) {
-        // 简化实现：将六面体分解为5个四面体
+        // Simplified implementation: decompose hexahedron into 5 tetrahedrons
         double volume = 0.0;
         
-        // 分解方案1：基于中心点分解
+        // Decomposition method 1: based on center point
         Node center(0.0, 0.0, 0.0);
         for (size_t index : indices) {
             center.x += nodes[index].x;
@@ -473,14 +481,14 @@ private:
         center.y /= 8.0;
         center.z /= 8.0;
         
-        // 计算每个面的四面体体积
+        // Calculate tetrahedron volume for each face
         std::vector<std::vector<size_t>> faces = {
             {0, 1, 2, 3}, {4, 5, 6, 7}, {0, 1, 5, 4},
             {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}
         };
         
         for (const auto& face : faces) {
-            // 将四边形面分解为两个三角形
+            // Decompose quadrilateral face into two triangles
             volume += calculateTetrahedronVolume(
                 center, 
                 nodes[indices[face[0]]], 
@@ -499,4 +507,4 @@ private:
     }
 };
 
-} // namespace ElmerCpp
+} // namespace elmer

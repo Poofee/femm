@@ -45,7 +45,7 @@ void test2DQuadrilateralElement() {
     };
     
     // Test at center (xi = 0, eta = 0)
-    auto result = ShapeFunctions::computeShapeFunctions(ElementType::QUADRILATERAL, nodes, 0.0, 0.0, 0.0);
+    auto result = ShapeFunctions::computeShapeFunctions(ElementType::LINEAR, nodes, 0.0, 0.0, 0.0);
     
     std::cout << "Natural coordinates: xi = 0.0, eta = 0.0" << std::endl;
     std::cout << "Shape function values: ";
@@ -94,7 +94,7 @@ void test3DHexahedronElement() {
     };
     
     // Test at center (xi = 0, eta = 0, zeta = 0)
-    auto result = ShapeFunctions::computeShapeFunctions(ElementType::HEXAHEDRON, nodes, 0.0, 0.0, 0.0);
+    auto result = ShapeFunctions::computeShapeFunctions(ElementType::LINEAR, nodes, 0.0, 0.0, 0.0);
     
     std::cout << "Natural coordinates: xi = 0.0, eta = 0.0, zeta = 0.0" << std::endl;
     std::cout << "Shape function values: ";
@@ -138,7 +138,7 @@ void testTriangleElement() {
     };
     
     // Test at center (xi = 1/3, eta = 1/3)
-    auto result = ShapeFunctions::computeShapeFunctions(ElementType::TRIANGLE, nodes, 1.0/3.0, 1.0/3.0, 0.0);
+    auto result = ShapeFunctions::computeShapeFunctions(ElementType::LINEAR, nodes, 1.0/3.0, 1.0/3.0, 0.0);
     
     std::cout << "Natural coordinates: xi = 1/3, eta = 1/3" << std::endl;
     std::cout << "Shape function values: ";

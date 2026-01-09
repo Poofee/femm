@@ -12,6 +12,9 @@ namespace elmer {
 struct Node;
 enum class ElementType;
 
+// Forward declaration for CRSMatrix
+class CRSMatrix;
+
 // Type aliases for numerical types
 using Integer = int;
 using Real = double;
@@ -59,5 +62,10 @@ public:
     static std::unique_ptr<Matrix> CreateBand(Integer nrows, Integer bandwidth);
     static std::unique_ptr<Matrix> CreateDense(Integer nrows, Integer ncols);
 };
+
+/**
+ * @brief Factory function for creating CRS matrices
+ */
+std::unique_ptr<Matrix> CreateCRSMatrix(Integer nrows, Integer ncols);
 
 } // namespace elmer

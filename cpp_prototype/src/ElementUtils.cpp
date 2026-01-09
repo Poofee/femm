@@ -274,12 +274,11 @@ void ElementUtils::initializeMatrixInternal(std::shared_ptr<Matrix> matrix, int 
 
 // 创建CRS矩阵
 std::shared_ptr<Matrix> ElementUtils::createCRSMatrix(int n, int dofs) {
-    // 创建CRS矩阵实例
-    // 这里需要根据CRSMatrix类的具体实现来创建
-    // 目前返回空指针作为占位实现
+    // 使用新的CRSMatrix实现创建矩阵
+    auto matrix = CreateCRSMatrix(n, dofs);
     
     std::cout << "创建CRS矩阵，大小：" << n << ", 自由度：" << dofs << std::endl;
-    return nullptr;
+    return matrix;
 }
 
 // 创建带状矩阵

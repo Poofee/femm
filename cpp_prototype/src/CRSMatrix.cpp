@@ -304,7 +304,7 @@ void CRSMatrix::CheckIndices(Integer i, Integer j) const {
     }
 }
 
-std::unique_ptr<Matrix> CreateCRSMatrix(Integer nrows, Integer ncols) {
+std::unique_ptr<Matrix> elmer::CreateCRSMatrix(Integer nrows, Integer ncols) {
     return std::make_unique<CRSMatrix>(nrows, ncols);
 }
 

@@ -24,6 +24,7 @@ add_library(ElmerCppMatrixAssembly
     src/MatrixAssembly.cpp
     src/Matrix.cpp
     src/CRSMatrix.h
+    src/CRSMatrix.cpp
     src/IterativeSolver.h
     src/IterativeSolver.cpp
     src/BoundaryConditions.h
@@ -35,6 +36,10 @@ add_library(ElmerCppMatrixAssembly
     src/MeshUtils.cpp
     src/DefUtils.h
     src/DefUtils.cpp
+    src/Integration.h
+    src/Integration.cpp
+    src/ElementUtils.h
+    src/ElementUtils.cpp
 )
 
 # Create test executables
@@ -62,6 +67,21 @@ add_executable(simple_test
     test/simple_test.cpp
 )
 
+add_executable(test_integration
+    test/test_integration.cpp
+)
+
+add_executable(test_element_utils
+    test/test_element_utils.cpp
+)
+
+add_executable(test_crs_matrix
+    test/test_crs_matrix.cpp
+)
+
+# Set include directories for test executables
+target_include_directories(test_crs_matrix PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Link test executables with library
 target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
@@ -69,6 +89,9 @@ target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
 target_link_libraries(test_def_utils ElmerCppMatrixAssembly)
 target_link_libraries(test_simple ElmerCppMatrixAssembly)
 target_link_libraries(simple_test ElmerCppMatrixAssembly)
+target_link_libraries(test_integration ElmerCppMatrixAssembly)
+target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
+target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)

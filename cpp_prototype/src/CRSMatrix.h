@@ -54,7 +54,7 @@ public:
     /**
      * @brief Get the number of non-zero elements
      */
-    Integer GetNonZeroCount() const { return values_.size(); }
+    Integer GetNonZeroCount() const { return static_cast<Integer>(values_.size()); }
     
     /**
      * @brief Get row pointer for row i
@@ -110,6 +110,21 @@ public:
      * @brief Print matrix structure for debugging
      */
     void PrintStructure() const;
+    
+    /**
+     * @brief Get row pointers (for internal use and conversion)
+     */
+    const std::vector<Integer>& GetRowPointers() const { return row_pointers_; }
+    
+    /**
+     * @brief Get column indices (for internal use and conversion)
+     */
+    const std::vector<Integer>& GetColumnIndices() const { return col_indices_; }
+    
+    /**
+     * @brief Get non-zero values (for internal use and conversion)
+     */
+    const std::vector<Real>& GetValues() const { return values_; }
     
 private:
     /**

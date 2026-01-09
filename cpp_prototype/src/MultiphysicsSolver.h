@@ -1,12 +1,14 @@
 #pragma once
 
 #include "MagnetodynamicsSolver.h"
-#include "ElectromagneticMaterial.h"
+#include "HeatTransferSolver.h"
+#include "StructuralSolver.h"
 #include "Mesh.h"
-#include "LinearAlgebra.h"
+#include "Material.h"
 #include <memory>
 #include <vector>
-#include <map>
+#include <array>
+#include <iostream>
 
 namespace elmer {
 
@@ -53,7 +55,8 @@ private:
     
     // Individual solvers
     std::shared_ptr<MagnetodynamicsSolver> emSolver;
-    // Future: thermal solver, structural solver, etc.
+    std::shared_ptr<HeatTransferSolver> thermalSolver;
+    std::shared_ptr<StructuralSolver> structuralSolver;
     
     // Coupling matrices and vectors
     std::shared_ptr<CRSMatrix> couplingMatrix;
@@ -122,6 +125,30 @@ public:
      */
     std::shared_ptr<MagnetodynamicsSolver> getElectromagneticSolver() {
         return emSolver;
+    }
+    
+    /**
+     * @brief Get thermal solver
+     */
+    std::shared_ptr<HeatTransferSolver> getThermalSolver() {
+        return thermalSolver;
+    }
+    
+    /**
+     * @brief Get structural solver
+     */
+    std::shared_ptr<StructuralSolver> getStructuralSolver() {
+        return structuralSolver;
+    }
+    
+    /**
+     * @brief Set material database for all solvers
+     */
+    void setMaterialDatabase(const MaterialDatabase& db) {
+        materialDB = db;
+        if (emSolver) emSolver->setMaterialDatabase(materialDB);
+        if (thermalSolver) thermalSolver->setMaterialDatabase(materialDB);
+        if (structuralSolver) structuralSolver->setMaterialDatabase(materialDB);
     }
     
     /**

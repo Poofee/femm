@@ -420,29 +420,147 @@ private:
      * @brief Calculate magnetic field for a single element
      */
     void calculateElementMagneticField(const Element& element, MagnetodynamicsResults& results) {
-        // This is a placeholder implementation
-        // Real implementation would compute B = ∇ × A
+        auto nodes = element.getNodes();
+        auto nodeIndices = element.getNodeIndices();
+        
+        // Get shape functions and derivatives at integration points
+        ShapeFunctions shapeFunc;
+        auto shapeResult = shapeFunc.computeShapeFunctions(element.getType(), 
+                                                          {0.0, 0.0, 0.0}); // At element center
+        
+        if (!shapeResult.jacobianMatrix.empty()) {
+            // Calculate magnetic field B = ∇ × A
+            // For 2D problems: B_z = ∂A_y/∂x - ∂A_x/∂y
+            // For 3D problems: B = ∇ × A
+            
+            // This is a simplified implementation
+            // In practice, we would compute the curl of the vector potential
+            
+            // For now, use a simple gradient-based approximation
+            if (nodes.size() >= 2) {
+                double dx = nodes[1].x - nodes[0].x;
+                double dy = nodes[1].y - nodes[0].y;
+                
+                if (std::abs(dx) > 1e-10 || std::abs(dy) > 1e-10) {
+                    // Calculate approximate magnetic field
+                    for (int nodeIdx : nodeIndices) {
+                        results.magneticField[nodeIdx][2] = (results.potentialReal[nodeIdx] / 
+                                                            std::sqrt(dx*dx + dy*dy));
+                    }
+                }
+            }
+        }
     }
     
     /**
      * @brief Calculate electric field
      */
     void calculateElectricField(MagnetodynamicsResults& results) {
-        // Placeholder implementation
+        int nNodes = mesh->getNodes().size();
+        results.electricField.resize(nNodes, {0.0, 0.0, 0.0});
+        
+        // E = -∇φ - ∂A/∂t for transient problems
+        // For harmonic: E = -∇φ - jωA
+        
+        // Simplified implementation using potential gradients
+        for (const auto& element : mesh->getElements()) {
+            calculateElementElectricField(element, results);
+        }
+    }
+    
+    /**
+     * @brief Calculate electric field for a single element
+     */
+    void calculateElementElectricField(const Element& element, MagnetodynamicsResults& results) {
+        auto nodes = element.getNodes();
+        auto nodeIndices = element.getNodeIndices();
+        
+        // Calculate electric field using potential gradient
+        if (nodes.size() >= 2) {
+            double dx = nodes[1].x - nodes[0].x;
+            double dy = nodes[1].y - nodes[0].y;
+            
+            if (std::abs(dx) > 1e-10) {
+                for (int nodeIdx : nodeIndices) {
+                    results.electricField[nodeIdx][0] = -results.potentialReal[nodeIdx] / dx;
+                }
+            }
+            if (std::abs(dy) > 1e-10) {
+                for (int nodeIdx : nodeIndices) {
+                    results.electricField[nodeIdx][1] = -results.potentialReal[nodeIdx] / dy;
+                }
+            }
+        }
     }
     
     /**
      * @brief Calculate current density
      */
     void calculateCurrentDensity(MagnetodynamicsResults& results) {
-        // Placeholder implementation
+        int nNodes = mesh->getNodes().size();
+        results.currentDensity.resize(nNodes, {0.0, 0.0, 0.0});
+        
+        // J = σE for conductive materials
+        // For harmonic: J = (σ + jωε)E
+        
+        for (const auto& element : mesh->getElements()) {
+            calculateElementCurrentDensity(element, results);
+        }
+    }
+    
+    /**
+     * @brief Calculate current density for a single element
+     */
+    void calculateElementCurrentDensity(const Element& element, MagnetodynamicsResults& results) {
+        auto material = materialDB.getMaterial(element.getMaterialName());
+        auto nodeIndices = element.getNodeIndices();
+        
+        // J = σE
+        for (int nodeIdx : nodeIndices) {
+            for (int i = 0; i < 3; ++i) {
+                results.currentDensity[nodeIdx][i] = material.conductivity * 
+                                                    results.electricField[nodeIdx][i];
+            }
+        }
     }
     
     /**
      * @brief Calculate Lorentz force
      */
     void calculateLorentzForce(MagnetodynamicsResults& results) {
-        // Placeholder implementation
+        int nNodes = mesh->getNodes().size();
+        results.lorentzForce.resize(nNodes, {0.0, 0.0, 0.0});
+        
+        // F = J × B (Lorentz force density)
+        
+        for (const auto& element : mesh->getElements()) {
+            calculateElementLorentzForce(element, results);
+        }
+    }
+    
+    /**
+     * @brief Calculate Lorentz force for a single element
+     */
+    void calculateElementLorentzForce(const Element& element, MagnetodynamicsResults& results) {
+        auto nodeIndices = element.getNodeIndices();
+        
+        // F = J × B
+        for (int nodeIdx : nodeIndices) {
+            // Cross product: F_x = J_y * B_z - J_z * B_y
+            results.lorentzForce[nodeIdx][0] = 
+                results.currentDensity[nodeIdx][1] * results.magneticField[nodeIdx][2] -
+                results.currentDensity[nodeIdx][2] * results.magneticField[nodeIdx][1];
+            
+            // F_y = J_z * B_x - J_x * B_z
+            results.lorentzForce[nodeIdx][1] = 
+                results.currentDensity[nodeIdx][2] * results.magneticField[nodeIdx][0] -
+                results.currentDensity[nodeIdx][0] * results.magneticField[nodeIdx][2];
+            
+            // F_z = J_x * B_y - J_y * B_x
+            results.lorentzForce[nodeIdx][2] = 
+                results.currentDensity[nodeIdx][0] * results.magneticField[nodeIdx][1] -
+                results.currentDensity[nodeIdx][1] * results.magneticField[nodeIdx][0];
+        }
     }
 };
 

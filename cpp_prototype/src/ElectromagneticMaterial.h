@@ -104,6 +104,99 @@ public:
         return B / H;
     }
     
+    // Get differential permeability (differential permeability for nonlinear materials)
+    double getDifferentialPermeability(double H) const {
+        if (!isNonlinear || BHCurve.size() < 2) {
+            return permeability();
+        }
+        
+        // Calculate derivative of B with respect to H
+        auto it = BHCurve.lower_bound(H);
+        if (it == BHCurve.begin()) {
+            auto next = it;
+            ++next;
+            return (next->second - it->second) / (next->first - it->first);
+        }
+        if (it == BHCurve.end()) {
+            --it;
+            auto prev = it;
+            --prev;
+            return (it->second - prev->second) / (it->first - prev->first);
+        }
+        
+        auto prev = it;
+        --prev;
+        auto next = it;
+        ++next;
+        
+        if (next == BHCurve.end()) {
+            return (it->second - prev->second) / (it->first - prev->first);
+        }
+        
+        // Central difference for better accuracy
+        return (next->second - prev->second) / (next->first - prev->first);
+    }
+    
+    // Get B from H using B-H curve
+    double getBfromH(double H) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            return H * permeability();
+        }
+        
+        auto it = BHCurve.lower_bound(H);
+        if (it == BHCurve.begin()) {
+            return it->second;
+        }
+        if (it == BHCurve.end()) {
+            --it;
+            return it->second;
+        }
+        
+        auto prev = it;
+        --prev;
+        double H1 = prev->first, B1 = prev->second;
+        double H2 = it->first, B2 = it->second;
+        
+        return B1 + (B2 - B1) * (H - H1) / (H2 - H1);
+    }
+    
+    // Get H from B using B-H curve (inverse lookup)
+    double getHfromB(double B) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            return B / permeability();
+        }
+        
+        // Find the interval containing B
+        auto it = BHCurve.begin();
+        auto next = it;
+        ++next;
+        
+        while (next != BHCurve.end()) {
+            if (B >= it->second && B <= next->second) {
+                double B1 = it->second, H1 = it->first;
+                double B2 = next->second, H2 = next->first;
+                return H1 + (H2 - H1) * (B - B1) / (B2 - B1);
+            }
+            ++it;
+            ++next;
+        }
+        
+        // If B is outside the range, use linear extrapolation
+        if (B < BHCurve.begin()->second) {
+            auto first = BHCurve.begin();
+            auto second = first;
+            ++second;
+            return first->first + (second->first - first->first) * 
+                   (B - first->second) / (second->second - first->second);
+        } else {
+            auto last = BHCurve.rbegin();
+            auto prev = last;
+            ++prev;
+            return last->first + (last->first - prev->first) * 
+                   (B - last->second) / (last->second - prev->second);
+        }
+    }
+    
     // Get complex conductivity for harmonic analysis
     std::complex<double> getComplexConductivity() const {
         return std::complex<double>(conductivity, conductivityImag);

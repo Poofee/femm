@@ -40,6 +40,10 @@ add_library(ElmerCppMatrixAssembly
     src/Integration.cpp
     src/ElementUtils.h
     src/ElementUtils.cpp
+    src/Lists.h
+    src/Lists.cpp
+    src/Interpolation.h
+    src/Interpolation.cpp
 )
 
 # Create test executables
@@ -79,8 +83,18 @@ add_executable(test_crs_matrix
     test/test_crs_matrix.cpp
 )
 
+add_executable(test_lists
+    test/test_lists.cpp
+)
+
+add_executable(test_interpolation
+    test/test_interpolation.cpp
+)
+
 # Set include directories for test executables
 target_include_directories(test_crs_matrix PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_lists PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link test executables with library
 target_link_libraries(test_shape_functions ElmerCppMatrixAssembly)
@@ -92,11 +106,14 @@ target_link_libraries(simple_test ElmerCppMatrixAssembly)
 target_link_libraries(test_integration ElmerCppMatrixAssembly)
 target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
 target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
+target_link_libraries(test_lists ElmerCppMatrixAssembly)
+target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)
     enable_testing()
     add_test(NAME ShapeFunctionsTest COMMAND test_shape_functions)
+    add_test(NAME InterpolationTest COMMAND test_interpolation)
 endif()
 
 # Installation (optional)

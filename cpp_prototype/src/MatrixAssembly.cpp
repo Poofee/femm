@@ -1,5 +1,5 @@
-// MatrixAssembly.cpp - Elmer FEM C++矩阵组装模块实现
-// 对应Fortran模块: MatrixAssembly.F90
+// MatrixAssembly.cpp - Elmer FEM C++ Matrix Assembly Module Implementation
+// Corresponds to Fortran module: MatrixAssembly.F90
 
 #include "MatrixAssembly.h"
 #include <algorithm>
@@ -8,23 +8,23 @@
 
 namespace elmer {
 
-// 设置矩阵元素
+// Set matrix element
 void MatrixAssembly::SetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                      elmer::Integer i, elmer::Integer j, elmer::Real value) {
     CheckIndices(matrix, i, j);
     
-    // 根据矩阵格式调用相应的实现
-    // 这里需要根据实际的矩阵类型进行分派
-    // 目前假设所有矩阵都支持SetElement方法
+    // Call corresponding implementation based on matrix format
+    // Need to dispatch based on actual matrix type
+    // Currently assuming all matrices support SetElement method
     matrix->SetElement(i, j, value);
 }
 
-// 获取矩阵元素
+// Get matrix element
 elmer::Real MatrixAssembly::GetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                      elmer::Integer i, elmer::Integer j) {
     CheckIndices(matrix, i, j);
     
-    // 根据矩阵格式调用相应的实现
+    // Call corresponding implementation based on matrix format
     return matrix->GetElement(i, j);
 }
 
@@ -93,23 +93,25 @@ void MatrixAssembly::ScaleMatrix(std::shared_ptr<elmer::Matrix> matrix, elmer::R
 
 // 矩阵向量乘法
 void MatrixAssembly::MatrixVectorMultiply(std::shared_ptr<elmer::Matrix> matrix,
-                                         const std::vector<elmer::Real>& x,
-                                         std::vector<elmer::Real>& y) {
-    elmer::Integer size = GetMatrixSize(matrix);
+                                         std::shared_ptr<elmer::Vector> vector,
+                                         std::shared_ptr<elmer::Vector> result) {
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     
-    if (x.size() != static_cast<size_t>(size) || y.size() != static_cast<size_t>(size)) {
+    if (vector->Size() != size || result->Size() != size) {
         throw std::invalid_argument("Matrix and vector sizes do not match");
     }
     
     // 清零结果向量
-    std::fill(y.begin(), y.end(), 0.0);
+    for (elmer::Integer i = 0; i < size; ++i) {
+        (*result)[i] = 0.0;
+    }
     
     // 执行矩阵向量乘法
     for (elmer::Integer i = 0; i < size; ++i) {
         for (elmer::Integer j = 0; j < size; ++j) {
-            elmer::Real value = GetMatrixElement(matrix, i, j);
+            elmer::Real value = MatrixAssembly::GetMatrixElement(matrix, i, j);
             if (value != 0.0) {
-                y[i] += value * x[j];
+                (*result)[i] += value * (*vector)[j];
             }
         }
     }
@@ -141,7 +143,7 @@ void MatrixAssembly::AssembleElementMatrix(std::shared_ptr<elmer::Matrix> global
 }
 
 // 组装单元载荷向量到全局向量
-void MatrixAssembly::AssembleElementVector(std::vector<elmer::Real>& globalVector,
+void MatrixAssembly::AssembleElementVector(std::shared_ptr<elmer::Vector> globalVector,
                                           const std::vector<elmer::Integer>& dofIndices,
                                           const std::vector<elmer::Real>& elementVector) {
     elmer::Integer numDofs = dofIndices.size();
@@ -153,7 +155,7 @@ void MatrixAssembly::AssembleElementVector(std::vector<elmer::Real>& globalVecto
     // 组装单元向量到全局向量
     for (elmer::Integer i = 0; i < numDofs; ++i) {
         elmer::Integer globalI = dofIndices[i];
-        globalVector[globalI] += elementVector[i];
+        (*globalVector)[globalI] += elementVector[i];
     }
 }
 
@@ -202,27 +204,17 @@ std::shared_ptr<elmer::Matrix> MatrixAssembly::ConvertMatrixFormat(std::shared_p
 
 // 矩阵信息查询
 elmer::Integer MatrixAssembly::GetMatrixSize(std::shared_ptr<elmer::Matrix> matrix) {
-    // 这里需要根据矩阵类型返回大小
-    // 目前假设矩阵是方阵，通过查询对角线元素数量来确定大小
-    elmer::Integer size = 0;
-    while (true) {
-        try {
-            matrix->GetElement(size, size);
-            ++size;
-        } catch (...) {
-            break;
-        }
-    }
-    return size;
+    // 使用矩阵的GetNumRows方法获取行数（假设矩阵是方阵）
+    return matrix->GetNumRows();
 }
 
 elmer::Integer MatrixAssembly::GetMatrixNonzeros(std::shared_ptr<elmer::Matrix> matrix) {
-    elmer::Integer size = GetMatrixSize(matrix);
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     elmer::Integer nonzeros = 0;
     
     for (elmer::Integer i = 0; i < size; ++i) {
         for (elmer::Integer j = 0; j < size; ++j) {
-            if (GetMatrixElement(matrix, i, j) != 0.0) {
+            if (MatrixAssembly::GetMatrixElement(matrix, i, j) != 0.0) {
                 ++nonzeros;
             }
         }
@@ -241,13 +233,13 @@ elmer::MatrixFormat MatrixAssembly::GetMatrixFormat(std::shared_ptr<elmer::Matri
 elmer::Real MatrixAssembly::EstimateConditionNumber(std::shared_ptr<elmer::Matrix> matrix) {
     // 这里需要实现更精确的条件数估计
     // 目前返回一个估计值
-    elmer::Integer size = GetMatrixSize(matrix);
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     
     // 计算Frobenius范数作为条件数的粗略估计
     elmer::Real norm = 0.0;
     for (elmer::Integer i = 0; i < size; ++i) {
         for (elmer::Integer j = 0; j < size; ++j) {
-            elmer::Real value = GetMatrixElement(matrix, i, j);
+            elmer::Real value = MatrixAssembly::GetMatrixElement(matrix, i, j);
             norm += value * value;
         }
     }
@@ -259,13 +251,13 @@ elmer::Real MatrixAssembly::EstimateConditionNumber(std::shared_ptr<elmer::Matri
 
 // 矩阵对称性检查
 bool MatrixAssembly::IsSymmetric(std::shared_ptr<elmer::Matrix> matrix, elmer::Real tolerance) {
-    elmer::Integer size = GetMatrixSize(matrix);
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     
     // 检查矩阵是否对称
     for (elmer::Integer i = 0; i < size; ++i) {
         for (elmer::Integer j = i + 1; j < size; ++j) {
-            elmer::Real a_ij = GetMatrixElement(matrix, i, j);
-            elmer::Real a_ji = GetMatrixElement(matrix, j, i);
+            elmer::Real a_ij = MatrixAssembly::GetMatrixElement(matrix, i, j);
+            elmer::Real a_ji = MatrixAssembly::GetMatrixElement(matrix, j, i);
             
             if (std::abs(a_ij - a_ji) > tolerance) {
                 return false;
@@ -280,10 +272,10 @@ bool MatrixAssembly::IsSymmetric(std::shared_ptr<elmer::Matrix> matrix, elmer::R
 bool MatrixAssembly::IsPositiveDefinite(std::shared_ptr<elmer::Matrix> matrix) {
     // 这里需要实现更精确的正定性检查
     // 目前检查对角线元素是否为正
-    elmer::Integer size = GetMatrixSize(matrix);
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     
     for (elmer::Integer i = 0; i < size; ++i) {
-        elmer::Real diag = GetMatrixElement(matrix, i, i);
+        elmer::Real diag = MatrixAssembly::GetMatrixElement(matrix, i, i);
         if (diag <= 0.0) {
             return false;
         }
@@ -294,7 +286,7 @@ bool MatrixAssembly::IsPositiveDefinite(std::shared_ptr<elmer::Matrix> matrix) {
 
 // 索引检查
 void MatrixAssembly::CheckIndices(std::shared_ptr<elmer::Matrix> matrix, elmer::Integer i, elmer::Integer j) {
-    elmer::Integer size = GetMatrixSize(matrix);
+    elmer::Integer size = MatrixAssembly::GetMatrixSize(matrix);
     
     if (i < 0 || i >= size || j < 0 || j >= size) {
         throw std::out_of_range("Matrix indices out of range");
@@ -304,159 +296,24 @@ void MatrixAssembly::CheckIndices(std::shared_ptr<elmer::Matrix> matrix, elmer::
 // 矩阵操作列表函数（简化实现）
 elmer::Real MatrixAssembly::List_GetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                              elmer::Integer i, elmer::Integer j) {
-    return GetMatrixElement(matrix, i, j);
+    return MatrixAssembly::GetMatrixElement(matrix, i, j);
 }
 
 void MatrixAssembly::List_SetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                             elmer::Integer i, elmer::Integer j, elmer::Real value) {
-    SetMatrixElement(matrix, i, j, value);
+    MatrixAssembly::SetMatrixElement(matrix, i, j, value);
 }
 
 void MatrixAssembly::List_AddToMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                              elmer::Integer i, elmer::Integer j, elmer::Real value) {
-    AddToMatrixElement(matrix, i, j, value);
+    MatrixAssembly::AddToMatrixElement(matrix, i, j, value);
 }
 
-elmer::Real MatrixAssembly::List_ChangeMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
-                                                  elmer::Integer i, elmer::Integer j, elmer::Real newValue) {
-    return ChangeMatrixElement(matrix, i, j, newValue);
-}
 
-void MatrixAssembly::List_MoveMatrixElement(std::shared_ptr<Matrix> matrix, 
-                                           elmer::Integer i1, elmer::Integer j1, 
-                                           elmer::Integer i2, elmer::Integer j2) {
-    MoveMatrixElement(matrix, i1, j1, i2, j2);
-}
 
-void MatrixAssembly::List_ZeroMatrix(std::shared_ptr<Matrix> matrix) {
-    ZeroMatrix(matrix);
-}
 
-void MatrixAssembly::List_ScaleMatrix(std::shared_ptr<Matrix> matrix, elmer::Real factor) {
-    ScaleMatrix(matrix, factor);
-}
-
-void MatrixAssembly::List_MatrixVectorMultiply(std::shared_ptr<Matrix> matrix, 
-                                              const std::vector<elmer::Real>& x, 
-                                              std::vector<elmer::Real>& y) {
-    MatrixVectorMultiply(matrix, x, y);
-}
-
-void MatrixAssembly::List_AssembleElementMatrix(std::shared_ptr<Matrix> globalMatrix, 
-                                               const std::vector<elmer::Integer>& dofIndices, 
-                                               const std::vector<std::vector<elmer::Real>>& elementMatrix) {
-    AssembleElementMatrix(globalMatrix, dofIndices, elementMatrix);
-}
-
-void MatrixAssembly::List_AssembleElementVector(std::vector<elmer::Real>& globalVector, 
-                                               const std::vector<elmer::Integer>& dofIndices, 
-                                               const std::vector<elmer::Real>& elementVector) {
-    AssembleElementVector(globalVector, dofIndices, elementVector);
-}
-
-void MatrixAssembly::List_ApplyDirichletBC(std::shared_ptr<Matrix> matrix, 
-                                          std::vector<elmer::Real>& rhs, 
-                                          elmer::Integer dofIndex, elmer::Real prescribedValue) {
-    ApplyDirichletBC(matrix, rhs, dofIndex, prescribedValue);
-}
-
-void MatrixAssembly::List_ApplyDirichletBC_Multi(std::shared_ptr<Matrix> matrix, 
-                                                std::vector<elmer::Real>& rhs, 
-                                                const std::vector<elmer::Integer>& dofIndices, 
-                                                const std::vector<elmer::Real>& prescribedValues) {
-    ApplyDirichletBC(matrix, rhs, dofIndices, prescribedValues);
-}
-
-elmer::Integer MatrixAssembly::List_GetMatrixSize(std::shared_ptr<Matrix> matrix) {
-    return GetMatrixSize(matrix);
-}
-
-elmer::Integer MatrixAssembly::List_GetMatrixNonzeros(std::shared_ptr<elmer::Matrix> matrix) {
-    return GetMatrixNonzeros(matrix);
-}
-
-elmer::MatrixFormat MatrixAssembly::List_GetMatrixFormat(std::shared_ptr<elmer::Matrix> matrix) {
-    return GetMatrixFormat(matrix);
-}
-
-elmer::Real MatrixAssembly::List_EstimateConditionNumber(std::shared_ptr<elmer::Matrix> matrix) {
-    return EstimateConditionNumber(matrix);
-}
-
-bool MatrixAssembly::List_IsSymmetric(std::shared_ptr<Matrix> matrix, elmer::Real tolerance) {
-    return IsSymmetric(matrix, tolerance);
-}
-
-bool MatrixAssembly::List_IsPositiveDefinite(std::shared_ptr<Matrix> matrix) {
-    return IsPositiveDefinite(matrix);
-}
 
 } // namespace elmer
 
-// 检查索引有效性
-void MatrixAssembly::CheckIndices(std::shared_ptr<Matrix> matrix, Integer i, Integer j) {
-    Integer size = GetMatrixSize(matrix);
-    
-    if (i < 0 || i >= size || j < 0 || j >= size) {
-        throw std::out_of_range("Matrix index out of range");
-    }
-}
 
-// CRS矩阵特定操作（需要CRS矩阵的具体实现）
-void MatrixAssembly::CRS_SetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                         Integer i, Integer j, Real value) {
-    // 这里需要CRS矩阵的具体实现
-    matrix->SetElement(i, j, value);
-}
 
-Real MatrixAssembly::CRS_GetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                         Integer i, Integer j) {
-    // 这里需要CRS矩阵的具体实现
-    return matrix->GetElement(i, j);
-}
-
-void MatrixAssembly::CRS_AddToMatrixElement(std::shared_ptr<Matrix> matrix,
-                                           Integer i, Integer j, Real value) {
-    // 这里需要CRS矩阵的具体实现
-    matrix->AddToElement(i, j, value);
-}
-
-// 带状矩阵特定操作（需要带状矩阵的具体实现）
-void MatrixAssembly::Band_SetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                          Integer i, Integer j, Real value) {
-    // 这里需要带状矩阵的具体实现
-    matrix->SetElement(i, j, value);
-}
-
-Real MatrixAssembly::Band_GetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                          Integer i, Integer j) {
-    // 这里需要带状矩阵的具体实现
-    return matrix->GetElement(i, j);
-}
-
-void MatrixAssembly::Band_AddToMatrixElement(std::shared_ptr<Matrix> matrix,
-                                            Integer i, Integer j, Real value) {
-    // 这里需要带状矩阵的具体实现
-    matrix->AddToElement(i, j, value);
-}
-
-// 列表矩阵特定操作（需要列表矩阵的具体实现）
-void MatrixAssembly::List_SetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                          Integer i, Integer j, Real value) {
-    // 这里需要列表矩阵的具体实现
-    matrix->SetElement(i, j, value);
-}
-
-Real MatrixAssembly::List_GetMatrixElement(std::shared_ptr<Matrix> matrix,
-                                          Integer i, Integer j) {
-    // 这里需要列表矩阵的具体实现
-    return matrix->GetElement(i, j);
-}
-
-void MatrixAssembly::List_AddToMatrixElement(std::shared_ptr<Matrix> matrix,
-                                            Integer i, Integer j, Real value) {
-    // 这里需要列表矩阵的具体实现
-    matrix->AddToElement(i, j, value);
-}
-
-} // namespace elmer

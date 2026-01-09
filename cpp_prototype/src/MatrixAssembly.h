@@ -1,5 +1,5 @@
-// MatrixAssembly.h - Elmer FEM C++矩阵组装模块
-// 对应Fortran模块: MatrixAssembly.F90
+// MatrixAssembly.h - Elmer FEM C++ Matrix Assembly Module
+// Corresponds to Fortran module: MatrixAssembly.F90
 
 #pragma once
 
@@ -10,112 +10,112 @@
 
 namespace elmer {
 
-// 矩阵格式枚举
+// Matrix format enumeration
 enum class MatrixFormat {
-    CRS,        // 压缩行存储格式
-    LIST,       // 列表存储格式
-    BAND,       // 带状矩阵格式
-    SBAND       // 对称带状矩阵格式
+    CRS,        // Compressed Row Storage format
+    LIST,       // List storage format
+    BAND,       // Banded matrix format
+    SBAND       // Symmetric banded matrix format
 };
 
-// 矩阵组装类
+// Matrix assembly class
 class MatrixAssembly {
 public:
-    // 构造函数
+    // Constructor
     MatrixAssembly() = default;
     
-    // 设置矩阵元素
+    // Set matrix element
     static void SetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                 elmer::Integer i, elmer::Integer j, elmer::Real value);
     
-    // 获取矩阵元素
+    // Get matrix element
     static elmer::Real GetMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                 elmer::Integer i, elmer::Integer j);
     
-    // 修改矩阵元素并返回旧值
+    // Modify matrix element and return old value
     static elmer::Real ChangeMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                    elmer::Integer i, elmer::Integer j, elmer::Real newValue);
     
-    // 添加到矩阵元素
+    // Add to matrix element
     static void AddToMatrixElement(std::shared_ptr<elmer::Matrix> matrix, 
                                   elmer::Integer i, elmer::Integer j, elmer::Real value);
     
-    // 复数矩阵元素操作
+    // Complex matrix element operation
     static void AddToComplexMatrixElement(std::shared_ptr<Matrix> matrix,
                                          elmer::Integer rowId, elmer::Integer colId,
                                          elmer::Real re, elmer::Real im);
     
-    // 移动矩阵元素
+    // Move matrix element
     static void MoveMatrixElement(std::shared_ptr<Matrix> matrix,
                                  elmer::Integer i1, elmer::Integer j1, elmer::Integer i2, elmer::Integer j2);
     
-    // 矩阵清零
+    // Zero matrix
     static void ZeroMatrix(std::shared_ptr<Matrix> matrix);
     
-    // 矩阵缩放
+    // Scale matrix
     static void ScaleMatrix(std::shared_ptr<Matrix> matrix, elmer::Real factor);
     
-    // 矩阵-向量乘法
+    // Matrix-vector multiplication
     static void MatrixVectorMultiply(std::shared_ptr<elmer::Matrix> matrix,
                                     std::shared_ptr<elmer::Vector> vector,
                                     std::shared_ptr<elmer::Vector> result);
     
-    // 有限元矩阵组装相关函数
+    // Finite element matrix assembly related functions
     
-    // 组装单元刚度矩阵到全局矩阵
+    // Assemble element stiffness matrix to global matrix
     static void AssembleElementMatrix(std::shared_ptr<Matrix> globalMatrix,
                                      const std::vector<elmer::Integer>& dofIndices,
                                      const std::vector<std::vector<elmer::Real>>& elementMatrix);
     
-    // 组装单元载荷向量到全局向量
+    // Assemble element load vector to global vector
     static void AssembleElementVector(std::shared_ptr<elmer::Vector> globalVector,
                                      const std::vector<elmer::Integer>& dofIndices,
                                      const std::vector<elmer::Real>& elementVector);
     
-    // 应用Dirichlet边界条件
+    // Apply Dirichlet boundary conditions
     static void ApplyDirichletBC(std::shared_ptr<elmer::Matrix> matrix,
                                 std::vector<elmer::Real>& rhs,
                                 elmer::Integer dofIndex,
                                 elmer::Real prescribedValue);
     
-    // 应用Dirichlet边界条件（多个自由度）
+    // Apply Dirichlet boundary conditions (multiple DOFs)
     static void ApplyDirichletBC(std::shared_ptr<elmer::Matrix> matrix,
                                 std::vector<elmer::Real>& rhs,
                                 const std::vector<elmer::Integer>& dofIndices,
                                 const std::vector<elmer::Real>& prescribedValues);
     
-    // 矩阵格式转换
+    // Matrix format conversion
     static std::shared_ptr<elmer::Matrix> ConvertMatrixFormat(std::shared_ptr<elmer::Matrix> source,
                                                       elmer::MatrixFormat targetFormat);
     
-    // 矩阵信息查询
+    // Matrix information query
     static elmer::Integer GetMatrixSize(std::shared_ptr<elmer::Matrix> matrix);
     static elmer::Integer GetMatrixNonzeros(std::shared_ptr<elmer::Matrix> matrix);
     static elmer::MatrixFormat GetMatrixFormat(std::shared_ptr<elmer::Matrix> matrix);
     
-    // 获取矩阵行
+    // Get matrix row
     static std::vector<elmer::Real> GetMatrixRow(std::shared_ptr<elmer::Matrix> matrix, elmer::Integer row);
     
-    // 设置矩阵行
-    static void SetMatrixRow(std::shared_ptr<elmer::Matrix> matrix, elmer::Integer row, 
+    // Set matrix row
+    static void SetMatrixRow(std::shared_ptr<elmer::Matrix> matrix, elmer::Integer row,
                             const std::vector<elmer::Real>& values);
     
-    // 矩阵条件数估计
+    // Matrix condition number estimation
     static elmer::Real EstimateConditionNumber(std::shared_ptr<elmer::Matrix> matrix);
     
-    // 矩阵对称性检查
+    // Matrix symmetry check
     static bool IsSymmetric(std::shared_ptr<elmer::Matrix> matrix, elmer::Real tolerance = 1e-12);
     
-    // 矩阵正定性检查
+    // Matrix positive definiteness check
     static bool IsPositiveDefinite(std::shared_ptr<elmer::Matrix> matrix);
     
 private:
-    // 内部辅助函数
+    // Internal helper functions
     
-    // 检查索引有效性
+    // Check index validity
     static void CheckIndices(std::shared_ptr<elmer::Matrix> matrix, elmer::Integer i, elmer::Integer j);
     
-    // CRS矩阵特定操作
+    // CRS matrix specific operations
     static void CRS_SetMatrixElement(std::shared_ptr<Matrix> matrix,
                                     elmer::Integer i, elmer::Integer j, elmer::Real value);
     static elmer::Real CRS_GetMatrixElement(std::shared_ptr<Matrix> matrix,
@@ -123,7 +123,7 @@ private:
     static void CRS_AddToMatrixElement(std::shared_ptr<Matrix> matrix,
                                       elmer::Integer i, elmer::Integer j, elmer::Real value);
     
-    // 带状矩阵特定操作
+    // Band matrix specific operations
     static void Band_SetMatrixElement(std::shared_ptr<Matrix> matrix,
                                      elmer::Integer i, elmer::Integer j, elmer::Real value);
     static elmer::Real Band_GetMatrixElement(std::shared_ptr<Matrix> matrix,
@@ -131,7 +131,7 @@ private:
     static void Band_AddToMatrixElement(std::shared_ptr<Matrix> matrix,
                                        elmer::Integer i, elmer::Integer j, elmer::Real value);
     
-    // 列表矩阵特定操作
+    // List matrix specific operations
     static void List_SetMatrixElement(std::shared_ptr<Matrix> matrix,
                                      elmer::Integer i, elmer::Integer j, elmer::Real value);
     static elmer::Real List_GetMatrixElement(std::shared_ptr<Matrix> matrix,

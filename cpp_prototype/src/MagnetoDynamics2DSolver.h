@@ -13,6 +13,7 @@
 #include <array>
 #include <complex>
 #include <unordered_map>
+#include <omp.h>
 
 namespace elmer {
 
@@ -342,6 +343,16 @@ public:
         return results;
     }
     
+    /**
+     * @brief 设置并行线程数
+     */
+    void setParallelThreads(int numThreads);
+    
+    /**
+     * @brief 获取并行线程数
+     */
+    int getParallelThreads() const;
+    
 private:
     /**
      * @brief 组装单元贡献
@@ -425,6 +436,26 @@ private:
     void applyAirGapBoundaryCondition(const Element& element, 
                                      std::vector<std::vector<double>>& stiffness,
                                      std::vector<double>& force);
+    
+    // 并行化相关方法
+    /**
+     * @brief 并行组装单元贡献（OpenMP实现）
+     */
+    void assembleElementContributionsParallel();
+    
+    /**
+     * @brief 线程安全的矩阵元素添加
+     */
+    void addToMatrixThreadSafe(std::shared_ptr<Matrix>& matrix, int row, int col, double value);
+    
+    /**
+     * @brief 线程安全的向量元素添加
+     */
+    void addToVectorThreadSafe(std::shared_ptr<Vector>& vector, int index, double value);
+    
+    // 并行化控制参数
+    int numThreads = 4;  ///< 并行线程数（默认4线程）
+    bool useParallelAssembly = false;  ///< 是否使用并行组装
 };
 
 } // namespace elmer

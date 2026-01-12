@@ -107,6 +107,45 @@ public:
     }
     
     /**
+     * @brief 基准测试：并行矩阵组装
+     */
+    double benchmarkParallelAssembly(int iterations = 10, int numThreads = 4) {
+        auto mesh = createTestMesh();
+        solver->setMesh(mesh);
+        
+        // 设置并行线程数
+        solver->setParallelThreads(numThreads);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        for (int i = 0; i < iterations; ++i) {
+            solver->assembleSystemParallel();
+        }
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        
+        return duration.count() / 1000.0; // 返回毫秒
+    }
+    
+    /**
+     * @brief 基准测试：不同线程数的并行性能
+     */
+    void benchmarkParallelScaling(int iterations = 5) {
+        std::cout << "\n7. 并行扩展性基准测试" << std::endl;
+        
+        // 测试不同线程数的性能
+        std::vector<int> threadCounts = {1, 2, 4, 8};
+        
+        for (int threads : threadCounts) {
+            double parallelTime = benchmarkParallelAssembly(iterations, threads);
+            double avgTime = parallelTime / iterations;
+            
+            std::cout << "   " << threads << " 线程 - 平均时间: " << avgTime << " ms/次" << std::endl;
+        }
+    }
+    
+    /**
      * @brief 基准测试：缓存预计算时间
      */
     double benchmarkCachePrecomputation() {
@@ -139,6 +178,7 @@ public:
         for (int i = 0; i < warmupRuns; ++i) {
             benchmarkTraditionalAssembly(1);
             benchmarkOptimizedAssembly(1);
+            benchmarkParallelAssembly(1, 4);
         }
         
         // 缓存预计算基准测试
@@ -158,19 +198,30 @@ public:
         std::cout << "   总时间: " << optimizedTime << " ms" << std::endl;
         std::cout << "   平均时间: " << optimizedTime / iterations << " ms/次" << std::endl;
         
-        // 性能对比分析
-        std::cout << "\n4. 性能对比分析" << std::endl;
-        double speedup = traditionalTime / optimizedTime;
-        std::cout << "   加速比: " << speedup << "x" << std::endl;
+        // 并行组装基准测试
+        std::cout << "\n4. 并行矩阵组装基准测试 (" << iterations << "次迭代, 4线程)" << std::endl;
+        double parallelTime = benchmarkParallelAssembly(iterations, 4);
+        std::cout << "   总时间: " << parallelTime << " ms" << std::endl;
+        std::cout << "   平均时间: " << parallelTime / iterations << " ms/次" << std::endl;
         
-        if (speedup > 1.0) {
-            std::cout << "   性能提升: +" << ((speedup - 1.0) * 100) << "%" << std::endl;
-        } else {
-            std::cout << "   性能下降: " << ((1.0 - speedup) * 100) << "%" << std::endl;
+        // 性能对比分析
+        std::cout << "\n5. 性能对比分析" << std::endl;
+        double speedupOptimized = traditionalTime / optimizedTime;
+        double speedupParallel = traditionalTime / parallelTime;
+        
+        std::cout << "   优化加速比: " << speedupOptimized << "x" << std::endl;
+        std::cout << "   并行加速比: " << speedupParallel << "x" << std::endl;
+        
+        if (speedupOptimized > 1.0) {
+            std::cout << "   优化性能提升: +" << ((speedupOptimized - 1.0) * 100) << "%" << std::endl;
+        }
+        
+        if (speedupParallel > 1.0) {
+            std::cout << "   并行性能提升: +" << ((speedupParallel - 1.0) * 100) << "%" << std::endl;
         }
         
         // 缓存效率分析
-        std::cout << "\n5. 缓存效率分析" << std::endl;
+        std::cout << "\n6. 缓存效率分析" << std::endl;
         double amortizedCacheTime = cacheTime / iterations;
         double effectiveOptimizedTime = optimizedTime + cacheTime;
         double effectiveSpeedup = traditionalTime / effectiveOptimizedTime;
@@ -219,6 +270,9 @@ int main() {
         
         // 运行综合性能基准测试
         benchmark.runComprehensiveBenchmark();
+        
+        // 运行并行扩展性测试
+        benchmark.benchmarkParallelScaling();
         
         // 运行内存使用基准测试
         benchmark.benchmarkMemoryUsage();

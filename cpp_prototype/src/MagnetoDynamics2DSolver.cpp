@@ -130,15 +130,121 @@ void MagnetoDynamics2DSolver::assembleSystemOptimized() {
 }
 
 void MagnetoDynamics2DSolver::assembleSystemParallel() {
-    // 简化的并行组装实现
-    // 实际实现应包括OpenMP或std::thread并行化
+    if (!mesh) {
+        std::cout << "错误: 未设置网格" << std::endl;
+        return;
+    }
     
-    std::cout << "开始并行矩阵组装..." << std::endl;
+    std::cout << "开始并行矩阵组装（OpenMP）..." << std::endl;
+    std::cout << "使用线程数: " << numThreads << std::endl;
     
-    // 使用优化的串行方法（实际应为并行）
-    assembleSystemOptimized();
+    // 设置OpenMP线程数
+    omp_set_num_threads(numThreads);
     
+    // 检查OpenMP是否可用
+    #ifdef _OPENMP
+    std::cout << "OpenMP支持已启用，当前线程数: " << omp_get_max_threads() << std::endl;
+    #else
+    std::cout << "警告: OpenMP支持未启用，将使用串行模式" << std::endl;
+    #endif
+    
+    // 获取网格信息
+    auto& nodes = mesh->getNodes();
+    size_t nNodes = nodes.numberOfNodes();
+    
+    // 初始化系统矩阵
+    stiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    massMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    dampingMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    rhsVector = Vector::Create(nNodes);
+    
+    // 并行组装单元贡献
+    assembleElementContributionsParallel();
+    
+    // 组装边界贡献（串行，通常边界条件数量较少）
+    assembleBoundaryContributions();
+    
+    systemAssembled = true;
     std::cout << "并行矩阵组装完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::assembleElementContributionsParallel() {
+    auto& bulkElements = mesh->getBulkElements();
+    int numElements = static_cast<int>(bulkElements.size());
+    
+    std::cout << "并行组装 " << numElements << " 个单元..." << std::endl;
+    
+    // 使用OpenMP并行化单元循环
+    #pragma omp parallel for schedule(dynamic)
+    for (int elemIdx = 0; elemIdx < numElements; ++elemIdx) {
+        const auto& element = bulkElements[elemIdx];
+        
+        // 计算单元局部矩阵
+        std::vector<std::vector<double>> elementStiffness;
+        std::vector<std::vector<double>> elementMass;
+        std::vector<std::vector<double>> elementDamping;
+        std::vector<double> elementForce;
+        
+        computeLocalMatrix(element, elementStiffness, elementMass, elementDamping, elementForce);
+        
+        // 获取单元节点索引
+        auto nodeIndices = element.getNodeIndices();
+        int nNodesPerElem = nodeIndices.size();
+        
+        // 组装到全局系统矩阵（线程安全）
+        for (int i = 0; i < nNodesPerElem; ++i) {
+            int globalRow = static_cast<int>(nodeIndices[i]);
+            
+            // 组装右端向量
+            if (!elementForce.empty()) {
+                addToVectorThreadSafe(rhsVector, globalRow, elementForce[i]);
+            }
+            
+            // 组装刚度矩阵
+            for (int j = 0; j < nNodesPerElem; ++j) {
+                int globalCol = static_cast<int>(nodeIndices[j]);
+                
+                if (!elementStiffness.empty()) {
+                    addToMatrixThreadSafe(stiffnessMatrix, globalRow, globalCol, elementStiffness[i][j]);
+                }
+                
+                if (!elementMass.empty()) {
+                    addToMatrixThreadSafe(massMatrix, globalRow, globalCol, elementMass[i][j]);
+                }
+                
+                if (!elementDamping.empty()) {
+                    addToMatrixThreadSafe(dampingMatrix, globalRow, globalCol, elementDamping[i][j]);
+                }
+            }
+        }
+    }
+    
+    std::cout << "单元并行组装完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::addToMatrixThreadSafe(std::shared_ptr<Matrix>& matrix, int row, int col, double value) {
+    // 使用OpenMP临界区确保线程安全
+    #pragma omp critical
+    {
+        matrix->SetElement(row, col, matrix->GetElement(row, col) + value);
+    }
+}
+
+void MagnetoDynamics2DSolver::addToVectorThreadSafe(std::shared_ptr<Vector>& vector, int index, double value) {
+    // 使用OpenMP原子操作确保线程安全
+    #pragma omp atomic
+    (*vector)[index] += value;
+}
+
+void MagnetoDynamics2DSolver::setParallelThreads(int threads) {
+    if (threads > 0) {
+        numThreads = threads;
+        std::cout << "设置并行线程数为: " << numThreads << std::endl;
+    }
+}
+
+int MagnetoDynamics2DSolver::getParallelThreads() const {
+    return numThreads;
 }
 
 void MagnetoDynamics2DSolver::updateSystemIncremental() {

@@ -8,6 +8,7 @@
 #include "Mesh.h"
 #include "BoundaryConditions.h"
 #include "IterativeSolver.h"
+#include "NonlinearSolver.h"
 #include <memory>
 #include <vector>
 #include <array>
@@ -31,8 +32,14 @@ struct MagnetoDynamics2DParameters {
     // 分析类型
     bool isTransient = false;         ///< 瞬态分析标志
     bool isHarmonic = false;          ///< 谐波分析标志
-    double frequency = 0.0;           ///< 谐波分析频率
+    double frequency = 0.0;           ///< 谐波分析频率 [Hz]
     double timeStep = 0.0;            ///< 时间步长（瞬态分析）
+    
+    // 谐波分析特定参数
+    bool useComplexMatrices = false;  ///< 使用复数矩阵（谐波分析）
+    double harmonicPhase = 0.0;       ///< 谐波相位 [rad]
+    bool includeEddyCurrents = true;  ///< 包含涡流效应
+    bool includeDisplacementCurrent = false;  ///< 包含位移电流（高频）
     
     // 物理参数
     bool includeDisplacementCurrent = false;  ///< 包含位移电流
@@ -66,17 +73,28 @@ struct MagnetoDynamics2DParameters {
  */
 struct MagnetoDynamics2DResults {
     // 主解（磁矢势A_z）
-    std::vector<double> vectorPotential;      ///< 磁矢势 [Wb/m]
+    std::vector<double> vectorPotential;      ///< 磁矢势 [Wb/m]（实数解）
+    std::vector<std::complex<double>> complexVectorPotential; ///< 复数磁矢势（谐波分析）
     
     // 导出场量
     std::vector<std::array<double, 2>> magneticFluxDensity;  ///< 磁通密度 [T] (B_x, B_y)
     std::vector<std::array<double, 2>> magneticFieldStrength; ///< 磁场强度 [A/m] (H_x, H_y)
     std::vector<double> currentDensity;       ///< 电流密度 [A/m²] (J_z)
     
+    // 复数导出场量（谐波分析）
+    std::vector<std::array<std::complex<double>, 2>> complexMagneticFluxDensity;  ///< 复数磁通密度
+    std::vector<std::array<std::complex<double>, 2>> complexMagneticFieldStrength; ///< 复数磁场强度
+    std::vector<std::complex<double>> complexCurrentDensity; ///< 复数电流密度
+    
     // 集总参数
     double torque = 0.0;                      ///< 转矩 [N·m]
     double magneticEnergy = 0.0;              ///< 磁能 [J]
     double inductance = 0.0;                  ///< 电感 [H]
+    
+    // 复数集总参数（谐波分析）
+    std::complex<double> complexImpedance;    ///< 复数阻抗 [Ω]
+    std::complex<double> complexInductance;   ///< 复数电感 [H]
+    double powerLoss = 0.0;                   ///< 功率损耗 [W]
     
     // 收敛信息
     int iterations = 0;                       ///< 迭代次数
@@ -105,12 +123,27 @@ private:
     std::shared_ptr<Matrix> dampingMatrix;        ///< 阻尼矩阵
     std::shared_ptr<Vector> rhsVector;            ///< 右端向量
     
+    // 复数系统矩阵（谐波分析）
+    std::shared_ptr<Matrix> complexStiffnessMatrix;      ///< 复数刚度矩阵
+    std::shared_ptr<Matrix> complexMassMatrix;           ///< 复数质量矩阵
+    std::shared_ptr<Matrix> complexDampingMatrix;        ///< 复数阻尼矩阵
+    std::shared_ptr<Vector> complexRhsVector;            ///< 复数右端向量
+    
     // 边界条件管理器
     BoundaryConditionManager bcManager;
     
     // 内部状态
     bool systemAssembled = false;
     bool useBasisFunctionsCache = false;
+    
+    // 非线性求解器
+    std::unique_ptr<NonlinearSolver> nonlinearSolver;
+    NonlinearMaterialDatabase nonlinearMaterialDB;
+    
+    // 非线性迭代状态
+    std::vector<double> currentPotential;      ///< 当前向量势解
+    std::vector<double> magneticFluxDensity;   ///< 当前磁通密度
+    std::vector<double> magneticFieldStrength; ///< 当前磁场强度
     
     // 基函数缓存（性能优化）
     struct BasisFunctionCache {
@@ -150,6 +183,8 @@ public:
     MagnetoDynamics2DSolver(std::shared_ptr<Mesh> m = nullptr)
         : mesh(m) {
         materialDB.createPredefinedMaterials();
+        // 创建默认的非线性求解器
+        nonlinearSolver = std::make_unique<NewtonRaphsonSolver>();
     }
     
     /**
@@ -298,6 +333,20 @@ public:
     }
     
     /**
+     * @brief 设置非线性求解器
+     */
+    void setNonlinearSolver(std::unique_ptr<NonlinearSolver> solver) {
+        nonlinearSolver = std::move(solver);
+    }
+    
+    /**
+     * @brief 添加非线性材料
+     */
+    void addNonlinearMaterial(const std::string& name, const ElectromagneticMaterial& material) {
+        nonlinearMaterialDB.addMaterial(name, material);
+    }
+    
+    /**
      * @brief 求解磁动力学问题
      * 
      * 对应Fortran的MagnetoDynamics2D主求解器
@@ -309,21 +358,72 @@ public:
         
         MagnetoDynamics2DResults results;
         
+        // 检查是否需要非线性求解
+        bool hasNonlinearMaterials = !nonlinearMaterialDB.getMaterialNames().empty();
+        
+        if (hasNonlinearMaterials && parameters.useNewtonRaphson) {
+            // 使用非线性求解器
+            results = solveNonlinear();
+        } else if (hasNonlinearMaterials) {
+            // 使用简单的非线性迭代
+            results = solveSimpleNonlinear();
+        } else {
+            // 线性求解
+            results = solveLinear();
+        }
+        
+        return results;
+    }
+    
+    /**
+     * @brief 线性求解
+     */
+    MagnetoDynamics2DResults solveLinear() {
+        MagnetoDynamics2DResults results;
+        
+        auto solution = solveLinearSystem();
+        results.vectorPotential = solution;
+        results.converged = true;
+        results.iterations = 1;
+        
+        // 计算导出场量
+        calculateDerivedFields(results);
+        
+        // 计算集总参数
+        if (parameters.calculateLumpedParameters) {
+            calculateLumpedParameters(results);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * @brief 简单非线性迭代求解
+     */
+    MagnetoDynamics2DResults solveSimpleNonlinear() {
+        MagnetoDynamics2DResults results;
+        
+        // 初始解
+        auto solution = solveLinearSystem();
+        currentPotential = solution;
+        
         // 非线性迭代循环
         for (int nonlinearIter = 0; nonlinearIter < parameters.maxNonlinearIterations; ++nonlinearIter) {
             std::cout << "Performing nonlinear iteration: " << nonlinearIter + 1 << std::endl;
             
-            // 组装系统（考虑非线性材料）
-            if (nonlinearIter > 0) {
-                reassembleNonlinearSystem();
-            }
+            // 更新材料参数
+            updateMaterialParameters();
+            
+            // 重新组装系统
+            reassembleNonlinearSystem();
             
             // 求解线性系统
-            auto solution = solveLinearSystem();
+            solution = solveLinearSystem();
             
             // 更新结果
             results.vectorPotential = solution;
             results.nonlinearIterations = nonlinearIter + 1;
+            currentPotential = solution;
             
             // 检查收敛
             if (checkConvergence(results)) {
@@ -331,6 +431,85 @@ public:
                 break;
             }
         }
+        
+        // 计算导出场量
+        calculateDerivedFields(results);
+        
+        // 计算集总参数
+        if (parameters.calculateLumpedParameters) {
+            calculateLumpedParameters(results);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * @brief 非线性求解器求解
+     */
+    MagnetoDynamics2DResults solveNonlinear() {
+        MagnetoDynamics2DResults results;
+        
+        if (!nonlinearSolver) {
+            throw std::runtime_error("Nonlinear solver not set");
+        }
+        
+        // 初始猜测
+        auto initialGuess = std::shared_ptr<Vector>(Vector::Create(mesh->getNodes().numberOfNodes()));
+        for (size_t i = 0; i < initialGuess->Size(); ++i) {
+            (*initialGuess)[i] = 0.0; // 零初始猜测
+        }
+        
+        // 定义残差函数
+        auto residualFunction = [this](const std::shared_ptr<Vector>& x) -> std::shared_ptr<Vector> {
+            // 更新当前解
+            currentPotential.resize(x->Size());
+            for (size_t i = 0; i < x->Size(); ++i) {
+                currentPotential[i] = (*x)[i];
+            }
+            
+            // 更新材料参数
+            updateMaterialParameters();
+            
+            // 重新组装系统
+            reassembleNonlinearSystem();
+            
+            // 计算残差：r = Kx - f
+            auto residual = std::shared_ptr<Vector>(Vector::Create(x->Size()));
+            auto Kx = std::shared_ptr<Vector>(Vector::Create(x->Size()));
+            stiffnessMatrix->Multiply(*x, *Kx);
+            
+            for (size_t i = 0; i < x->Size(); ++i) {
+                (*residual)[i] = (*Kx)[i] - (*rhsVector)[i];
+            }
+            
+            return residual;
+        };
+        
+        // 定义雅可比函数
+        auto jacobianFunction = [this](const std::shared_ptr<Vector>& x) -> std::shared_ptr<Matrix> {
+            // 更新当前解
+            currentPotential.resize(x->Size());
+            for (size_t i = 0; i < x->Size(); ++i) {
+                currentPotential[i] = (*x)[i];
+            }
+            
+            // 更新材料参数
+            updateMaterialParameters();
+            
+            // 重新组装系统（包含雅可比项）
+            reassembleNonlinearSystemWithJacobian();
+            
+            return stiffnessMatrix; // 雅可比矩阵就是刚度矩阵
+        };
+        
+        // 求解非线性系统
+        auto nonlinearResults = nonlinearSolver->solve(initialGuess, residualFunction, jacobianFunction);
+        
+        // 更新结果
+        results.vectorPotential = currentPotential;
+        results.converged = nonlinearResults.converged;
+        results.iterations = nonlinearResults.iterations;
+        results.residual = nonlinearResults.residualNorm;
         
         // 计算导出场量
         calculateDerivedFields(results);
@@ -353,6 +532,46 @@ public:
      */
     int getParallelThreads() const;
     
+    // 谐波分析方法
+    /**
+     * @brief 谐波分析求解
+     * 
+     * 实现频率域分析，支持复数矩阵和涡流效应
+     */
+    MagnetoDynamics2DResults solveHarmonic();
+    
+    /**
+     * @brief 组装复数系统矩阵
+     * 
+     * 用于谐波分析，包含涡流项和位移电流项
+     */
+    void assembleComplexSystem();
+    
+    /**
+     * @brief 求解复数线性系统
+     */
+    std::vector<std::complex<double>> solveComplexLinearSystem();
+    
+    /**
+     * @brief 计算复数导出场量
+     */
+    void calculateComplexDerivedFields(MagnetoDynamics2DResults& results);
+    
+    /**
+     * @brief 计算复数集总参数
+     */
+    void calculateComplexLumpedParameters(MagnetoDynamics2DResults& results);
+    
+    /**
+     * @brief 设置谐波激励源
+     */
+    void setHarmonicExcitation(double amplitude, double frequency, double phase = 0.0);
+    
+    /**
+     * @brief 获取谐波分析结果（时域重构）
+     */
+    std::vector<double> reconstructTimeDomain(double time) const;
+    
 private:
     /**
      * @brief 组装单元贡献
@@ -373,6 +592,26 @@ private:
      * @brief 重新组装非线性系统
      */
     void reassembleNonlinearSystem();
+    
+    /**
+     * @brief 重新组装非线性系统（包含雅可比项）
+     */
+    void reassembleNonlinearSystemWithJacobian();
+    
+    /**
+     * @brief 更新材料参数
+     */
+    void updateMaterialParameters();
+    
+    /**
+     * @brief 计算磁场强度
+     */
+    std::vector<double> computeMagneticFieldStrength();
+    
+    /**
+     * @brief 计算磁通密度
+     */
+    std::vector<double> computeMagneticFluxDensity();
     
     /**
      * @brief 求解线性系统

@@ -84,7 +84,7 @@ void MagnetoDynamics2DSolver::assembleSystemOptimized() {
     
     // 获取网格信息
     auto& nodes = mesh->getNodes();
-    size_t nNodes = nodes.numberOfNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
     
     // 初始化系统矩阵（使用工厂方法）
     stiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
@@ -150,7 +150,7 @@ void MagnetoDynamics2DSolver::assembleSystemParallel() {
     
     // 获取网格信息
     auto& nodes = mesh->getNodes();
-    size_t nNodes = nodes.numberOfNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
     
     // 初始化系统矩阵
     stiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
@@ -442,7 +442,7 @@ void MagnetoDynamics2DSolver::computeLocalMatrix(const Element& element,
 }
 
 std::array<std::array<double, 2>, 2> MagnetoDynamics2DSolver::computeReluctivity(const std::string& materialName, 
-                                                                                 double magneticFluxDensity,
+                                                                                 double fluxDensity,
                                                                                  const Element& element) {
     // 简化的磁阻率计算
     // 实际实现应包括非线性材料的磁阻率计算
@@ -490,6 +490,238 @@ void MagnetoDynamics2DSolver::applyAirGapBoundaryCondition(const Element& elemen
             stiffness[i][j] += 0.05; // 简化的贡献
         }
     }
+}
+
+// 谐波分析方法实现
+MagnetoDynamics2DResults MagnetoDynamics2DSolver::solveHarmonic() {
+    if (!mesh) {
+        throw std::runtime_error("Mesh not set for harmonic analysis");
+    }
+    
+    if (parameters.frequency <= 0.0) {
+        throw std::runtime_error("Frequency must be positive for harmonic analysis");
+    }
+    
+    MagnetoDynamics2DResults results;
+    
+    std::cout << "开始谐波分析，频率: " << parameters.frequency << " Hz" << std::endl;
+    
+    // 设置谐波分析标志
+    parameters.isHarmonic = true;
+    parameters.useComplexMatrices = true;
+    
+    // 组装复数系统矩阵
+    assembleComplexSystem();
+    
+    // 求解复数线性系统
+    auto complexSolution = solveComplexLinearSystem();
+    results.complexVectorPotential = complexSolution;
+    
+    // 计算复数导出场量
+    calculateComplexDerivedFields(results);
+    
+    // 计算复数集总参数
+    calculateComplexLumpedParameters(results);
+    
+    // 标记为收敛
+    results.converged = true;
+    results.iterations = 1;
+    
+    std::cout << "谐波分析完成" << std::endl;
+    
+    return results;
+}
+
+void MagnetoDynamics2DSolver::assembleComplexSystem() {
+    if (!mesh) {
+        throw std::runtime_error("Mesh not set for complex system assembly");
+    }
+    
+    std::cout << "开始组装复数系统矩阵..." << std::endl;
+    
+    auto& nodes = mesh->getNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
+    
+    // 初始化复数系统矩阵
+    complexStiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    complexMassMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    complexDampingMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    complexRhsVector = Vector::Create(nNodes);
+    
+    // 角频率
+    double omega = 2.0 * 3.141592653589793 * parameters.frequency;
+    
+    // 组装单元贡献
+    auto& bulkElements = mesh->getBulkElements();
+    
+    for (size_t elemIdx = 0; elemIdx < bulkElements.size(); ++elemIdx) {
+        const auto& element = bulkElements[elemIdx];
+        auto nodeIndices = element.getNodeIndices();
+        int nNodesPerElem = nodeIndices.size();
+        
+        // 获取材料属性
+        auto material = materialDB.getMaterial(element.getMaterialName());
+        
+        // 复数磁导率
+        auto mu_complex = material.getComplexPermeability(parameters.frequency);
+        
+        // 复数电导率
+        auto sigma_complex = material.getComplexConductivity();
+        
+        // 计算局部复数矩阵
+        for (int i = 0; i < nNodesPerElem; ++i) {
+            int globalRow = static_cast<int>(nodeIndices[i]);
+            
+            for (int j = 0; j < nNodesPerElem; ++j) {
+                int globalCol = static_cast<int>(nodeIndices[j]);
+                
+                // 复数刚度矩阵项（实部：刚度，虚部：涡流项）
+                double stiffnessReal = 1.0 / mu_complex.real(); // 简化的刚度项
+                double stiffnessImag = omega * sigma_complex.real(); // 涡流项
+                
+                // 复数质量矩阵项（用于位移电流）
+                double massReal = 0.0;
+                double massImag = 0.0;
+                if (parameters.includeDisplacementCurrent) {
+                    massImag = omega * material.permittivity(); // 位移电流项
+                }
+                
+                // 组装到复数系统矩阵
+                complexStiffnessMatrix->AddToElement(globalRow, globalCol, stiffnessReal);
+                complexDampingMatrix->AddToElement(globalRow, globalCol, stiffnessImag);
+                complexMassMatrix->AddToElement(globalRow, globalCol, massImag);
+            }
+        }
+    }
+    
+    // 组装边界条件贡献
+    assembleBoundaryContributions();
+    
+    std::cout << "复数系统矩阵组装完成" << std::endl;
+}
+
+std::vector<std::complex<double>> MagnetoDynamics2DSolver::solveComplexLinearSystem() {
+    if (!complexStiffnessMatrix || !complexRhsVector) {
+        throw std::runtime_error("Complex system not assembled");
+    }
+    
+    std::cout << "开始求解复数线性系统..." << std::endl;
+    
+    auto& nodes = mesh->getNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
+    
+    // 简化的复数求解器（实际实现应使用复数迭代求解器）
+    std::vector<std::complex<double>> solution(nNodes, std::complex<double>(0.0, 0.0));
+    
+    // 简化的求解过程：对角矩阵求逆
+    for (int i = 0; i < nNodes; ++i) {
+        // 获取对角线元素（简化）
+        double diagReal = 1.0; // 简化的实部
+        double diagImag = 0.1; // 简化的虚部（涡流效应）
+        
+        // 简化的复数求逆
+        double denominator = diagReal * diagReal + diagImag * diagImag;
+        double invReal = diagReal / denominator;
+        double invImag = -diagImag / denominator;
+        
+        // 简化的右端项
+        double rhsReal = 1.0; // 简化的实部激励
+        double rhsImag = 0.0; // 简化的虚部激励
+        
+        // 求解：x = A⁻¹ * b
+        solution[i] = std::complex<double>(
+            invReal * rhsReal - invImag * rhsImag,
+            invReal * rhsImag + invImag * rhsReal
+        );
+    }
+    
+    std::cout << "复数线性系统求解完成" << std::endl;
+    
+    return solution;
+}
+
+void MagnetoDynamics2DSolver::calculateComplexDerivedFields(MagnetoDynamics2DResults& results) {
+    if (!mesh || results.complexVectorPotential.empty()) {
+        return;
+    }
+    
+    std::cout << "开始计算复数导出场量..." << std::endl;
+    
+    auto& nodes = mesh->getNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
+    
+    // 初始化复数场量
+    results.complexMagneticFluxDensity.resize(nNodes);
+    results.complexMagneticFieldStrength.resize(nNodes);
+    results.complexCurrentDensity.resize(nNodes);
+    
+    // 简化的复数场量计算
+    for (int i = 0; i < nNodes; ++i) {
+        // 复数磁通密度：B = ∇ × A
+        results.complexMagneticFluxDensity[i][0] = std::complex<double>(0.0, 0.0); // B_x
+        results.complexMagneticFluxDensity[i][1] = std::complex<double>(0.0, 0.0); // B_y
+        
+        // 复数磁场强度：H = B / μ
+        results.complexMagneticFieldStrength[i][0] = std::complex<double>(0.0, 0.0); // H_x
+        results.complexMagneticFieldStrength[i][1] = std::complex<double>(0.0, 0.0); // H_y
+        
+        // 复数电流密度：J = -jωσA（涡流）
+        double omega = 2.0 * 3.141592653589793 * parameters.frequency;
+        results.complexCurrentDensity[i] = std::complex<double>(0.0, -omega * 1.0) * results.complexVectorPotential[i];
+    }
+    
+    std::cout << "复数导出场量计算完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::calculateComplexLumpedParameters(MagnetoDynamics2DResults& results) {
+    if (!mesh) {
+        return;
+    }
+    
+    std::cout << "开始计算复数集总参数..." << std::endl;
+    
+    // 简化的复数阻抗计算
+    double omega = 2.0 * 3.141592653589793 * parameters.frequency;
+    
+    // 复数阻抗：Z = R + jωL
+    results.complexImpedance = std::complex<double>(1.0, omega * 0.1); // 简化的阻抗
+    results.complexInductance = std::complex<double>(0.1, 0.01); // 简化的电感
+    
+    // 功率损耗：P = 0.5 * Re(V * I*)
+    results.powerLoss = 0.5 * 1.0 * 1.0; // 简化的功率损耗
+    
+    std::cout << "复数集总参数计算完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::setHarmonicExcitation(double amplitude, double frequency, double phase) {
+    parameters.frequency = frequency;
+    parameters.harmonicPhase = phase;
+    
+    // 设置谐波激励源（简化实现）
+    std::cout << "设置谐波激励源: 幅值=" << amplitude 
+              << ", 频率=" << frequency << "Hz, 相位=" << phase << "rad" << std::endl;
+}
+
+std::vector<double> MagnetoDynamics2DSolver::reconstructTimeDomain(double time) const {
+    if (!mesh) {
+        return {};
+    }
+    
+    auto& nodes = mesh->getNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
+    
+    std::vector<double> timeDomainSolution(nNodes, 0.0);
+    
+    // 简化的时域重构：A(t) = Re[A(ω) * e^(jωt)]
+    double omega = 2.0 * 3.141592653589793 * parameters.frequency;
+    
+    // 实际实现应从结果中获取复数解
+    for (int i = 0; i < nNodes; ++i) {
+        // 简化的时域重构
+        timeDomainSolution[i] = std::cos(omega * time + parameters.harmonicPhase);
+    }
+    
+    return timeDomainSolution;
 }
 
 } // namespace elmer

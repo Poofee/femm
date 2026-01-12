@@ -42,7 +42,6 @@ struct MagnetoDynamics2DParameters {
     bool includeDisplacementCurrent = false;  ///< 包含位移电流（高频）
     
     // 物理参数
-    bool includeDisplacementCurrent = false;  ///< 包含位移电流
     bool includeConvection = false;           ///< 包含对流项
     bool useNewtonRaphson = false;            ///< 使用牛顿-拉夫逊迭代
     
@@ -175,7 +174,7 @@ private:
     };
     
     MatrixAssemblyCache assemblyCache;            ///< 矩阵组装缓存
-    
+
 public:
     /**
      * @brief 构造函数
@@ -310,12 +309,12 @@ public:
         size_t nNodes = mesh->getNodes().numberOfNodes();
         
         // 初始化系统矩阵（每个节点1个自由度：A_z）
-        stiffnessMatrix = std::make_shared<CRSMatrix>(nNodes, nNodes);
+        stiffnessMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
         rhsVector = std::shared_ptr<Vector>(Vector::Create(nNodes));
         
         if (parameters.isTransient) {
-            massMatrix = std::make_shared<CRSMatrix>(nNodes, nNodes);
-            dampingMatrix = std::make_shared<CRSMatrix>(nNodes, nNodes);
+            massMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+            dampingMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
         }
         
         // 组装单元贡献

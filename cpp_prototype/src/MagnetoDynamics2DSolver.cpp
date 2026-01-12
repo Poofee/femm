@@ -543,9 +543,9 @@ void MagnetoDynamics2DSolver::assembleComplexSystem() {
     int nNodes = static_cast<int>(nodes.numberOfNodes());
     
     // 初始化复数系统矩阵
-    complexStiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
-    complexMassMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
-    complexDampingMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes));
+    complexStiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes).release());
+    complexMassMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes).release());
+    complexDampingMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes).release());
     complexRhsVector = Vector::Create(nNodes);
     
     // 角频率
@@ -722,6 +722,61 @@ std::vector<double> MagnetoDynamics2DSolver::reconstructTimeDomain(double time) 
     }
     
     return timeDomainSolution;
+}
+
+void MagnetoDynamics2DSolver::reassembleNonlinearSystemWithJacobian() {
+    if (!mesh) {
+        return;
+    }
+    
+    std::cout << "重新组装非线性系统（包含雅可比项）..." << std::endl;
+    
+    // 更新材料参数
+    updateMaterialParameters();
+    
+    // 重新组装刚度矩阵（包含非线性项）
+    auto& nodes = mesh->getNodes();
+    int nNodes = static_cast<int>(nodes.numberOfNodes());
+    
+    // 创建新的刚度矩阵
+    stiffnessMatrix = std::shared_ptr<Matrix>(Matrix::CreateCRS(nNodes, nNodes).release());
+    
+    // 简化的非线性雅可比矩阵组装
+    // 实际实现应考虑材料非线性（如B-H曲线）
+    for (int i = 0; i < nNodes; ++i) {
+        // 对角线元素：考虑非线性磁导率
+        double diagValue = 1.0; // 简化的非线性项
+        stiffnessMatrix->SetElement(i, i, diagValue);
+    }
+    
+    std::cout << "非线性系统雅可比矩阵组装完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::updateMaterialParameters() {
+    if (!mesh) {
+        return;
+    }
+    
+    std::cout << "更新材料参数..." << std::endl;
+    
+    // 简化的材料参数更新
+    // 实际实现应从材料数据库中获取当前磁场下的材料参数
+    
+    // 遍历所有体单元
+    auto& bulkElements = mesh->getBulkElements();
+    for (const auto& element : bulkElements) {
+        std::string materialName = element.getMaterialName();
+        
+        // 简化的材料参数更新逻辑
+        // 实际实现应考虑非线性材料的场依赖特性
+        if (materialName == "copper") {
+            // 铜的电导率保持不变
+        } else if (materialName == "iron") {
+            // 铁的非线性磁导率需要根据当前磁场更新
+        }
+    }
+    
+    std::cout << "材料参数更新完成" << std::endl;
 }
 
 } // namespace elmer

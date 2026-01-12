@@ -93,12 +93,16 @@ private:
     ElementType type_;                 // Element type
     int bodyId_;                       // Body ID
     int boundaryId_;                   // Boundary ID (used for boundary elements)
+    std::string materialName_;         // Material name
     
 public:
-    Element() : type_(ElementType::LINEAR), bodyId_(0), boundaryId_(0) {}
+    Element() : type_(ElementType::LINEAR), bodyId_(0), boundaryId_(0), materialName_("") {}
     
     Element(ElementType type, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0) {}
+        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_("") {}
+    
+    Element(ElementType type, const std::string& materialName, int bodyId = 0) 
+        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(materialName) {}
     
     // Add node index
     void addNodeIndex(size_t nodeIndex) {
@@ -143,6 +147,16 @@ public:
     // Set boundary ID
     void setBoundaryId(int boundaryId) {
         boundaryId_ = boundaryId;
+    }
+    
+    // Get material name
+    const std::string& getMaterialName() const {
+        return materialName_;
+    }
+    
+    // Set material name
+    void setMaterialName(const std::string& materialName) {
+        materialName_ = materialName;
     }
     
     // Get number of nodes
@@ -338,9 +352,32 @@ public:
         updateStatistics();
     }
     
+    // 添加四边形元素（带材料名称）
+    void addQuadrilateralElement(const std::vector<int>& nodeIndices, const std::string& materialName, int bodyId = 0) {
+        Element element(ElementType::LINEAR, materialName, bodyId);
+        
+        // 设置节点索引
+        std::vector<size_t> indices;
+        for (int index : nodeIndices) {
+            indices.push_back(static_cast<size_t>(index));
+        }
+        element.setNodeIndices(indices);
+        
+        bulkElements_.push_back(element);
+        updateStatistics();
+    }
+    
     std::vector<Element>& getBulkElements() { return bulkElements_; }
     const std::vector<Element>& getBulkElements() const { return bulkElements_; }
     size_t numberOfBulkElements() const { return bulkElements_.size(); }
+    
+    // 获取所有元素（体单元和边界单元）
+    std::vector<Element> getElements() const {
+        std::vector<Element> allElements;
+        allElements.insert(allElements.end(), bulkElements_.begin(), bulkElements_.end());
+        allElements.insert(allElements.end(), boundaryElements_.begin(), boundaryElements_.end());
+        return allElements;
+    }
     
     // 边界单元操作
     void addBoundaryElement(const Element& element) {

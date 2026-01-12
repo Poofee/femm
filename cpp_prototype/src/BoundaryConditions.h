@@ -4,11 +4,12 @@
 #include "Mesh.h"
 #include "ElmerCpp.h"
 #include <algorithm>
+#include <complex>
+#include <functional>
 #include <memory>
-#include <vector>
 #include <string>
 #include <unordered_map>
-#include <functional>
+#include <vector>
 
 using namespace elmer;
 
@@ -35,7 +36,7 @@ enum class BoundaryConditionType {
     HARMONIC_EXCITATION, ///< Harmonic excitation boundary condition
     HARMONIC_CURRENT,    ///< Harmonic current source
     HARMONIC_VOLTAGE,    ///< Harmonic voltage source
-    HARMONIC_FLUX        ///< Harmonic magnetic flux source
+    HARMONIC_FLUX,       ///< Harmonic magnetic flux source
     
     // Thermal specific boundary conditions
     CONVECTION,         ///< Convective boundary condition
@@ -802,7 +803,9 @@ public:
     }
 };
 
-} // namespace elmerBoundaryConditionUtils {
+} // namespace elmer
+
+namespace elmerBoundaryConditionUtils {
     
     /**
      * @brief Apply Dirichlet boundary condition to system matrix and RHS
@@ -840,6 +843,4 @@ public:
         const std::string& name,
         const std::vector<int>& nodeIndices,
         const std::vector<double>& values);
-}
-
-} // namespace elmer
+} // namespace elmerBoundaryConditionUtils

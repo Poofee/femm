@@ -23,7 +23,7 @@ void DirichletBoundaryCondition::apply(std::shared_ptr<Matrix> matrix,
         
         int dofIndex = dofMap[nodeIndex];
         if (dofIndex >= 0) { // Only apply to active DOFs
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, values_[i], matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, values_[i], matrix, rhs);
         }
     }
 }
@@ -52,7 +52,7 @@ void DirichletBoundaryCondition::applyWithPriority(std::shared_ptr<Matrix> matri
         
         int dofIndex = dofMap[nodeIndex];
         if (dofIndex >= 0 && !constrainedDOFs[dofIndex]) { // Only apply to unconstrained DOFs
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, values_[i], matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, values_[i], matrix, rhs);
             constrainedDOFs[dofIndex] = true; // Mark this DOF as constrained
         }
     }
@@ -236,124 +236,7 @@ std::string RobinBoundaryCondition::getStringParameter(const std::string& name,
     return defaultValue;
 }
 
-// BoundaryConditionUtils implementation
-void BoundaryConditionUtils::applyDirichletBC(int dofIndex, double value, 
-                                             std::shared_ptr<Matrix> matrix, 
-                                             std::vector<double>& rhs) {
-    if (dofIndex < 0 || dofIndex >= static_cast<int>(rhs.size())) {
-        return; // Invalid DOF index
-    }
-    
-    // Zero out the row in the matrix by setting all elements to 0
-    for (int j = 0; j < matrix->GetNumCols(); ++j) {
-        matrix->SetElement(dofIndex, j, 0.0);
-    }
-    
-    // Set the diagonal element to 1
-    matrix->SetElement(dofIndex, dofIndex, 1.0);
-    
-    // Set the corresponding RHS value
-    rhs[dofIndex] = value;
-}
 
-void BoundaryConditionUtils::applyDirichletBCs(const std::vector<int>& dofIndices,
-                                              const std::vector<double>& values,
-                                              std::shared_ptr<Matrix> matrix,
-                                              std::vector<double>& rhs) {
-    if (dofIndices.size() != values.size()) {
-        throw std::invalid_argument("Number of DOF indices and values must match");
-    }
-    
-    for (size_t i = 0; i < dofIndices.size(); ++i) {
-        applyDirichletBC(dofIndices[i], values[i], matrix, rhs);
-    }
-}
-
-bool BoundaryConditionUtils::hasBoundaryCondition(const Element& element, 
-                                                 const std::vector<std::shared_ptr<BoundaryCondition>>& bcs) {
-    for (const auto& bc : bcs) {
-        if (bc->isActiveForElement(element)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-std::vector<std::shared_ptr<BoundaryCondition>> BoundaryConditionUtils::getBoundaryConditionsForElement(
-    const Element& element, 
-    const std::vector<std::shared_ptr<BoundaryCondition>>& bcs) {
-    
-    std::vector<std::shared_ptr<BoundaryCondition>> result;
-    
-    for (const auto& bc : bcs) {
-        if (bc->isActiveForElement(element)) {
-            result.push_back(bc);
-        }
-    }
-    
-    return result;
-}
-
-std::shared_ptr<BoundaryCondition> BoundaryConditionUtils::createBoundaryCondition(
-    BoundaryConditionType type, 
-    const std::string& name,
-    const std::vector<int>& nodeIndices,
-    const std::vector<double>& values) {
-    
-    switch (type) {
-        case BoundaryConditionType::DIRICHLET: {
-            auto bc = std::make_shared<DirichletBoundaryCondition>(name);
-            bc->setValues(nodeIndices, values);
-            return bc;
-        }
-        
-        case BoundaryConditionType::NEUMANN: {
-            auto bc = std::make_shared<NeumannBoundaryCondition>(name);
-            bc->setFluxValues(nodeIndices, values);
-            return bc;
-        }
-        
-        case BoundaryConditionType::ROBIN: {
-            // For Robin BC, we need three sets of parameters
-            // For simplicity, we'll use the values for alpha and set beta=1, gamma=0
-            auto bc = std::make_shared<RobinBoundaryCondition>(name);
-            std::vector<double> betaValues(nodeIndices.size(), 1.0);
-            std::vector<double> gammaValues(nodeIndices.size(), 0.0);
-            bc->setParameters(nodeIndices, values, betaValues, gammaValues);
-            return bc;
-        }
-        
-        case BoundaryConditionType::MAGNETIC_SYMMETRY: {
-            auto bc = std::make_shared<MagneticSymmetryBoundaryCondition>(name);
-            bc->setBoundaryNodes(nodeIndices);
-            return bc;
-        }
-        
-        case BoundaryConditionType::MAGNETIC_ANTISYMMETRY: {
-            auto bc = std::make_shared<MagneticAntisymmetryBoundaryCondition>(name);
-            bc->setBoundaryNodes(nodeIndices);
-            return bc;
-        }
-        
-        case BoundaryConditionType::CONVECTION: {
-            auto bc = std::make_shared<ConvectionBoundaryCondition>(name);
-            // For convection BC, we need heat transfer coefficients and ambient temperatures
-            // For simplicity, use values for h and set Tinf=0
-            std::vector<double> ambientTemps(nodeIndices.size(), 0.0);
-            bc->setConvectionParameters(nodeIndices, values, ambientTemps);
-            return bc;
-        }
-        
-        case BoundaryConditionType::PRESSURE: {
-            auto bc = std::make_shared<PressureBoundaryCondition>(name);
-            bc->setPressureValues(nodeIndices, values);
-            return bc;
-        }
-        
-        default:
-            throw std::invalid_argument("Unsupported boundary condition type");
-    }
-}
 
 // MagneticSymmetryBoundaryCondition implementation
 void MagneticSymmetryBoundaryCondition::apply(std::shared_ptr<Matrix> matrix, 
@@ -371,7 +254,7 @@ void MagneticSymmetryBoundaryCondition::apply(std::shared_ptr<Matrix> matrix,
         if (dofIndex >= 0) {
             // Set the normal component to zero
             // This is a simplified implementation; actual implementation depends on formulation
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
         }
     }
 }
@@ -389,7 +272,7 @@ void MagneticSymmetryBoundaryCondition::applyWithPriority(std::shared_ptr<Matrix
         
         int dofIndex = dofMap[nodeIndex];
         if (dofIndex >= 0 && !constrainedDOFs[dofIndex]) {
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
             constrainedDOFs[dofIndex] = true;
         }
     }
@@ -438,7 +321,7 @@ void MagneticAntisymmetryBoundaryCondition::apply(std::shared_ptr<Matrix> matrix
         if (dofIndex >= 0) {
             // Set the tangential component to zero
             // This is a simplified implementation; actual implementation depends on formulation
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
         }
     }
 }
@@ -456,7 +339,7 @@ void MagneticAntisymmetryBoundaryCondition::applyWithPriority(std::shared_ptr<Ma
         
         int dofIndex = dofMap[nodeIndex];
         if (dofIndex >= 0 && !constrainedDOFs[dofIndex]) {
-            BoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
+            elmerBoundaryConditionUtils::applyDirichletBC(dofIndex, 0.0, matrix, rhs);
             constrainedDOFs[dofIndex] = true;
         }
     }
@@ -611,3 +494,122 @@ std::string PressureBoundaryCondition::getStringParameter(const std::string& nam
 }
 
 } // namespace elmer
+
+// elmerBoundaryConditionUtils implementation
+void elmerBoundaryConditionUtils::applyDirichletBC(int dofIndex, double value, 
+                                                   std::shared_ptr<Matrix> matrix, 
+                                                   std::vector<double>& rhs) {
+    if (dofIndex < 0 || dofIndex >= static_cast<int>(rhs.size())) {
+        return; // Invalid DOF index
+    }
+    
+    // Zero out the row in the matrix by setting all elements to 0
+    for (int j = 0; j < matrix->GetNumCols(); ++j) {
+        matrix->SetElement(dofIndex, j, 0.0);
+    }
+    
+    // Set the diagonal element to 1
+    matrix->SetElement(dofIndex, dofIndex, 1.0);
+    
+    // Set the corresponding RHS value
+    rhs[dofIndex] = value;
+}
+
+void elmerBoundaryConditionUtils::applyDirichletBCs(const std::vector<int>& dofIndices,
+                                                    const std::vector<double>& values,
+                                                    std::shared_ptr<Matrix> matrix,
+                                                    std::vector<double>& rhs) {
+    if (dofIndices.size() != values.size()) {
+        throw std::invalid_argument("Number of DOF indices and values must match");
+    }
+    
+    for (size_t i = 0; i < dofIndices.size(); ++i) {
+        applyDirichletBC(dofIndices[i], values[i], matrix, rhs);
+    }
+}
+
+bool elmerBoundaryConditionUtils::hasBoundaryCondition(const Element& element, 
+                                                       const std::vector<std::shared_ptr<BoundaryCondition>>& bcs) {
+    for (const auto& bc : bcs) {
+        if (bc->isActiveForElement(element)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::shared_ptr<BoundaryCondition>> elmerBoundaryConditionUtils::getBoundaryConditionsForElement(
+    const Element& element, 
+    const std::vector<std::shared_ptr<BoundaryCondition>>& bcs) {
+    
+    std::vector<std::shared_ptr<BoundaryCondition>> result;
+    
+    for (const auto& bc : bcs) {
+        if (bc->isActiveForElement(element)) {
+            result.push_back(bc);
+        }
+    }
+    
+    return result;
+}
+
+std::shared_ptr<BoundaryCondition> elmerBoundaryConditionUtils::createBoundaryCondition(
+    BoundaryConditionType type, 
+    const std::string& name,
+    const std::vector<int>& nodeIndices,
+    const std::vector<double>& values) {
+    
+    switch (type) {
+        case BoundaryConditionType::DIRICHLET: {
+            auto bc = std::make_shared<DirichletBoundaryCondition>(name);
+            bc->setValues(nodeIndices, values);
+            return bc;
+        }
+        
+        case BoundaryConditionType::NEUMANN: {
+            auto bc = std::make_shared<NeumannBoundaryCondition>(name);
+            bc->setFluxValues(nodeIndices, values);
+            return bc;
+        }
+        
+        case BoundaryConditionType::ROBIN: {
+            // For Robin BC, we need three sets of parameters
+            // For simplicity, we'll use the values for alpha and set beta=1, gamma=0
+            auto bc = std::make_shared<RobinBoundaryCondition>(name);
+            std::vector<double> betaValues(nodeIndices.size(), 1.0);
+            std::vector<double> gammaValues(nodeIndices.size(), 0.0);
+            bc->setParameters(nodeIndices, values, betaValues, gammaValues);
+            return bc;
+        }
+        
+        case BoundaryConditionType::MAGNETIC_SYMMETRY: {
+            auto bc = std::make_shared<MagneticSymmetryBoundaryCondition>(name);
+            bc->setBoundaryNodes(nodeIndices);
+            return bc;
+        }
+        
+        case BoundaryConditionType::MAGNETIC_ANTISYMMETRY: {
+            auto bc = std::make_shared<MagneticAntisymmetryBoundaryCondition>(name);
+            bc->setBoundaryNodes(nodeIndices);
+            return bc;
+        }
+        
+        case BoundaryConditionType::CONVECTION: {
+            auto bc = std::make_shared<ConvectionBoundaryCondition>(name);
+            // For convection BC, we need heat transfer coefficients and ambient temperatures
+            // For simplicity, use values for h and set Tinf=0
+            std::vector<double> ambientTemps(nodeIndices.size(), 0.0);
+            bc->setConvectionParameters(nodeIndices, values, ambientTemps);
+            return bc;
+        }
+        
+        case BoundaryConditionType::PRESSURE: {
+            auto bc = std::make_shared<PressureBoundaryCondition>(name);
+            bc->setPressureValues(nodeIndices, values);
+            return bc;
+        }
+        
+        default:
+            throw std::invalid_argument("Unsupported boundary condition type");
+    }
+}

@@ -12,6 +12,7 @@
 #include <vector>
 #include <array>
 #include <complex>
+#include <unordered_map>
 
 namespace elmer {
 
@@ -115,8 +116,31 @@ private:
         std::vector<double> basis;         ///< 基函数值
         std::vector<std::array<double, 3>> dBasisdx; ///< 基函数导数
         double weight;                     ///< 积分权重
+        double detJ;                       ///< 雅可比行列式
+        std::array<double, 3> coords;     ///< 积分点坐标
     };
-    std::vector<BasisFunctionCache> basisCache;
+    
+    // 优化的缓存结构
+    struct ElementCache {
+        std::vector<BasisFunctionCache> integrationPoints; ///< 积分点缓存
+        std::vector<int> nodeIndices;                      ///< 节点索引
+        int elementType;                                   ///< 单元类型
+        double area;                                       ///< 单元面积
+    };
+    
+    std::vector<ElementCache> elementCache;               ///< 单元级缓存
+    std::unordered_map<int, std::vector<double>> shapeFunctionCache; ///< 形状函数缓存
+    
+    // 矩阵组装优化
+    struct MatrixAssemblyCache {
+        std::vector<double> elementStiffness;     ///< 单元刚度矩阵缓存
+        std::vector<double> elementMass;          ///< 单元质量矩阵缓存
+        std::vector<double> elementDamping;        ///< 单元阻尼矩阵缓存
+        std::vector<double> elementRHS;           ///< 单元右端向量缓存
+        std::vector<int> elementDOFs;             ///< 单元自由度索引
+    };
+    
+    MatrixAssemblyCache assemblyCache;            ///< 矩阵组装缓存
     
 public:
     /**
@@ -172,8 +196,46 @@ public:
         return bcManager;
     }
     
+    // 性能优化方法
     /**
-     * @brief 初始化求解器
+     * @brief 启用基函数缓存
+     */
+    void enableBasisFunctionCache(bool enable = true) {
+        useBasisFunctionsCache = enable;
+    }
+    
+    /**
+     * @brief 预计算基函数缓存
+     */
+    void precomputeBasisFunctionCache();
+    
+    /**
+     * @brief 优化的矩阵组装方法
+     */
+    void assembleSystemOptimized();
+    
+    /**
+     * @brief 并行矩阵组装
+     */
+    void assembleSystemParallel();
+    
+    /**
+     * @brief 增量式矩阵更新（非线性迭代优化）
+     */
+    void updateSystemIncremental();
+    
+    /**
+     * @brief 清除缓存
+     */
+    void clearCache();
+    
+    /**
+     * @brief 获取缓存统计信息
+     */
+    void getCacheStatistics() const;
+    
+    /**
+     * @brief 初始化求解器"
      * 
      * 对应Fortran的MagnetoDynamics2D_Init子程序
      */
@@ -181,9 +243,6 @@ public:
         if (!mesh) {
             throw std::runtime_error("Mesh not set for initialization");
         }
-        
-        // 设置变量自由度（磁矢势A_z）
-        bcManager.setVariableDofs(1);
         
         // 检查坐标系
         if (parameters.coordinateSystem == MagnetoDynamics2DParameters::AXISYMMETRIC ||
@@ -216,7 +275,7 @@ public:
         
         // 初始化系统矩阵（每个节点1个自由度：A_z）
         stiffnessMatrix = std::make_shared<CRSMatrix>(nNodes, nNodes);
-        rhsVector = std::make_shared<Vector>(nNodes);
+        rhsVector = std::shared_ptr<Vector>(Vector::Create(nNodes));
         
         if (parameters.isTransient) {
             massMatrix = std::make_shared<CRSMatrix>(nNodes, nNodes);
@@ -345,7 +404,7 @@ private:
      * 
      * 对应Fortran的GetReluctivity子程序
      */
-    std::array<std::array<double, 2>, 2> computeReluctivity(const Material& material, 
+    std::array<std::array<double, 2>, 2> computeReluctivity(const std::string& materialName, 
                                                            double magneticFluxDensity,
                                                            const Element& element);
     

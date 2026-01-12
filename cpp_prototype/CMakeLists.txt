@@ -44,6 +44,11 @@ add_library(ElmerCppMatrixAssembly
     src/Lists.cpp
     src/Interpolation.h
     src/Interpolation.cpp
+    src/MagnetoDynamics2DSolver.h
+    src/MagnetoDynamics2DSolver.cpp
+    src/MagnetodynamicsSolver.h
+    src/ElectromagneticMaterial.h
+    src/MaterialDatabase.h
 )
 
 # Create test executables
@@ -95,13 +100,22 @@ add_executable(test_interpolation
     test/test_interpolation.cpp
 )
 
-# Set include directories for test executables
+add_executable(test_boundary_conditions_priority
+    test/test_boundary_conditions_priority.cpp
+)
+
+add_executable(test_magnetodynamics2d_solver
+    test/test_magnetodynamics2d_solver.cpp
+)
+
 target_include_directories(test_mesh PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_shapefunctions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_crs_matrix PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_lists PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_boundary_conditions_priority PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_magnetodynamics2d_solver PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link test executables with library
 target_link_libraries(test_mesh ElmerCppMatrixAssembly)
@@ -116,6 +130,8 @@ target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
 target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
 target_link_libraries(test_lists ElmerCppMatrixAssembly)
 target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
+target_link_libraries(test_boundary_conditions_priority ElmerCppMatrixAssembly)
+target_link_libraries(test_magnetodynamics2d_solver ElmerCppMatrixAssembly)
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)
 target_link_libraries(test_linear_algebra ElmerCppMatrixAssembly)
 target_link_libraries(test_def_utils ElmerCppMatrixAssembly)
@@ -126,6 +142,8 @@ target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
 target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
 target_link_libraries(test_lists ElmerCppMatrixAssembly)
 target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
+target_link_libraries(test_boundary_conditions_priority ElmerCppMatrixAssembly)
+target_link_libraries(test_magnetodynamics2d_solver ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)

@@ -6,8 +6,9 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include "ElmerCpp.h"
 
-namespace ElmerCpp {
+namespace elmer {
 
 // ===== 求解器方法枚举 =====
 enum class SolverMethod {
@@ -34,38 +35,134 @@ struct SolverResult {
     bool converged;
 };
 
-// ===== 矩阵接口 =====
-class IMatrix {
+
+
+// ===== CRS矩阵实现 =====
+class CRSMatrixImpl : public elmer::Matrix {
+private:
+    std::vector<double> values;
+    std::vector<int> col_indices;
+    std::vector<int> row_pointers;
+    int rows, cols;
+    
 public:
-    virtual ~IMatrix() = default;
+    CRSMatrixImpl(int num_rows, int num_cols) : rows(num_rows), cols(num_cols) {
+        row_pointers.resize(rows + 1, 0);
+    }
     
-    // 设置矩阵元素
-    virtual void setElement(int i, int j, double value) = 0;
+    void SetElement(Integer i, Integer j, Real value) override {
+        if (i < 0 || i >= rows || j < 0 || j >= cols) {
+            throw std::out_of_range("Matrix index out of range");
+        }
+        
+        // 查找插入位置
+        int start = row_pointers[i];
+        int end = row_pointers[i + 1];
+        
+        // 查找列索引
+        auto it = std::lower_bound(col_indices.begin() + start, 
+                                  col_indices.begin() + end, j);
+        int pos = std::distance(col_indices.begin(), it);
+        
+        if (pos < end && col_indices[pos] == j) {
+            // 更新现有元素
+            values[pos] = value;
+        } else {
+            // 插入新元素
+            values.insert(values.begin() + pos, value);
+            col_indices.insert(col_indices.begin() + pos, j);
+            
+            // 更新行指针
+            for (int k = i + 1; k <= rows; ++k) {
+                row_pointers[k]++;
+            }
+        }
+    }
     
-    // 设置矩阵元素（别名，用于边界条件）
-    virtual void set(int i, int j, double value) = 0;
+    void AddToElement(Integer i, Integer j, Real value) override {
+        if (i < 0 || i >= rows || j < 0 || j >= cols) {
+            throw std::out_of_range("Matrix index out of range");
+        }
+        
+        // 查找插入位置
+        int start = row_pointers[i];
+        int end = row_pointers[i + 1];
+        
+        // 查找列索引
+        auto it = std::lower_bound(col_indices.begin() + start, 
+                                  col_indices.begin() + end, j);
+        int pos = std::distance(col_indices.begin(), it);
+        
+        if (pos < end && col_indices[pos] == j) {
+            // 更新现有元素
+            values[pos] += value;
+        } else {
+            // 插入新元素
+            values.insert(values.begin() + pos, value);
+            col_indices.insert(col_indices.begin() + pos, j);
+            
+            // 更新行指针
+            for (int k = i + 1; k <= rows; ++k) {
+                row_pointers[k]++;
+            }
+        }
+    }
     
-    // 获取矩阵元素
-    virtual double getElement(int i, int j) const = 0;
+    Real GetElement(Integer i, Integer j) const override {
+        if (i < 0 || i >= rows || j < 0 || j >= cols) {
+            throw std::out_of_range("Matrix index out of range");
+        }
+        
+        int start = row_pointers[i];
+        int end = row_pointers[i + 1];
+        
+        // 二分查找列索引
+        auto it = std::lower_bound(col_indices.begin() + start, 
+                                  col_indices.begin() + end, j);
+        
+        if (it != col_indices.begin() + end && *it == j) {
+            int pos = std::distance(col_indices.begin(), it);
+            return values[pos];
+        }
+        
+        return 0.0;
+    }
     
-    // 获取矩阵元素（别名，用于边界条件）
-    virtual double get(int i, int j) const = 0;
+    void Zero() override {
+        values.clear();
+        col_indices.clear();
+        row_pointers.assign(rows + 1, 0);
+    }
     
-    // 矩阵清零
-    virtual void zero() = 0;
+    Integer GetNumRows() const override {
+        return rows;
+    }
     
-    // 清零矩阵行（用于边界条件）
-    virtual void zeroRow(int row) = 0;
+    Integer GetNumCols() const override {
+        return cols;
+    }
     
-    // 获取矩阵维度
-    virtual int getRows() const = 0;
-    virtual int getCols() const = 0;
+    void Multiply(const Vector& x, Vector& y) const override {
+        // 实现矩阵-向量乘法
+        for (int i = 0; i < rows; ++i) {
+            double sum = 0.0;
+            for (int j = row_pointers[i]; j < row_pointers[i + 1]; ++j) {
+                sum += values[j] * x[col_indices[j]];
+            }
+            y[i] = sum;
+        }
+    }
     
-    // 矩阵-向量乘法
-    virtual std::vector<double> multiply(const std::vector<double>& x) const = 0;
-    
-    // 获取矩阵非零元素数量
-    virtual int getNonzeros() const = 0;
+    void Multiply(Real alpha, const Vector& x, Real beta, Vector& y) const override {
+        // 实现带缩放的矩阵-向量乘法
+        for (int i = 0; i < rows; ++i) {
+            double sum = 0.0;
+            for (int j = row_pointers[i]; j < row_pointers[i + 1]; ++j) {
+                sum += values[j] * x[col_indices[j]];
+            }
+            y[i] = alpha * sum + beta * y[i];
+        }
+    }
 };
 
 // ===== 迭代求解器接口 =====
@@ -87,9 +184,10 @@ public:
 };
 
 // ===== 矩阵组装器接口 =====
-class IMatrixAssembler {
+
+class MatrixAssembler {
 public:
-    virtual ~IMatrixAssembler() = default;
+    virtual ~MatrixAssembler() = default;
     
     // 添加单元刚度矩阵到全局矩阵
     virtual void addElementMatrix(const std::vector<int>& indices,
@@ -102,26 +200,26 @@ public:
     
     // 应用边界条件
     virtual void applyDirichletBC(int dof_index, double value,
-                                 std::shared_ptr<IMatrix> matrix,
+                                 std::shared_ptr<Matrix> matrix,
                                  std::vector<double>& rhs) = 0;
     
     // 应用多个边界条件
     virtual void applyDirichletBCs(const std::vector<int>& dof_indices,
                                   const std::vector<double>& values,
-                                  std::shared_ptr<IMatrix> matrix,
+                                  std::shared_ptr<Matrix> matrix,
                                   std::vector<double>& rhs) = 0;
 };
 
 // ===== 工厂函数声明 =====
 
 // 创建CRS矩阵
-std::shared_ptr<IMatrix> createCRSMatrix(int rows, int cols);
+std::shared_ptr<elmer::Matrix> createCRSMatrix(int rows, int cols);
 
 // 创建迭代求解器
-std::shared_ptr<IIterativeSolver> createIterativeSolver(std::shared_ptr<IMatrix> matrix);
+std::shared_ptr<IIterativeSolver> createIterativeSolver(std::shared_ptr<Matrix> matrix);
 
 // 创建矩阵组装器
-std::shared_ptr<IMatrixAssembler> createMatrixAssembler(std::shared_ptr<IMatrix> matrix);
+std::shared_ptr<MatrixAssembler> createMatrixAssembler(std::shared_ptr<Matrix> matrix);
 
 // ===== 辅助函数 =====
 
@@ -141,6 +239,6 @@ std::vector<double> vectorScalarMultiply(const std::vector<double>& v, double sc
 void printVector(const std::vector<double>& v, const std::string& name = "");
 
 // 打印矩阵（调试用）
-void printMatrix(std::shared_ptr<IMatrix> matrix, const std::string& name = "");
+void printMatrix(std::shared_ptr<Matrix> matrix, const std::string& name = "");
 
-} // namespace ElmerCpp
+} // namespace elmer

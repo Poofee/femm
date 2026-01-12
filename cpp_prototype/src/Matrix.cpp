@@ -28,12 +28,6 @@ private:
     std::vector<Real> data_;
 };
 
-// Vector factory method implementation
-std::unique_ptr<Vector> Vector::Create(Integer size) {
-    return std::make_unique<SimpleVector>(size);
-}
-
-
 
 // Band matrix implementation (corresponds to BandMatrix.F90)
 class BandMatrix : public Matrix {

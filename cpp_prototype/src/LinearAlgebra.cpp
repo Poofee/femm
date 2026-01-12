@@ -2,6 +2,7 @@
 // 对应Fortran模块: CRSMatrix.F90, IterSolve.F90, MatrixAssembly.F90
 
 #include "LinearAlgebra.h"
+#include "ElmerCpp.h"
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -9,133 +10,24 @@
 #include <stdexcept>
 #include <cmath>
 
-namespace ElmerCpp {
+using elmer::Integer;
+using elmer::Real;
 
-// ===== CRS矩阵实现 =====
+namespace elmer {
 
-class CRSMatrixImpl : public IMatrix {
-private:
-    std::vector<double> values;
-    std::vector<int> col_indices;
-    std::vector<int> row_pointers;
-    int rows, cols;
-    
-public:
-    CRSMatrixImpl(int num_rows, int num_cols) : rows(num_rows), cols(num_cols) {
-        row_pointers.resize(rows + 1, 0);
-    }
-    
-    void setElement(int i, int j, double value) override {
-        if (i < 0 || i >= rows || j < 0 || j >= cols) {
-            throw std::out_of_range("Matrix index out of range");
-        }
-        
-        // 查找插入位置
-        int start = row_pointers[i];
-        int end = row_pointers[i + 1];
-        
-        // 查找列索引
-        auto it = std::lower_bound(col_indices.begin() + start, 
-                                  col_indices.begin() + end, j);
-        int pos = std::distance(col_indices.begin(), it);
-        
-        if (pos < end && col_indices[pos] == j) {
-            // 更新现有元素
-            values[pos] = value;
-        } else {
-            // 插入新元素
-            values.insert(values.begin() + pos, value);
-            col_indices.insert(col_indices.begin() + pos, j);
-            
-            // 更新行指针
-            for (int k = i + 1; k <= rows; ++k) {
-                row_pointers[k]++;
-            }
-        }
-    }
-    
-    void set(int i, int j, double value) override {
-        setElement(i, j, value);
-    }
-    
-    double getElement(int i, int j) const override {
-        if (i < 0 || i >= rows || j < 0 || j >= cols) {
-            return 0.0;
-        }
-        
-        int start = row_pointers[i];
-        int end = row_pointers[i + 1];
-        
-        // 二分查找列索引
-        auto it = std::lower_bound(col_indices.begin() + start, 
-                                  col_indices.begin() + end, j);
-        
-        if (it != col_indices.begin() + end && *it == j) {
-            int pos = std::distance(col_indices.begin(), it);
-            return values[pos];
-        }
-        
-        return 0.0;
-    }
-    
-    double get(int i, int j) const override {
-        return getElement(i, j);
-    }
-    
-    void zero() override {
-        values.clear();
-        col_indices.clear();
-        row_pointers.assign(rows + 1, 0);
-    }
-    
-    void zeroRow(int row) override {
-        if (row < 0 || row >= rows) {
-            throw std::out_of_range("Row index out of range");
-        }
-        
-        int start = row_pointers[row];
-        int end = row_pointers[row + 1];
-        
-        // 清零该行的所有元素
-        for (int i = start; i < end; ++i) {
-            values[i] = 0.0;
-        }
-    }
-    
-    int getRows() const override { return rows; }
-    int getCols() const override { return cols; }
-    
-    int getNonzeros() const override {
-        return values.size();
-    }
-    
-    // 矩阵-向量乘法
-    std::vector<double> multiply(const std::vector<double>& x) const override {
-        if (x.size() != static_cast<size_t>(cols)) {
-            throw std::invalid_argument("Vector size mismatch");
-        }
-        
-        std::vector<double> result(rows, 0.0);
-        for (int i = 0; i < rows; ++i) {
-            for (int j = row_pointers[i]; j < row_pointers[i + 1]; ++j) {
-                result[i] += values[j] * x[col_indices[j]];
-            }
-        }
-        return result;
-    }
-};
+
 
 // ===== 迭代求解器实现 =====
 
 class IterativeSolverImpl : public IIterativeSolver {
 private:
-    std::shared_ptr<IMatrix> matrix;
+    std::shared_ptr<Matrix> matrix;
     std::vector<double> solution;
     SolverParameters params;
     
 public:
-    IterativeSolverImpl(std::shared_ptr<IMatrix> mat) : matrix(mat) {
-        solution.resize(matrix->getRows(), 0.0);
+    IterativeSolverImpl(std::shared_ptr<Matrix> mat) : matrix(mat) {
+        solution.resize(matrix->GetNumRows(), 0.0);
     }
     
     void setParameters(const SolverParameters& parameters) override {
@@ -143,7 +35,7 @@ public:
     }
     
     SolverResult solve(const std::vector<double>& rhs) override {
-        if (rhs.size() != static_cast<size_t>(matrix->getRows())) {
+        if (rhs.size() != static_cast<size_t>(matrix->GetNumRows())) {
             throw std::invalid_argument("Right-hand side size mismatch");
         }
         
@@ -178,7 +70,7 @@ public:
 private:
     // 共轭梯度法 (对应Fortran的CG求解器)
     SolverResult solveCG(const std::vector<double>& rhs) {
-        int n = matrix->getRows();
+        int n = matrix->GetNumRows();
         std::vector<double> x(n, 0.0);  // 初始解
         std::vector<double> r = rhs;    // 残差
         std::vector<double> p = r;      // 搜索方向
@@ -187,13 +79,27 @@ private:
         double initial_residual = std::sqrt(r_norm_sq);
         
         for (int iter = 0; iter < params.maxIterations; ++iter) {
-            std::vector<double> Ap = matrix->multiply(p);
-            double alpha = r_norm_sq / dotProduct(p, Ap);
+            auto Ap = Vector::Create(matrix->GetNumRows());
+            auto p_vec = Vector::Create(n);
+            
+            // 将p复制到Vector对象中
+            for (int i = 0; i < n; ++i) {
+                (*p_vec)[i] = p[i];
+            }
+            
+            matrix->Multiply(*p_vec, *Ap);
+            
+            // 计算混合类型的点积
+            double p_dot_Ap = 0.0;
+            for (int i = 0; i < n; ++i) {
+                p_dot_Ap += p[i] * (*Ap)[i];
+            }
+            double alpha = r_norm_sq / p_dot_Ap;
             
             // 更新解和残差
             for (int i = 0; i < n; ++i) {
                 x[i] += alpha * p[i];
-                r[i] -= alpha * Ap[i];
+                r[i] -= alpha * (*Ap)[i];
             }
             
             double new_r_norm_sq = dotProduct(r, r);
@@ -220,7 +126,7 @@ private:
     
     // BiCGStab求解器 (对应Fortran的BiCGStab求解器)
     SolverResult solveBiCGStab(const std::vector<double>& rhs) {
-        int n = matrix->getRows();
+        int n = matrix->GetNumRows();
         std::vector<double> x(n, 0.0);
         std::vector<double> r = rhs;
         std::vector<double> r0 = r;
@@ -241,12 +147,13 @@ private:
                 p = r;
             } else {
                 double beta = (rho / rho_prev) * (alpha / omega);
+                std::vector<double> temp = matrixMultiply(matrix, p);
                 for (int i = 0; i < n; ++i) {
-                    p[i] = r[i] + beta * (p[i] - omega * matrix->multiply(p)[i]);
+                    p[i] = r[i] + beta * (p[i] - omega * temp[i]);
                 }
             }
             
-            std::vector<double> v = matrix->multiply(p);
+            std::vector<double> v = matrixMultiply(matrix, p);
             alpha = rho / dotProduct(r0, v);
             
             std::vector<double> s(n);
@@ -254,7 +161,7 @@ private:
                 s[i] = r[i] - alpha * v[i];
             }
             
-            std::vector<double> t = matrix->multiply(s);
+            std::vector<double> t = matrixMultiply(matrix, s);
             omega = dotProduct(t, s) / dotProduct(t, t);
             
             // 更新解和残差
@@ -279,7 +186,7 @@ private:
     // GMRES求解器 (简化实现)
     SolverResult solveGMRES(const std::vector<double>& rhs) {
         // 简化实现 - 实际GMRES需要更复杂的Krylov子空间构造
-        int n = matrix->getRows();
+        int n = matrix->GetNumRows();
         std::vector<double> x(n, 0.0);
         std::vector<double> r = rhs;
         
@@ -288,7 +195,7 @@ private:
         for (int iter = 0; iter < params.maxIterations; ++iter) {
             // 简化版 - 实际应使用Arnoldi过程
             std::vector<double> direction = r;
-            std::vector<double> Ad = matrix->multiply(direction);
+            std::vector<double> Ad = matrixMultiply(matrix, direction);
             
             double alpha = dotProduct(r, Ad) / dotProduct(Ad, Ad);
             
@@ -320,6 +227,39 @@ private:
         return result;
     }
     
+    double dotProduct(const Vector& a, const Vector& b) {
+        if (a.Size() != b.Size()) {
+            throw std::invalid_argument("Vector sizes must match for dot product");
+        }
+        double result = 0.0;
+        for (int i = 0; i < a.Size(); ++i) {
+            result += a[i] * b[i];
+        }
+        return result;
+    }
+    
+    // 矩阵-向量乘法辅助函数
+    std::vector<double> matrixMultiply(const std::shared_ptr<elmer::Matrix>& mat, const std::vector<double>& vec) {
+        auto result_vec = elmer::Vector::Create(vec.size());
+        auto input_vec = elmer::Vector::Create(vec.size());
+        
+        // 将输入向量复制到Vector对象中
+        for (size_t i = 0; i < vec.size(); ++i) {
+            (*input_vec)[i] = vec[i];
+        }
+        
+        // 执行矩阵-向量乘法
+        mat->Multiply(*input_vec, *result_vec);
+        
+        // 将结果转换回std::vector<double>
+        std::vector<double> result(vec.size());
+        for (size_t i = 0; i < vec.size(); ++i) {
+            result[i] = (*result_vec)[i];
+        }
+        
+        return result;
+    }
+    
     double norm(const std::vector<double>& v) {
         return std::sqrt(dotProduct(v, v));
     }
@@ -327,12 +267,12 @@ private:
 
 // ===== 矩阵组装工具 =====
 
-class MatrixAssemblerImpl : public IMatrixAssembler {
+class MatrixAssemblerImpl : public elmer::MatrixAssembler {
 private:
-    std::shared_ptr<IMatrix> matrix;
+    std::shared_ptr<elmer::Matrix> matrix;
     
 public:
-    MatrixAssemblerImpl(std::shared_ptr<IMatrix> mat) : matrix(mat) {}
+    MatrixAssemblerImpl(std::shared_ptr<elmer::Matrix> mat) : matrix(mat) {}
     
     void addElementMatrix(const std::vector<int>& indices,
                          const std::vector<std::vector<double>>& element_matrix) override {
@@ -344,8 +284,8 @@ public:
                 int global_j = indices[j];
                 
                 if (global_i >= 0 && global_j >= 0) {
-                    double current_value = matrix->getElement(global_i, global_j);
-                    matrix->setElement(global_i, global_j, current_value + element_matrix[i][j]);
+                    double current_value = matrix->GetElement(global_i, global_j);
+                    matrix->SetElement(global_i, global_j, current_value + element_matrix[i][j]);
                 }
             }
         }
@@ -365,16 +305,16 @@ public:
     }
     
     void applyDirichletBC(int dof_index, double value,
-                                 std::shared_ptr<IMatrix> matrix,
-                                 std::vector<double>& rhs) override {
-        if (dof_index < 0 || dof_index >= matrix->getRows()) return;
+                          std::shared_ptr<elmer::Matrix> matrix,
+                          std::vector<double>& rhs) override {
+        if (dof_index < 0 || dof_index >= matrix->GetNumRows()) return;
         
         // 修改矩阵：将对应行清零，对角线设为1
-        for (int j = 0; j < matrix->getCols(); ++j) {
+        for (int j = 0; j < matrix->GetNumCols(); ++j) {
             if (j == dof_index) {
-                matrix->setElement(dof_index, j, 1.0);
+                matrix->SetElement(dof_index, j, 1.0);
             } else {
-                matrix->setElement(dof_index, j, 0.0);
+                matrix->SetElement(dof_index, j, 0.0);
             }
         }
         
@@ -385,7 +325,7 @@ public:
     // 应用多个边界条件
     void applyDirichletBCs(const std::vector<int>& dof_indices,
                           const std::vector<double>& values,
-                          std::shared_ptr<IMatrix> matrix,
+                          std::shared_ptr<elmer::Matrix> matrix,
                           std::vector<double>& rhs) override {
         if (dof_indices.size() != values.size()) {
             throw std::invalid_argument("Number of DOF indices and values must match");
@@ -399,15 +339,50 @@ public:
 
 // ===== 工厂函数 =====
 
-std::shared_ptr<IMatrix> createCRSMatrix(int rows, int cols) {
-    return std::make_shared<CRSMatrixImpl>(rows, cols);
+// ===== Vector实现类 =====
+
+class VectorImpl : public elmer::Vector {
+private:
+    std::vector<double> data;
+    
+public:
+    VectorImpl(Integer size) : data(size, 0.0) {}
+    
+    Integer Size() const override { return static_cast<Integer>(data.size()); }
+    
+    double& operator[](Integer i) override {
+        if (i < 0 || i >= static_cast<Integer>(data.size())) {
+            throw std::out_of_range("Vector index out of range");
+        }
+        return data[i];
+    }
+    
+    const double& operator[](Integer i) const override {
+        if (i < 0 || i >= static_cast<Integer>(data.size())) {
+            throw std::out_of_range("Vector index out of range");
+        }
+        return data[i];
+    }
+    
+    void Zero() override {
+        std::fill(data.begin(), data.end(), 0.0);
+    }
+};
+
+// Vector工厂方法实现
+std::unique_ptr<elmer::Vector> elmer::Vector::Create(Integer size) {
+    return std::make_unique<VectorImpl>(size);
 }
 
-std::shared_ptr<IIterativeSolver> createIterativeSolver(std::shared_ptr<IMatrix> matrix) {
+std::shared_ptr<elmer::Matrix> createCRSMatrix(int rows, int cols) {
+    return std::make_shared<elmer::CRSMatrixImpl>(rows, cols);
+}
+
+std::shared_ptr<IIterativeSolver> createIterativeSolver(std::shared_ptr<Matrix> matrix) {
     return std::make_shared<IterativeSolverImpl>(matrix);
 }
 
-std::shared_ptr<IMatrixAssembler> createMatrixAssembler(std::shared_ptr<IMatrix> matrix) {
+std::shared_ptr<MatrixAssembler> createMatrixAssembler(std::shared_ptr<Matrix> matrix) {
     return std::make_shared<MatrixAssemblerImpl>(matrix);
 }
 
@@ -459,18 +434,18 @@ void printVector(const std::vector<double>& v, const std::string& name) {
     std::cout << "]" << std::endl;
 }
 
-void printMatrix(std::shared_ptr<IMatrix> matrix, const std::string& name) {
+void printMatrix(std::shared_ptr<elmer::Matrix> matrix, const std::string& name) {
     if (!name.empty()) {
         std::cout << name << " = " << std::endl;
     }
-    for (int i = 0; i < matrix->getRows(); ++i) {
+    for (int i = 0; i < matrix->GetNumRows(); ++i) {
         std::cout << "[";
-        for (int j = 0; j < matrix->getCols(); ++j) {
-            std::cout << matrix->getElement(i, j);
-            if (j < matrix->getCols() - 1) std::cout << ", ";
+        for (int j = 0; j < matrix->GetNumCols(); ++j) {
+            std::cout << matrix->GetElement(i, j);
+            if (j < matrix->GetNumCols() - 1) std::cout << ", ";
         }
         std::cout << "]" << std::endl;
     }
 }
 
-} // namespace ElmerCpp
+} // namespace elmer

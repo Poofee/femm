@@ -5,6 +5,10 @@
 #include <array>
 #include <map>
 #include <string>
+#include <cmath>
+#include <stdexcept>
+#include <limits>
+#include <complex>
 
 namespace elmer {
 
@@ -20,7 +24,7 @@ public:
     
     // Vacuum constants
     static constexpr double VACUUM_PERMITTIVITY = 8.854187817e-12;  ///< ε₀ [F/m]
-    static constexpr double VACUUM_PERMEABILITY = 4.0e-7 * M_PI;    ///< μ₀ [H/m]
+    static constexpr double VACUUM_PERMEABILITY = 4.0e-7 * 3.141592653589793;    ///< μ₀ [H/m]
     
     // Derived properties
     double permittivity() const { return relativePermittivity * VACUUM_PERMITTIVITY; }
@@ -32,7 +36,7 @@ public:
     
     // Frequency-dependent properties (for harmonic analysis)
     double frequency;                 ///< Frequency [Hz]
-    double angularFrequency() const { return 2.0 * M_PI * frequency; }
+    double angularFrequency() const { return 2.0 * 3.141592653589793 * frequency; }
     
     // Complex properties for harmonic analysis
     double conductivityImag;          ///< Imaginary part of conductivity
@@ -85,7 +89,6 @@ public:
         }
         
         // Simple linear interpolation for now
-        // In practice, this should use more sophisticated interpolation
         auto it = BHCurve.lower_bound(H);
         if (it == BHCurve.begin()) {
             return it->second / it->first;
@@ -100,47 +103,72 @@ public:
         double H1 = prev->first, B1 = prev->second;
         double H2 = it->first, B2 = it->second;
         
-        double B = B1 + (B2 - B1) * (H - H1) / (H2 - H1);
+        // Linear interpolation for B
+        double B = B1 + (H - H1) * (B2 - B1) / (H2 - H1);
         return B / H;
     }
     
-    // Get differential permeability (differential permeability for nonlinear materials)
-    double getDifferentialPermeability(double H) const {
-        if (!isNonlinear || BHCurve.size() < 2) {
-            return permeability();
+    // Get permeability and its derivative (for Newton-Raphson iteration)
+    std::pair<double, double> getNonlinearPermeabilityWithDerivative(double H) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            return {permeability(), 0.0}; // Linear material has zero derivative
         }
         
-        // Calculate derivative of B with respect to H
         auto it = BHCurve.lower_bound(H);
         if (it == BHCurve.begin()) {
-            auto next = it;
-            ++next;
-            return (next->second - it->second) / (next->first - it->first);
+            double mu = it->second / it->first;
+            return {mu, 0.0}; // Assume constant at beginning
         }
         if (it == BHCurve.end()) {
             --it;
-            auto prev = it;
-            --prev;
-            return (it->second - prev->second) / (it->first - prev->first);
+            double mu = it->second / it->first;
+            return {mu, 0.0}; // Assume constant at end
         }
         
         auto prev = it;
         --prev;
-        auto next = it;
-        ++next;
+        double H1 = prev->first, B1 = prev->second;
+        double H2 = it->first, B2 = it->second;
         
-        if (next == BHCurve.end()) {
-            return (it->second - prev->second) / (it->first - prev->first);
+        // Linear interpolation for B
+        double B = B1 + (H - H1) * (B2 - B1) / (H2 - H1);
+        double mu = B / H;
+        
+        // Derivative of mu with respect to H
+        double dBdH = (B2 - B1) / (H2 - H1);
+        double dMudH = (dBdH * H - B) / (H * H);
+        
+        return {mu, dMudH};
+    }
+    
+    // Get reluctivity (inverse of permeability)
+    double getReluctivity(double H) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            return 1.0 / permeability();
         }
         
-        // Central difference for better accuracy
-        return (next->second - prev->second) / (next->first - prev->first);
+        double mu = getNonlinearPermeability(H);
+        return 1.0 / mu;
+    }
+    
+    // Get reluctivity and its derivative
+    std::pair<double, double> getReluctivityWithDerivative(double H) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            double nu = 1.0 / permeability();
+            return {nu, 0.0}; // Linear material has zero derivative
+        }
+        
+        auto [mu, dMudH] = getNonlinearPermeabilityWithDerivative(H);
+        double nu = 1.0 / mu;
+        double dNudH = -dMudH / (mu * mu);
+        
+        return {nu, dNudH};
     }
     
     // Get B from H using B-H curve
     double getBfromH(double H) const {
         if (!isNonlinear || BHCurve.empty()) {
-            return H * permeability();
+            return permeability() * H;
         }
         
         auto it = BHCurve.lower_bound(H);
@@ -197,6 +225,50 @@ public:
         }
     }
     
+    // Get differential permeability (dμ/dH) for nonlinear materials
+    double getDifferentialPermeability(double H) const {
+        if (!isNonlinear || BHCurve.empty()) {
+            return 0.0; // Linear materials have constant permeability
+        }
+        
+        // Find the interval containing H
+        auto it = BHCurve.upper_bound(H);
+        if (it == BHCurve.begin()) {
+            // H is before the first point
+            auto first = BHCurve.begin();
+            auto second = first;
+            ++second;
+            return (second->second - first->second) / (second->first - first->first);
+        } else if (it == BHCurve.end()) {
+            // H is after the last point
+            auto last = BHCurve.rbegin();
+            auto prev = last;
+            ++prev;
+            return (last->second - prev->second) / (last->first - prev->first);
+        } else {
+            // H is within the curve
+            auto prev = it;
+            --prev;
+            double H1 = prev->first, B1 = prev->second;
+            double H2 = it->first, B2 = it->second;
+            return (B2 - B1) / (H2 - H1);
+        }
+    }
+    
+    // Complex permeability for harmonic analysis
+    std::complex<double> getComplexPermeability(double frequency = 0.0) const {
+        double mu_real = permeability();
+        double mu_imag = 0.0; // For now, assume no imaginary part
+        
+        // Frequency-dependent effects could be added here
+        if (frequency > 0.0) {
+            // Simple model: imaginary part proportional to conductivity
+            mu_imag = conductivity / (2.0 * 3.141592653589793 * frequency);
+        }
+        
+        return std::complex<double>(mu_real, mu_imag);
+    }
+    
     // Get complex conductivity for harmonic analysis
     std::complex<double> getComplexConductivity() const {
         return std::complex<double>(conductivity, conductivityImag);
@@ -208,23 +280,70 @@ public:
     }
     
     // Wave number calculation
-    double waveNumber() const {
+    double waveNumber(double frequency = 0.0) const {
         if (frequency <= 0.0) return 0.0;
-        double omega = angularFrequency();
-        return omega * std::sqrt(permittivity() * permeability());
+        double omega = 2.0 * 3.141592653589793 * frequency;
+        return omega * sqrt(permittivity() * permeability());
     }
     
     // Skin depth calculation
-    double skinDepth() const {
+    double skinDepth(double frequency = 0.0) const {
         if (conductivity <= 0.0 || frequency <= 0.0) {
             return std::numeric_limits<double>::infinity();
         }
-        return 1.0 / std::sqrt(M_PI * frequency * permeability() * conductivity);
+        return 1.0 / sqrt(3.141592653589793 * frequency * permeability() * conductivity);
     }
     
     // Characteristic impedance
     double characteristicImpedance() const {
-        return std::sqrt(permeability() / permittivity());
+        return sqrt(permeability() / permittivity());
+    }
+};
+
+/**
+ * @brief Nonlinear material database for electromagnetic simulations
+ */
+class NonlinearMaterialDatabase {
+private:
+    std::map<std::string, ElectromagneticMaterial> materials;
+    
+public:
+    // Add material to database
+    void addMaterial(const std::string& name, const ElectromagneticMaterial& material) {
+        materials[name] = material;
+    }
+    
+    // Get material by name
+    ElectromagneticMaterial& getMaterial(const std::string& name) {
+        auto it = materials.find(name);
+        if (it == materials.end()) {
+            throw std::runtime_error("Material not found: " + name);
+        }
+        return it->second;
+    }
+    
+    // Check if material exists
+    bool hasMaterial(const std::string& name) const {
+        return materials.find(name) != materials.end();
+    }
+    
+    // Get all material names
+    std::vector<std::string> getMaterialNames() const {
+        std::vector<std::string> names;
+        for (const auto& pair : materials) {
+            names.push_back(pair.first);
+        }
+        return names;
+    }
+    
+    // Clear all materials
+    void clear() {
+        materials.clear();
+    }
+    
+    // Get number of materials
+    size_t size() const {
+        return materials.size();
     }
 };
 

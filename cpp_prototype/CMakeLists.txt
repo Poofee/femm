@@ -117,6 +117,10 @@ add_executable(test_magnetodynamics2d_solver
     test/test_magnetodynamics2d_solver.cpp
 )
 
+add_executable(test_nonlinear_materials
+    test/test_nonlinear_materials.cpp
+)
+
 add_executable(benchmark_magnetodynamics2d
     test/benchmark_magnetodynamics2d.cpp
 )
@@ -129,6 +133,7 @@ target_include_directories(test_lists PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_boundary_conditions_priority PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_magnetodynamics2d_solver PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_nonlinear_materials PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(benchmark_magnetodynamics2d PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link test executables with library
@@ -146,6 +151,7 @@ target_link_libraries(test_lists ElmerCppMatrixAssembly)
 target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
 target_link_libraries(test_boundary_conditions_priority ElmerCppMatrixAssembly)
 target_link_libraries(test_magnetodynamics2d_solver ElmerCppMatrixAssembly)
+target_link_libraries(test_nonlinear_materials ElmerCppMatrixAssembly)
 target_link_libraries(benchmark_magnetodynamics2d ElmerCppMatrixAssembly)
 
 target_link_libraries(test_matrix_assembly ElmerCppMatrixAssembly)

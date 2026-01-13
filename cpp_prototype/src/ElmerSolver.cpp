@@ -6,6 +6,7 @@
  */
 
 #include "ElmerSolver.h"
+#include "SolverRegistry.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -30,6 +31,9 @@ ElmerSolver::ElmerSolver()
     
     // 初始化MPI通信器
     comm_ = std::make_shared<MPICommunicator>();
+    
+    // 初始化求解器管理器
+    solverManager_ = std::make_unique<SolverManager>();
 }
 
 // 析构函数
@@ -159,7 +163,7 @@ void ElmerSolver::addSolver(const std::string& solverName) {
         solver->setMPICommunicator(comm_);
         
         // 添加到求解器管理器
-        solverManager_.addSolver(solver);
+        solverManager_->addSolver(solver);
     } else {
         std::cout << "警告：无法创建求解器 " << solverName << std::endl;
     }
@@ -177,14 +181,14 @@ bool ElmerSolver::executeSteadyState() {
     }
     
     try {
-        // 初始化求解器
-        if (!solverManager_.initialize()) {
+        // 初始化求解器管理器
+        if (!solverManager_->initialize()) {
             result_.errorMessage = "求解器管理器初始化失败";
             return false;
         }
         
-        // 执行稳态求解
-        bool success = solverManager_.executeSteadyState();
+        // 执行稳态仿真
+        bool success = solverManager_->executeSteadyState();
         
         if (success && parameters_.verbose) {
             std::cout << "稳态仿真完成" << std::endl;
@@ -213,14 +217,14 @@ bool ElmerSolver::executeTransient() {
     }
     
     try {
-        // 初始化求解器
-        if (!solverManager_.initialize()) {
+        // 初始化求解器管理器
+        if (!solverManager_->initialize()) {
             result_.errorMessage = "求解器管理器初始化失败";
             return false;
         }
         
-        // 执行瞬态求解
-        bool success = solverManager_.executeTransient(
+        // 执行瞬态仿真
+        bool success = solverManager_->executeTransient(
             parameters_.startTime, 
             parameters_.endTime, 
             parameters_.timeStep
@@ -315,7 +319,7 @@ SimulationResult ElmerSolver::execute() {
     
     // 获取求解器结果
     if (success) {
-        result_.solutions = solverManager_.getSolutions();
+        result_.solutions = solverManager_->getSolutions();
     }
     
     return result_;
@@ -332,7 +336,7 @@ void ElmerSolver::cleanup() {
         std::cout << "清理求解器资源..." << std::endl;
     }
     
-    solverManager_.cleanup();
+    solverManager_->cleanup();
     
     mesh_.reset();
     materialDB_.reset();

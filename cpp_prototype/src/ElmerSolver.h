@@ -13,12 +13,16 @@
 #include <map>
 #include <chrono>
 #include "SolverBase.h"
-#include "SolverRegistry.h"
 #include "Mesh.h"
 #include "MaterialDatabase.h"
 #include "BoundaryConditions.h"
 #include "MPICommunicator.h"
 #include "MPIUtils.h"
+
+// 前向声明
+namespace elmer {
+    class SolverManager;
+}
 
 namespace elmer {
 
@@ -96,7 +100,7 @@ private:
     std::shared_ptr<BoundaryConditions> bc_;            ///< 边界条件
     std::shared_ptr<MPICommunicator> comm_;             ///< MPI通信器
     
-    SolverManager solverManager_;                       ///< 求解器管理器
+    std::unique_ptr<SolverManager> solverManager_;      ///< 求解器管理器
     
     // 时间控制
     std::chrono::steady_clock::time_point startTime_;   ///< 开始时间

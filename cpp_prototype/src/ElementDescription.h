@@ -96,4 +96,128 @@ struct Mesh {
     Mesh() : numberOfElements(0), numberOfNodes(0) {}
 };
 
+/**
+ * @brief 计算全局一阶导数（内部版本）
+ * 
+ * 给定元素结构，返回在局部坐标点(u,v,w)处，
+ * 基于元素基函数计算的量f在全局坐标下的偏导数值。
+ * 这是内部版本，通常不应直接由用户调用，而应通过包装例程GlobalFirstDerivatives调用。
+ * 
+ * @param elm 元素结构
+ * @param nodes 元素节点坐标数组
+ * @param df 节点值数组
+ * @param gx 输出：f对x的偏导数
+ * @param gy 输出：f对y的偏导数
+ * @param gz 输出：f对z的偏导数
+ * @param metric 逆变度量张量
+ * @param dLBasisdx 基函数对局部坐标的偏导数
+ */
+void GlobalFirstDerivativesInternal(const Element& elm, const Nodes& nodes, 
+                                   const std::vector<double>& df,
+                                   double& gx, double& gy, double& gz,
+                                   const std::vector<std::vector<double>>& metric,
+                                   const std::vector<std::vector<double>>& dLBasisdx);
+
+/**
+ * @brief 计算全局一阶导数
+ * 
+ * 给定元素结构，返回在局部坐标点(u,v,w)处，
+ * 基于元素基函数计算的量f在全局坐标下的偏导数值。
+ * 
+ * @param elm 元素结构
+ * @param nodes 元素节点坐标数组
+ * @param df 节点值数组
+ * @param gx 输出：f对x的偏导数
+ * @param gy 输出：f对y的偏导数
+ * @param gz 输出：f对z的偏导数
+ * @param metric 逆变度量张量
+ * @param dLBasisdx 基函数对局部坐标的偏导数
+ */
+void GlobalFirstDerivatives(const Element& elm, const Nodes& nodes,
+                           const std::vector<double>& df,
+                           double& gx, double& gy, double& gz,
+                           const std::vector<std::vector<double>>& metric,
+                           const std::vector<std::vector<double>>& dLBasisdx);
+
+/**
+ * @brief 计算全局二阶导数
+ * 
+ * 在给定点(u,v,w)处计算全局坐标下的元素二阶偏导数矩阵。
+ * 
+ * @param elm 元素结构
+ * @param nodes 元素节点坐标
+ * @param values 输出：3x3二阶偏导数矩阵
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param metric 逆变度量张量
+ * @param dBasisdx 基函数对局部坐标的一阶导数
+ * @param ddLBasisddx 基函数对局部坐标的二阶导数
+ * @param nd 节点数量
+ */
+void GlobalSecondDerivatives(const Element& elm, const Nodes& nodes,
+                            std::vector<std::vector<std::vector<double>>>& values,
+                            double u, double v, double w,
+                            const std::vector<std::vector<double>>& metric,
+                            const std::vector<std::vector<double>>& dBasisdx,
+                            const std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                            int nd);
+
+/**
+ * @brief 获取坐标系维度
+ * 
+ * 返回当前坐标系的维度（1D、2D或3D）。
+ * 
+ * @return 坐标系维度（1、2或3）
+ */
+int CoordinateSystemDimension();
+
+/**
+ * @brief 棱柱单元P型基函数（所有节点）
+ * 
+ * 计算棱柱单元在给定局部坐标点(u,v,w)处的所有P型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param phi 输出：基函数值数组（大小为6）
+ */
+void WedgeNodalPBasisAll(double u, double v, double w, std::vector<double>& phi);
+
+/**
+ * @brief 棱柱单元L型基函数（所有节点）
+ * 
+ * 计算棱柱单元在给定局部坐标点(u,v,w)处的所有L型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param phi 输出：基函数值数组（大小为6）
+ */
+void WedgeNodalLBasisAll(double u, double v, double w, std::vector<double>& phi);
+
+/**
+ * @brief 棱柱单元P型基函数导数（所有节点）
+ * 
+ * 计算棱柱单元在给定局部坐标点(u,v,w)处的所有P型基函数导数。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param gradphi 输出：基函数导数矩阵（6x3）
+ */
+void dWedgeNodalPBasisAll(double u, double v, double w, std::vector<std::vector<double>>& gradphi);
+
+/**
+ * @brief 棱柱单元L型基函数导数（所有节点）
+ * 
+ * 计算棱柱单元在给定局部坐标点(u,v,w)处的所有L型基函数导数。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param gradphi 输出：基函数导数矩阵（6x3）
+ */
+void dWedgeNodalLBasisAll(double u, double v, double w, std::vector<std::vector<double>>& gradphi);
+
 } // namespace ElmerCpp

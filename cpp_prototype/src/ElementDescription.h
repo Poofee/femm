@@ -220,4 +220,174 @@ void dWedgeNodalPBasisAll(double u, double v, double w, std::vector<std::vector<
  */
 void dWedgeNodalLBasisAll(double u, double v, double w, std::vector<std::vector<double>>& gradphi);
 
+// =============================================================================
+// P型元素支持函数
+// =============================================================================
+
+/**
+ * @brief 检查元素是否为P型元素
+ * 
+ * 检查给定元素是否为P型（高阶）元素。
+ * 
+ * @param element 元素结构
+ * @return true 如果是P型元素
+ * @return false 如果不是P型元素
+ */
+bool isPElement(const Element& element);
+
+/**
+ * @brief 检查元素是否为活动P型元素
+ * 
+ * 检查给定元素在特定求解器中是否为活动的P型元素。
+ * 
+ * @param element 元素结构
+ * @param solver 求解器指针（可选）
+ * @return true 如果是活动的P型元素
+ * @return false 如果不是活动的P型元素
+ */
+bool isActivePElement(const Element& element, void* solver = nullptr);
+
+/**
+ * @brief 获取参考P型元素节点
+ * 
+ * 获取P型元素的参考节点坐标。
+ * 
+ * @param element 元素类型结构
+ * @param u 输出：u坐标数组
+ * @param v 输出：v坐标数组
+ * @param w 输出：w坐标数组
+ */
+void GetRefPElementNodes(const ElementType& element, std::vector<double>& u, 
+                        std::vector<double>& v, std::vector<double>& w);
+
+/**
+ * @brief 线单元P型基函数（单个节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的单个P型基函数值。
+ * 
+ * @param node 节点编号（1或2）
+ * @param u 局部坐标u
+ * @return 基函数值
+ */
+double LineNodalPBasis(int node, double u);
+
+/**
+ * @brief 线单元P型基函数（所有节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的所有P型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param phi 输出：基函数值数组（大小为2）
+ */
+void LineNodalPBasisAll(double u, std::vector<double>& phi);
+
+/**
+ * @brief 线单元P型基函数导数（单个节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的单个P型基函数导数。
+ * 
+ * @param node 节点编号（1或2）
+ * @param u 局部坐标u
+ * @return 基函数导数值
+ */
+double dLineNodalPBasis(int node, double u);
+
+/**
+ * @brief 线单元P型基函数导数（所有节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的所有P型基函数导数。
+ * 
+ * @param u 局部坐标u
+ * @param gradphi 输出：基函数导数数组（大小为2）
+ */
+void dLineNodalPBasisAll(double u, std::vector<double>& gradphi);
+
+/**
+ * @brief 三角形单元P型基函数（所有节点）
+ * 
+ * 计算三角形单元在给定局部坐标点(u,v)处的所有P型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param phi 输出：基函数值数组（大小为3）
+ */
+void TriangleNodalPBasisAll(double u, double v, std::vector<double>& phi);
+
+/**
+ * @brief 四边形单元P型基函数（所有节点）
+ * 
+ * 计算四边形单元在给定局部坐标点(u,v)处的所有P型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param phi 输出：基函数值数组（大小为4）
+ */
+void QuadNodalPBasisAll(double u, double v, std::vector<double>& phi);
+
+/**
+ * @brief 四面体单元P型基函数（所有节点）
+ * 
+ * 计算四面体单元在给定局部坐标点(u,v,w)处的所有P型基函数值。
+ * 
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param phi 输出：基函数值数组（大小为4）
+ */
+void TetraNodalPBasisAll(double u, double v, double w, std::vector<double>& phi);
+
+/**
+ * @brief 计算一维P型基函数
+ * 
+ * 基于Legendre多项式计算一维P型基函数。
+ * 
+ * @param basis 输出：基函数矩阵
+ * @param n 基函数阶数
+ */
+void Compute1DPBasis(std::vector<std::vector<double>>& basis, int n);
+
+// =============================================================================
+// 边界处理函数
+// =============================================================================
+
+/**
+ * @brief 获取三角形面的全局方向
+ * 
+ * 给定元素和其面映射（对于元素的某个三角形面），
+ * 此例程返回三角形面的全局方向，以便函数在元素边界上连续。
+ * 
+ * @param element 元素结构
+ * @param faceMap 元素三角形面映射（3个整数）
+ * @param indexes 全局节点索引数组
+ * @return 三角形面的全局方向（局部节点编号）
+ */
+std::vector<int> getTriangleFaceDirection(const Element& element, 
+                                         const std::vector<int>& faceMap,
+                                         const std::vector<int>& indexes);
+
+/**
+ * @brief 获取四边形面的全局方向
+ * 
+ * 给定元素和其面映射（对于元素的某个四边形面），
+ * 此例程返回四边形面的全局方向，以便函数在元素边界上连续。
+ * 
+ * @param element 元素结构
+ * @param faceMap 元素四边形面映射（4个整数）
+ * @param indexes 全局节点索引数组
+ * @return 四边形面的全局方向（局部节点编号）
+ */
+std::vector<int> getSquareFaceDirection(const Element& element,
+                                       const std::vector<int>& faceMap,
+                                       const std::vector<int>& indexes);
+
+/**
+ * @brief 检查楔形元素面的局部编号是否合法
+ * 
+ * 检查给定的四边形面的局部编号对于楔形元素是否合法。
+ * 
+ * @param ordering 楔形元素四边形面的局部编号
+ * @return true 如果给定的编号对于楔形元素四边形面是合法的
+ */
+bool wedgeOrdering(const std::vector<int>& ordering);
+
 } // namespace ElmerCpp

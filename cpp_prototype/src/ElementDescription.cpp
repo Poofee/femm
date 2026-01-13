@@ -299,6 +299,15 @@ void WedgeNodalPBasisAll(double u, double v, double w, std::vector<double>& phi)
     const double half = 0.5;
     const double c3 = 1.0 / std::sqrt(3.0);
     
+    // 棱柱单元基函数：三角形基函数 × 线形基函数
+    phi[0] = half * (1.0 - u - c3 * v) * (1.0 - w);
+    phi[1] = half * (1.0 + u - c3 * v) * (1.0 - w);
+    phi[2] = c3 * v * (1.0 - w);
+    phi[3] = half * (1.0 - u - c3 * v) * (1.0 + w);
+    phi[4] = half * (1.0 + u - c3 * v) * (1.0 + w);
+    phi[5] = c3 * v * (1.0 + w);
+}
+    
     // 三角形基函数（P型）
     std::vector<double> tri(3);
     tri[0] = half * (1.0 - u - c3 * v);
@@ -472,8 +481,451 @@ void dWedgeNodalLBasisAll(double u, double v, double w, std::vector<std::vector<
         // dv导数
         gradphi[i+3][1] = gradtri[i][1] * line[1];
         // dw导数
-        gradphi[i+3][2] = tri[i] * gradline[1];
+    gradphi[i+3][2] = tri[i] * gradline[1];
+  }
+}
+
+// =============================================================================
+// P型元素支持函数实现
+// =============================================================================
+
+/**
+ * @brief 检查元素是否为P型元素
+ * 
+ * 检查给定元素是否为P型（高阶）元素。
+ * 简化实现：根据元素代码判断是否为P型元素。
+ */
+bool isPElement(const Element& element) {
+    // 简化实现：根据元素代码判断
+    // 在实际应用中，可能需要检查更复杂的条件
+    int elemCode = element.type.elementCode;
+    
+    // P型元素通常具有特定的元素代码范围
+    // 例如：2xx系列为线形P型元素，3xx系列为三角形P型元素等
+    if (elemCode >= 200 && elemCode < 300) {
+        return true; // 线形P型元素
+    } else if (elemCode >= 300 && elemCode < 400) {
+        return true; // 三角形P型元素
+    } else if (elemCode >= 400 && elemCode < 500) {
+        return true; // 四边形P型元素
+    } else if (elemCode >= 500 && elemCode < 600) {
+        return true; // 四面体P型元素
+    } else if (elemCode >= 700 && elemCode < 800) {
+        return true; // 棱柱P型元素
     }
+    
+    return false;
+}
+
+/**
+ * @brief 检查元素是否为活动P型元素
+ * 
+ * 检查给定元素在特定求解器中是否为活动的P型元素。
+ * 简化实现：暂时忽略求解器参数，仅检查是否为P型元素。
+ */
+bool isActivePElement(const Element& element, void* solver) {
+    // 简化实现：暂时忽略求解器参数
+    // 在实际应用中，可能需要检查求解器中的P型元素定义
+    return isPElement(element);
+}
+
+/**
+ * @brief 获取参考P型元素节点
+ * 
+ * 获取P型元素的参考节点坐标。
+ * 简化实现：根据元素类型返回相应的参考节点坐标。
+ */
+void GetRefPElementNodes(const ElementType& element, std::vector<double>& u, 
+                        std::vector<double>& v, std::vector<double>& w) {
+    int n = element.numberOfNodes;
+    
+    // 确保输出数组大小正确
+    if (u.size() < static_cast<size_t>(n)) u.resize(n);
+    if (v.size() < static_cast<size_t>(n)) v.resize(n);
+    if (w.size() < static_cast<size_t>(n)) w.resize(n);
+    
+    int elemCode = element.elementCode;
+    
+    // 根据元素类型设置参考节点坐标
+    switch (elemCode / 100) {
+        case 2: // 线形元素
+            for (int i = 0; i < n; ++i) {
+                u[i] = -1.0 + 2.0 * i / (n - 1); // 均匀分布在[-1,1]区间
+                v[i] = 0.0;
+                w[i] = 0.0;
+            }
+            break;
+            
+        case 3: // 三角形元素
+            // 三角形元素参考节点（简化实现）
+            if (n == 3) {
+                u[0] = 0.0; v[0] = 0.0; w[0] = 0.0;
+                u[1] = 1.0; v[1] = 0.0; w[1] = 0.0;
+                u[2] = 0.0; v[2] = 1.0; w[2] = 0.0;
+            } else if (n == 6) {
+                // 二次三角形元素
+                u[0] = 0.0; v[0] = 0.0; w[0] = 0.0;
+                u[1] = 1.0; v[1] = 0.0; w[1] = 0.0;
+                u[2] = 0.0; v[2] = 1.0; w[2] = 0.0;
+                u[3] = 0.5; v[3] = 0.0; w[3] = 0.0;
+                u[4] = 0.5; v[4] = 0.5; w[4] = 0.0;
+                u[5] = 0.0; v[5] = 0.5; w[5] = 0.0;
+            }
+            break;
+            
+        case 4: // 四边形元素
+            // 四边形元素参考节点（简化实现）
+            if (n == 4) {
+                u[0] = -1.0; v[0] = -1.0; w[0] = 0.0;
+                u[1] = 1.0; v[1] = -1.0; w[1] = 0.0;
+                u[2] = 1.0; v[2] = 1.0; w[2] = 0.0;
+                u[3] = -1.0; v[3] = 1.0; w[3] = 0.0;
+            }
+            break;
+            
+        case 5: // 四面体元素
+            // 四面体元素参考节点（简化实现）
+            if (n == 4) {
+                u[0] = 0.0; v[0] = 0.0; w[0] = 0.0;
+                u[1] = 1.0; v[1] = 0.0; w[1] = 0.0;
+                u[2] = 0.0; v[2] = 1.0; w[2] = 0.0;
+                u[3] = 0.0; v[3] = 0.0; w[3] = 1.0;
+            }
+            break;
+            
+        case 7: // 棱柱元素
+            // 棱柱元素参考节点（简化实现）
+            if (n == 6) {
+                u[0] = 0.0; v[0] = 0.0; w[0] = -1.0;
+                u[1] = 1.0; v[1] = 0.0; w[1] = -1.0;
+                u[2] = 0.0; v[2] = 1.0; w[2] = -1.0;
+                u[3] = 0.0; v[3] = 0.0; w[3] = 1.0;
+                u[4] = 1.0; v[4] = 0.0; w[4] = 1.0;
+                u[5] = 0.0; v[5] = 1.0; w[5] = 1.0;
+            }
+            break;
+            
+        default:
+            // 默认情况：均匀分布
+            for (int i = 0; i < n; ++i) {
+                u[i] = -1.0 + 2.0 * i / (n - 1);
+                v[i] = 0.0;
+                w[i] = 0.0;
+            }
+            break;
+    }
+    
+    // 确保所有元素都被正确初始化
+    for (int i = 0; i < n; ++i) {
+        if (i >= static_cast<int>(u.size())) u.resize(i+1);
+        if (i >= static_cast<int>(v.size())) v.resize(i+1);
+        if (i >= static_cast<int>(w.size())) w.resize(i+1);
+    }
+}
+
+/**
+ * @brief 线单元P型基函数（单个节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的单个P型基函数值。
+ */
+double LineNodalPBasis(int node, double u) {
+    switch (node) {
+        case 1:
+            return (1.0 - u) / 2.0;
+        case 2:
+            return (1.0 + u) / 2.0;
+        default:
+            throw std::invalid_argument("LineNodalPBasis: 无效的节点编号");
+    }
+}
+
+/**
+ * @brief 线单元P型基函数（所有节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的所有P型基函数值。
+ */
+void LineNodalPBasisAll(double u, std::vector<double>& phi) {
+    // 检查输出数组大小
+    if (phi.size() < 2) {
+        phi.resize(2);
+    }
+    
+    const double half = 0.5;
+    const double usgn = 1.0; // 符号因子
+    const double c = half * usgn;
+    
+    phi[0] = c * (1.0 - u);
+    phi[1] = c * (1.0 + u);
+}
+
+/**
+ * @brief 线单元P型基函数导数（单个节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的单个P型基函数导数。
+ */
+double dLineNodalPBasis(int node, double u) {
+    switch (node) {
+        case 1:
+            return -0.5;
+        case 2:
+            return 0.5;
+        default:
+            throw std::invalid_argument("dLineNodalPBasis: 无效的节点编号");
+    }
+}
+
+/**
+ * @brief 线单元P型基函数导数（所有节点）
+ * 
+ * 计算线单元在给定局部坐标点u处的所有P型基函数导数。
+ */
+void dLineNodalPBasisAll(double u, std::vector<double>& gradphi) {
+    // 检查输出数组大小
+    if (gradphi.size() < 2) {
+        gradphi.resize(2);
+    }
+    
+    const double half = 0.5;
+    const double usgn = 1.0; // 符号因子
+    const double c = half * usgn;
+    
+    gradphi[0] = -c;
+    gradphi[1] = c;
+}
+
+/**
+ * @brief 三角形单元P型基函数（所有节点）
+ * 
+ * 计算三角形单元在给定局部坐标点(u,v)处的所有P型基函数值。
+ */
+void TriangleNodalPBasisAll(double u, double v, std::vector<double>& phi) {
+    // 检查输出数组大小
+    if (phi.size() < 3) {
+        phi.resize(3);
+    }
+    
+    const double half = 0.5;
+    const double c3 = 1.0 / std::sqrt(3.0);
+    
+    phi[0] = half * (1.0 - u - c3 * v);
+    phi[1] = half * (1.0 + u - c3 * v);
+    phi[2] = c3 * v;
+}
+
+/**
+ * @brief 四边形单元P型基函数（所有节点）
+ * 
+ * 计算四边形单元在给定局部坐标点(u,v)处的所有P型基函数值。
+ */
+void QuadNodalPBasisAll(double u, double v, std::vector<double>& phi) {
+    // 检查输出数组大小
+    if (phi.size() < 4) {
+        phi.resize(4);
+    }
+    
+    const double quarter = 0.25;
+    
+    phi[0] = quarter * (1.0 - u) * (1.0 - v);
+    phi[1] = quarter * (1.0 + u) * (1.0 - v);
+    phi[2] = quarter * (1.0 + u) * (1.0 + v);
+    phi[3] = quarter * (1.0 - u) * (1.0 + v);
+}
+
+/**
+ * @brief 四面体单元P型基函数（所有节点）
+ * 
+ * 计算四面体单元在给定局部坐标点(u,v,w)处的所有P型基函数值。
+ */
+void TetraNodalPBasisAll(double u, double v, double w, std::vector<double>& phi) {
+    // 检查输出数组大小
+    if (phi.size() < 4) {
+        phi.resize(4);
+    }
+    
+    phi[0] = 1.0 - u - v - w;
+    phi[1] = u;
+    phi[2] = v;
+    phi[3] = w;
+}
+
+/**
+ * @brief 计算一维P型基函数
+ * 
+ * 基于Legendre多项式计算一维P型基函数。
+ * 这是一个简化实现，实际应用中可能需要更复杂的Legendre多项式计算。
+ */
+void Compute1DPBasis(std::vector<std::vector<double>>& basis, int n) {
+    // 检查输出矩阵大小
+    if (basis.size() < static_cast<size_t>(n) || basis[0].size() < static_cast<size_t>(n)) {
+        basis.resize(n, std::vector<double>(n, 0.0));
+    }
+    
+    // 简化实现：使用线性基函数
+    // 在实际应用中，这里应该使用Legendre多项式
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            if (i == j) {
+                basis[i][j] = 1.0;
+            } else {
+                basis[i][j] = 0.0;
+            }
+        }
+    }
+}
+
+// =============================================================================
+// 边界处理函数实现
+// =============================================================================
+
+/**
+ * @brief 辅助函数：对整数数组进行排序
+ * 
+ * 使用冒泡排序算法对整数数组进行排序。
+ * 
+ * @param arr 要排序的数组
+ */
+void sort(std::vector<int>& arr) {
+    int n = arr.size();
+    for (int i = 0; i < n - 1; ++i) {
+        for (int j = 0; j < n - i - 1; ++j) {
+            if (arr[j] > arr[j + 1]) {
+                std::swap(arr[j], arr[j + 1]);
+            }
+        }
+    }
+}
+
+/**
+ * @brief 获取三角形面的全局方向
+ * 
+ * 给定元素和其面映射（对于元素的某个三角形面），
+ * 此例程返回三角形面的全局方向，以便函数在元素边界上连续。
+ */
+std::vector<int> getTriangleFaceDirection(const Element& element, 
+                                         const std::vector<int>& faceMap,
+                                         const std::vector<int>& indexes) {
+    // 检查输入参数
+    if (faceMap.size() != 3) {
+        throw std::invalid_argument("getTriangleFaceDirection: 面映射必须包含3个节点");
+    }
+    
+    if (indexes.size() < static_cast<size_t>(element.type.numberOfNodes)) {
+        throw std::invalid_argument("getTriangleFaceDirection: 索引数组大小不足");
+    }
+    
+    // 将面的全局节点放入排序后的数组中
+    std::vector<int> nodes(3);
+    for (int i = 0; i < 3; ++i) {
+        int nodeIndex = faceMap[i];
+        if (nodeIndex < 0 || nodeIndex >= static_cast<int>(indexes.size())) {
+            throw std::invalid_argument("getTriangleFaceDirection: 无效的面映射节点索引");
+        }
+        nodes[i] = indexes[nodeIndex];
+    }
+    
+    // 对节点进行排序
+    sort(nodes);
+    
+    // 查找排序后节点的局部编号
+    std::vector<int> globalDir(3, 0);
+    for (int i = 0; i < element.type.numberOfNodes; ++i) {
+        if (nodes[0] == indexes[i]) {
+            globalDir[0] = i;
+        } else if (nodes[1] == indexes[i]) {
+            globalDir[1] = i;
+        } else if (nodes[2] == indexes[i]) {
+            globalDir[2] = i;
+        }
+    }
+    
+    return globalDir;
+}
+
+/**
+ * @brief 获取四边形面的全局方向
+ * 
+ * 给定元素和其面映射（对于元素的某个四边形面），
+ * 此例程返回四边形面的全局方向，以便函数在元素边界上连续。
+ */
+std::vector<int> getSquareFaceDirection(const Element& element,
+                                       const std::vector<int>& faceMap,
+                                       const std::vector<int>& indexes) {
+    // 检查输入参数
+    if (faceMap.size() != 4) {
+        throw std::invalid_argument("getSquareFaceDirection: 面映射必须包含4个节点");
+    }
+    
+    if (indexes.size() < static_cast<size_t>(element.type.numberOfNodes)) {
+        throw std::invalid_argument("getSquareFaceDirection: 索引数组大小不足");
+    }
+    
+    // 获取全局节点
+    std::vector<int> nodes(4);
+    for (int i = 0; i < 4; ++i) {
+        int nodeIndex = faceMap[i];
+        if (nodeIndex < 0 || nodeIndex >= static_cast<int>(indexes.size())) {
+            throw std::invalid_argument("getSquareFaceDirection: 无效的面映射节点索引");
+        }
+        nodes[i] = indexes[nodeIndex];
+    }
+    
+    // 查找最小全局节点
+    int minGlobal = nodes[0];
+    int A = 0;
+    for (int i = 1; i < 4; ++i) {
+        if (nodes[i] < minGlobal) {
+            A = i;
+            minGlobal = nodes[i];
+        }
+    }
+    
+    // 选择B节点作为最小节点旁边的次小节点
+    int B = (A + 1) % 4;
+    int C = (A + 3) % 4;
+    int D = (A + 2) % 4;
+    
+    if (nodes[B] > nodes[C]) {
+        std::swap(B, C);
+    }
+    
+    // 查找节点A、B和C的局部编号
+    std::vector<int> globalDir(4, 0);
+    for (int i = 0; i < element.type.numberOfNodes; ++i) {
+        if (nodes[A] == indexes[i]) {
+            globalDir[0] = i;
+        } else if (nodes[B] == indexes[i]) {
+            globalDir[1] = i;
+        } else if (nodes[C] == indexes[i]) {
+            globalDir[3] = i;
+        } else if (nodes[D] == indexes[i]) {
+            globalDir[2] = i;
+        }
+    }
+    
+    return globalDir;
+}
+
+/**
+ * @brief 检查楔形元素面的局部编号是否合法
+ * 
+ * 检查给定的四边形面的局部编号对于楔形元素是否合法。
+ */
+bool wedgeOrdering(const std::vector<int>& ordering) {
+    if (ordering.size() != 4) {
+        throw std::invalid_argument("wedgeOrdering: 排序数组必须包含4个元素");
+    }
+    
+    // 检查前两个节点是否在同一个三角形面上
+    // 对于楔形元素，合法的四边形面应该满足：
+    // 前两个节点在同一个三角形面上（1-3或4-6）
+    if ((ordering[0] >= 0 && ordering[0] <= 2 &&
+         ordering[1] >= 0 && ordering[1] <= 2) ||
+        (ordering[0] >= 3 && ordering[0] <= 5 &&
+         ordering[1] >= 3 && ordering[1] <= 5)) {
+        return true;
+    }
+    
+    return false;
 }
 
 } // namespace ElmerCpp

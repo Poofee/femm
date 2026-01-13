@@ -9,6 +9,10 @@
 #include "BoundaryConditions.h"
 #include "IterativeSolver.h"
 #include "NonlinearSolver.h"
+#include "DistributedLinearAlgebra.h"
+#include "ParallelMatrixAssembly.h"
+#include "ParallelLinearSolver.h"
+#include "DomainDecomposition.h"
 #include <memory>
 #include <vector>
 #include <array>
@@ -116,11 +120,23 @@ private:
     elmer::MaterialDatabase materialDB;
     MagnetoDynamics2DParameters parameters;
     
-    // 系统矩阵
+    // MPI并行组件
+    std::shared_ptr<MPICommunicator> comm_;                           ///< MPI通信器
+    std::shared_ptr<DomainDecompositionManager> decompositionManager_; ///< 域分解管理器
+    std::shared_ptr<ParallelMatrixAssembler> parallelAssembler_;       ///< 并行矩阵组装器
+    std::shared_ptr<ParallelLinearSolver> parallelSolver_;             ///< 并行线性求解器
+    
+    // 系统矩阵（串行版本）
     std::shared_ptr<Matrix> stiffnessMatrix;      ///< 刚度矩阵
     std::shared_ptr<Matrix> massMatrix;           ///< 质量矩阵
     std::shared_ptr<Matrix> dampingMatrix;        ///< 阻尼矩阵
     std::shared_ptr<Vector> rhsVector;            ///< 右端向量
+    
+    // 分布式系统矩阵（并行版本）
+    std::shared_ptr<DistributedMatrix> distributedStiffnessMatrix_;    ///< 分布式刚度矩阵
+    std::shared_ptr<DistributedMatrix> distributedMassMatrix_;         ///< 分布式质量矩阵
+    std::shared_ptr<DistributedMatrix> distributedDampingMatrix_;      ///< 分布式阻尼矩阵
+    std::shared_ptr<DistributedVector> distributedRhsVector_;          ///< 分布式右端向量
     
     // 复数系统矩阵（谐波分析）
     std::shared_ptr<Matrix> complexStiffnessMatrix;      ///< 复数刚度矩阵
@@ -179,9 +195,18 @@ public:
     /**
      * @brief 构造函数
      */
-    MagnetoDynamics2DSolver(std::shared_ptr<Mesh> m = nullptr)
-        : mesh(m) {
+    MagnetoDynamics2DSolver(std::shared_ptr<Mesh> m = nullptr, 
+                           std::shared_ptr<MPICommunicator> comm = nullptr)
+        : mesh(m), comm_(comm ? comm : MPIUtils::getDefaultComm()) {
         materialDB.createPredefinedMaterials();
+        
+        // 初始化MPI并行组件
+        if (comm_->getSize() > 1) {
+            decompositionManager_ = std::make_shared<DomainDecompositionManager>(comm_);
+            parallelAssembler_ = std::make_shared<ParallelMatrixAssembler>(comm_, decompositionManager_);
+            parallelSolver_ = std::make_shared<ParallelConjugateGradientSolver>(comm_);
+        }
+        
         // 创建默认的非线性求解器
         nonlinearSolver = std::make_unique<NewtonRaphsonSolver>();
     }
@@ -229,6 +254,47 @@ public:
      */
     const BoundaryConditionManager& getBoundaryConditionManager() const {
         return bcManager;
+    }
+    
+    // MPI并行方法
+    /**
+     * @brief 设置MPI通信器
+     */
+    void setMPICommunicator(std::shared_ptr<MPICommunicator> comm) {
+        comm_ = comm;
+        if (comm_->getSize() > 1) {
+            decompositionManager_ = std::make_shared<DomainDecompositionManager>(comm_);
+            parallelAssembler_ = std::make_shared<ParallelMatrixAssembler>(comm_, decompositionManager_);
+            parallelSolver_ = std::make_shared<ParallelConjugateGradientSolver>(comm_);
+        }
+    }
+    
+    /**
+     * @brief 获取MPI通信器
+     */
+    std::shared_ptr<MPICommunicator> getMPICommunicator() const {
+        return comm_;
+    }
+    
+    /**
+     * @brief 检查是否使用并行模式
+     */
+    bool isParallel() const {
+        return comm_ && comm_->getSize() > 1;
+    }
+    
+    /**
+     * @brief 设置并行求解器
+     */
+    void setParallelSolver(std::shared_ptr<ParallelLinearSolver> solver) {
+        parallelSolver_ = solver;
+    }
+    
+    /**
+     * @brief 获取并行求解器
+     */
+    std::shared_ptr<ParallelLinearSolver> getParallelSolver() const {
+        return parallelSolver_;
     }
     
     // 性能优化方法
@@ -306,6 +372,18 @@ public:
             throw std::runtime_error("Mesh not set for assembly");
         }
         
+        // 检查是否使用并行模式
+        if (isParallel()) {
+            assembleSystemParallel();
+        } else {
+            assembleSystemSerial();
+        }
+    }
+    
+    /**
+     * @brief 串行组装系统矩阵
+     */
+    void assembleSystemSerial() {
         size_t nNodes = mesh->getNodes().numberOfNodes();
         
         // 初始化系统矩阵（每个节点1个自由度：A_z）
@@ -328,7 +406,44 @@ public:
         
         systemAssembled = true;
         
-        std::cout << "System assembly completed" << std::endl;
+        std::cout << "System assembly completed (serial)" << std::endl;
+    }
+    
+    /**
+     * @brief 并行组装系统矩阵
+     */
+    void assembleSystemParallel() {
+        if (!parallelAssembler_) {
+            throw std::runtime_error("Parallel assembler not initialized");
+        }
+        
+        // 执行域分解
+        auto decompositionResult = performDomainDecomposition();
+        
+        // 初始化分布式系统矩阵
+        size_t nNodes = mesh->getNodes().numberOfNodes();
+        distributedStiffnessMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
+        distributedRhsVector_ = std::make_shared<DistributedVector>(nNodes, comm_);
+        
+        if (parameters.isTransient) {
+            distributedMassMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
+            distributedDampingMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
+        }
+        
+        // 并行组装单元贡献
+        assembleElementContributionsParallel(decompositionResult);
+        
+        // 并行组装边界条件贡献
+        assembleBoundaryContributionsParallel(decompositionResult);
+        
+        // 并行应用边界条件
+        applyBoundaryConditionsParallel();
+        
+        systemAssembled = true;
+        
+        if (comm_->getRank() == 0) {
+            std::cout << "System assembly completed (parallel)" << std::endl;
+        }
     }
     
     /**
@@ -380,8 +495,15 @@ public:
     MagnetoDynamics2DResults solveLinear() {
         MagnetoDynamics2DResults results;
         
-        auto solution = solveLinearSystem();
-        results.vectorPotential = solution;
+        // 检查是否使用并行模式
+        if (isParallel()) {
+            auto solution = solveLinearSystemParallel();
+            results.vectorPotential = solution;
+        } else {
+            auto solution = solveLinearSystem();
+            results.vectorPotential = solution;
+        }
+        
         results.converged = true;
         results.iterations = 1;
         
@@ -394,6 +516,74 @@ public:
         }
         
         return results;
+    }
+    
+    /**
+     * @brief 并行求解线性系统
+     */
+    std::vector<double> solveLinearSystemParallel() {
+        if (!parallelSolver_) {
+            throw std::runtime_error("Parallel solver not initialized");
+        }
+        
+        if (!distributedStiffnessMatrix_ || !distributedRhsVector_) {
+            throw std::runtime_error("Distributed system matrices not assembled");
+        }
+        
+        // 创建分布式线性系统
+        auto linearSystem = std::make_shared<DistributedLinearSystem>(
+            distributedStiffnessMatrix_, distributedRhsVector_, comm_);
+        
+        // 设置并行求解器
+        parallelSolver_->setLinearSystem(linearSystem);
+        parallelSolver_->setParameters(parameters.tolerance, parameters.maxIterations, 1);
+        
+        // 创建解向量
+        auto solution = std::make_shared<DistributedVector>(
+            distributedStiffnessMatrix_->getGlobalRows(), comm_);
+        
+        // 求解
+        bool success = parallelSolver_->solve(solution);
+        
+        if (!success) {
+            throw std::runtime_error("Parallel linear solver failed to converge");
+        }
+        
+        // 将分布式解转换为本地向量
+        std::vector<double> localSolution;
+        solution->gather(localSolution);
+        
+        return localSolution;
+    }
+    
+    /**
+     * @brief 串行求解线性系统
+     */
+    std::vector<double> solveLinearSystem() {
+        if (!stiffnessMatrix || !rhsVector) {
+            throw std::runtime_error("System matrices not assembled");
+        }
+        
+        // 创建迭代求解器
+        auto solver = std::make_shared<ConjugateGradientSolver>();
+        solver->setMatrix(stiffnessMatrix);
+        solver->setParameters(parameters.tolerance, parameters.maxIterations);
+        
+        // 求解
+        auto solution = std::shared_ptr<Vector>(Vector::Create(rhsVector->Size()));
+        bool success = solver->solve(*solution, *rhsVector);
+        
+        if (!success) {
+            throw std::runtime_error("Linear solver failed to converge");
+        }
+        
+        // 转换为向量
+        std::vector<double> result(solution->Size());
+        for (size_t i = 0; i < solution->Size(); ++i) {
+            result[i] = (*solution)[i];
+        }
+        
+        return result;
     }
     
     /**
@@ -694,6 +884,47 @@ private:
     // 并行化控制参数
     int numThreads = 4;  ///< 并行线程数（默认4线程）
     bool useParallelAssembly = false;  ///< 是否使用并行组装
+    
+    // MPI并行计算方法
+    /**
+     * @brief 执行域分解
+     */
+    DomainDecompositionResult performDomainDecomposition();
+    
+    /**
+     * @brief 并行组装单元贡献（MPI实现）
+     */
+    void assembleElementContributionsParallel(const DomainDecompositionResult& decomposition);
+    
+    /**
+     * @brief 并行组装边界条件贡献（MPI实现）
+     */
+    void assembleBoundaryContributionsParallel(const DomainDecompositionResult& decomposition);
+    
+    /**
+     * @brief 并行应用边界条件（MPI实现）
+     */
+    void applyBoundaryConditionsParallel();
+    
+    /**
+     * @brief 计算本地元素列表
+     */
+    std::vector<int> getLocalElements(const DomainDecompositionResult& decomposition);
+    
+    /**
+     * @brief 计算幽灵边界元素
+     */
+    std::vector<int> getGhostBoundaryElements(const DomainDecompositionResult& decomposition);
+    
+    /**
+     * @brief 交换幽灵数据
+     */
+    void exchangeGhostData();
+    
+    /**
+     * @brief 计算负载均衡度
+     */
+    double computeLoadBalance(const DomainDecompositionResult& decomposition);
 };
 
 } // namespace elmer

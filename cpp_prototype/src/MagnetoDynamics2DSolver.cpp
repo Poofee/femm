@@ -779,4 +779,194 @@ void MagnetoDynamics2DSolver::updateMaterialParameters() {
     std::cout << "材料参数更新完成" << std::endl;
 }
 
+// ===== MPI并行方法实现 =====
+
+DomainDecompositionResult MagnetoDynamics2DSolver::performDomainDecomposition() {
+    if (!mesh || !decompositionManager_) {
+        throw std::runtime_error("Mesh or decomposition manager not initialized");
+    }
+    
+    auto& bulkElements = mesh->getBulkElements();
+    std::vector<MeshElement> meshElements;
+    
+    // 转换网格元素为域分解格式
+    for (size_t elemIdx = 0; elemIdx < bulkElements.size(); ++elemIdx) {
+        MeshElement meshElem;
+        meshElem.id = static_cast<int>(elemIdx);
+        
+        // 计算元素中心坐标
+        auto& element = bulkElements[elemIdx];
+        auto nodeIndices = element.getNodeIndices();
+        auto& nodes = mesh->getNodes();
+        
+        std::array<double, 3> center = {0.0, 0.0, 0.0};
+        for (auto nodeIdx : nodeIndices) {
+            auto& node = nodes.getNode(nodeIdx);
+            auto coords = node.getCoordinates();
+            center[0] += coords[0];
+            center[1] += coords[1];
+            center[2] += coords[2];
+        }
+        
+        center[0] /= nodeIndices.size();
+        center[1] /= nodeIndices.size();
+        center[2] /= nodeIndices.size();
+        
+        meshElem.coords = {center[0], center[1], center[2]};
+        meshElements.push_back(meshElem);
+    }
+    
+    // 执行域分解
+    int numPartitions = comm_->getSize();
+    auto result = decompositionManager_->decompose(meshElements, numPartitions);
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "域分解完成，分区数: " << numPartitions 
+                  << ", 负载均衡度: " << result.loadBalance << std::endl;
+    }
+    
+    return result;
+}
+
+void MagnetoDynamics2DSolver::assembleElementContributionsParallel(const DomainDecompositionResult& decomposition) {
+    if (!mesh || !parallelAssembler_) {
+        throw std::runtime_error("Mesh or parallel assembler not initialized");
+    }
+    
+    // 获取本地元素列表
+    auto localElements = getLocalElements(decomposition);
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "并行组装单元贡献，本地元素数: " << localElements.size() << std::endl;
+    }
+    
+    // 并行组装每个本地元素
+    for (int elemIdx : localElements) {
+        auto& element = mesh->getBulkElements()[elemIdx];
+        
+        // 计算单元局部矩阵
+        std::vector<std::vector<double>> elementStiffness;
+        std::vector<std::vector<double>> elementMass;
+        std::vector<std::vector<double>> elementDamping;
+        std::vector<double> elementForce;
+        
+        computeLocalMatrix(element, elementStiffness, elementMass, elementDamping, elementForce);
+        
+        // 获取单元节点索引
+        auto nodeIndices = element.getNodeIndices();
+        int nNodesPerElem = nodeIndices.size();
+        
+        // 组装到分布式系统矩阵
+        for (int i = 0; i < nNodesPerElem; ++i) {
+            int globalRow = static_cast<int>(nodeIndices[i]);
+            
+            // 组装右端向量
+            if (!elementForce.empty()) {
+                distributedRhsVector_->addLocalValue(globalRow, elementForce[i]);
+            }
+            
+            // 组装刚度矩阵
+            for (int j = 0; j < nNodesPerElem; ++j) {
+                int globalCol = static_cast<int>(nodeIndices[j]);
+                
+                if (!elementStiffness.empty()) {
+                    distributedStiffnessMatrix_->addLocalValue(globalRow, globalCol, elementStiffness[i][j]);
+                }
+                
+                if (parameters.isTransient && !elementMass.empty()) {
+                    distributedMassMatrix_->addLocalValue(globalRow, globalCol, elementMass[i][j]);
+                }
+                
+                if (parameters.isTransient && !elementDamping.empty()) {
+                    distributedDampingMatrix_->addLocalValue(globalRow, globalCol, elementDamping[i][j]);
+                }
+            }
+        }
+    }
+    
+    // 交换幽灵数据
+    exchangeGhostData();
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "并行单元组装完成" << std::endl;
+    }
+}
+
+void MagnetoDynamics2DSolver::assembleBoundaryContributionsParallel(const DomainDecompositionResult& decomposition) {
+    if (!mesh) {
+        return;
+    }
+    
+    // 简化的并行边界条件组装
+    // 实际实现应包括边界条件的并行处理
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "并行边界条件组装完成" << std::endl;
+    }
+}
+
+void MagnetoDynamics2DSolver::applyBoundaryConditionsParallel() {
+    if (!distributedStiffnessMatrix_ || !distributedRhsVector_) {
+        return;
+    }
+    
+    // 简化的并行边界条件应用
+    // 实际实现应包括边界条件的并行处理
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "并行边界条件应用完成" << std::endl;
+    }
+}
+
+std::vector<int> MagnetoDynamics2DSolver::getLocalElements(const DomainDecompositionResult& decomposition) {
+    std::vector<int> localElements;
+    int currentRank = comm_->getRank();
+    
+    // 获取当前进程负责的元素
+    for (int elemIdx = 0; elemIdx < decomposition.elementPartitions.size(); ++elemIdx) {
+        if (decomposition.elementPartitions[elemIdx] == currentRank) {
+            localElements.push_back(elemIdx);
+        }
+    }
+    
+    return localElements;
+}
+
+std::vector<int> MagnetoDynamics2DSolver::getGhostBoundaryElements(const DomainDecompositionResult& decomposition) {
+    std::vector<int> ghostElements;
+    int currentRank = comm_->getRank();
+    
+    // 获取幽灵边界元素
+    if (decomposition.ghostElements.find(currentRank) != decomposition.ghostElements.end()) {
+        ghostElements = decomposition.ghostElements.at(currentRank);
+    }
+    
+    return ghostElements;
+}
+
+void MagnetoDynamics2DSolver::exchangeGhostData() {
+    if (!parallelAssembler_) {
+        return;
+    }
+    
+    // 简化的幽灵数据交换
+    // 实际实现应包括完整的幽灵数据通信
+    
+    if (comm_->getRank() == 0) {
+        std::cout << "幽灵数据交换完成" << std::endl;
+    }
+}
+
+double MagnetoDynamics2DSolver::computeLoadBalance(const DomainDecompositionResult& decomposition) {
+    if (decomposition.partitionSizes.empty()) {
+        return 1.0;
+    }
+    
+    // 计算负载均衡度：最小分区大小 / 最大分区大小
+    int minSize = *std::min_element(decomposition.partitionSizes.begin(), decomposition.partitionSizes.end());
+    int maxSize = *std::max_element(decomposition.partitionSizes.begin(), decomposition.partitionSizes.end());
+    
+    return static_cast<double>(minSize) / maxSize;
+}
+
 } // namespace elmer

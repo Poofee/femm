@@ -31,7 +31,7 @@ enum class SolverStatus {
 /**
  * @brief 求解器参数结构体
  */
-struct SolverParameters {
+struct SolverBaseParameters {
     std::string solverName;           ///< 求解器名称
     double tolerance = 1.0e-6;        ///< 收敛容差
     int maxIterations = 1000;         ///< 最大迭代次数
@@ -49,8 +49,8 @@ struct SolverParameters {
     bool verbose = true;              ///< 详细输出
     int outputInterval = 1;           ///< 输出间隔
     
-    SolverParameters() = default;
-    SolverParameters(const std::string& name) : solverName(name) {}
+    SolverBaseParameters() = default;
+    SolverBaseParameters(const std::string& name) : solverName(name) {}
 };
 
 /**
@@ -61,7 +61,7 @@ struct SolverParameters {
 class SolverBase {
 protected:
     std::string name_;                    ///< 求解器名称
-    SolverParameters parameters_;         ///< 求解器参数
+    SolverBaseParameters parameters_;         ///< 求解器参数
     SolverStatus status_;                 ///< 求解器状态
     
     std::shared_ptr<Mesh> mesh_;          ///< 网格数据
@@ -90,14 +90,14 @@ public:
     /**
      * @brief 设置求解器参数
      */
-    virtual void setParameters(const SolverParameters& params) {
+    virtual void setParameters(const SolverBaseParameters& params) {
         parameters_ = params;
     }
     
     /**
      * @brief 获取求解器参数
      */
-    virtual SolverParameters getParameters() const {
+    virtual SolverBaseParameters getParameters() const {
         return parameters_;
     }
     

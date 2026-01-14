@@ -618,7 +618,7 @@ ShapeFunctions::ShapeResult ShapeFunctions::computeTriangleShapeFunctions(const 
 }
 
 ShapeFunctions::ShapeResult ShapeFunctions::computeTetrahedronShapeFunctions(const std::vector<Node>& nodes,
-                                                                            double xi, double eta, double zeta) {
+                                                                             double xi, double eta, double zeta) {
     int nNodes = nodes.size();
     ShapeResult result(nNodes);
     
@@ -642,4 +642,297 @@ ShapeFunctions::ShapeResult ShapeFunctions::computeTetrahedronShapeFunctions(con
     result.dNdz = dNdz;
     
     return result;
+}
+
+ShapeFunctions::ShapeResult ShapeFunctions::computePrismShapeFunctions(const std::vector<Node>& nodes,
+                                                                      double xi, double eta, double zeta) {
+    int nNodes = nodes.size();
+    ShapeResult result(nNodes);
+    
+    // Use wedge nodal basis functions for prism elements
+    if (nNodes == 6) {
+        result.values = wedgeNodalPBasisAll(xi, eta, zeta);
+        auto gradients = dWedgeNodalPBasisAll(xi, eta, zeta);
+        
+        // Extract derivatives from gradient matrix
+        for (int i = 0; i < nNodes; ++i) {
+            result.dNdxi[i] = gradients[i][0];
+            result.dNdeta[i] = gradients[i][1];
+            result.dNdzeta[i] = gradients[i][2];
+        }
+    } else {
+        throw std::invalid_argument("Unsupported number of nodes for prism element");
+    }
+    
+    // Compute Jacobian matrix
+    auto jac = computeJacobianMatrix(nodes, result.dNdxi, result.dNdeta, result.dNdzeta);
+    result.detJ = computeJacobianDeterminant(jac);
+    
+    // Compute inverse Jacobian
+    auto invJac = computeInverseJacobian(jac);
+    
+    // Transform derivatives to global coordinates
+    auto [dNdx, dNdy, dNdz] = transformDerivatives(invJac, result.dNdxi, result.dNdeta, result.dNdzeta);
+    result.dNdx = dNdx;
+    result.dNdy = dNdy;
+    result.dNdz = dNdz;
+    
+    return result;
+}
+
+// Wedge/Prism shape function implementations
+
+double ShapeFunctions::wedgeNodalPBasis(int node, double u, double v, double w) {
+    double value = 0.0;
+    
+    switch (node) {
+        case 1:
+            value = wedgeL(1, u, v) * (1 - w);
+            break;
+        case 2:
+            value = wedgeL(2, u, v) * (1 - w);
+            break;
+        case 3:
+            value = wedgeL(3, u, v) * (1 - w);
+            break;
+        case 4:
+            value = wedgeL(1, u, v) * (1 + w);
+            break;
+        case 5:
+            value = wedgeL(2, u, v) * (1 + w);
+            break;
+        case 6:
+            value = wedgeL(3, u, v) * (1 + w);
+            break;
+        default:
+            throw std::invalid_argument("Unknown node for wedge element");
+    }
+    
+    return value / 2.0;
+}
+
+std::vector<double> ShapeFunctions::wedgeNodalPBasisAll(double u, double v, double w) {
+    std::vector<double> phi(6, 0.0);
+    std::vector<double> tri(3, 0.0);
+    std::vector<double> line(2, 0.0);
+    
+    const double half = 0.5;
+    const double c3 = 1.0 / std::sqrt(3.0);
+    
+    tri[0] = half * (1.0 - u - c3 * v);
+    tri[1] = half * (1.0 + u - c3 * v);
+    tri[2] = c3 * v;
+    
+    line[0] = half * (1 - w);
+    line[1] = half * (1 + w);
+    
+    phi[0] = line[0] * tri[0];
+    phi[1] = line[0] * tri[1];
+    phi[2] = line[0] * tri[2];
+    phi[3] = line[1] * tri[0];
+    phi[4] = line[1] * tri[1];
+    phi[5] = line[1] * tri[2];
+    
+    return phi;
+}
+
+std::vector<double> ShapeFunctions::wedgeNodalLBasisAll(double u, double v, double w) {
+    std::vector<double> phi(6, 0.0);
+    std::vector<double> tri(3, 0.0);
+    std::vector<double> line(2, 0.0);
+    
+    const double half = 0.5;
+    
+    tri[0] = 1.0 - u - v;
+    tri[1] = u;
+    tri[2] = v;
+    
+    line[0] = half * (1 - w);
+    line[1] = half * (1 + w);
+    
+    phi[0] = line[0] * tri[0];
+    phi[1] = line[0] * tri[1];
+    phi[2] = line[0] * tri[2];
+    phi[3] = line[1] * tri[0];
+    phi[4] = line[1] * tri[1];
+    phi[5] = line[1] * tri[2];
+    
+    return phi;
+}
+
+std::vector<double> ShapeFunctions::dWedgeNodalPBasis(int node, double u, double v, double w) {
+    std::vector<double> grad(3, 0.0);
+    double signW = 0.0;
+    
+    switch (node) {
+        case 1: case 2: case 3:
+            signW = -1.0;
+            break;
+        case 4: case 5: case 6:
+            signW = 1.0;
+            break;
+        default:
+            throw std::invalid_argument("Unknown node for wedge element");
+    }
+    
+    // Calculate gradient from the general form
+    auto dL = dWedgeL(node, u, v);
+    double L = wedgeL(node, u, v);
+    
+    grad[0] = 0.5 * dL[0] * (1 + signW * w);
+    grad[1] = 0.5 * dL[1] * (1 + signW * w);
+    grad[2] = signW * 0.5 * L;
+    
+    return grad;
+}
+
+std::vector<std::vector<double>> ShapeFunctions::dWedgeNodalPBasisAll(double u, double v, double w) {
+    std::vector<std::vector<double>> gradPhi(6, std::vector<double>(3, 0.0));
+    std::vector<double> tri(3, 0.0);
+    std::vector<double> line(2, 0.0);
+    std::vector<std::vector<double>> gradTri(3, std::vector<double>(2, 0.0));
+    std::vector<double> gradLine(2, 0.0);
+    
+    const double half = 0.5;
+    const double c3 = 1.0 / std::sqrt(3.0);
+    
+    tri[0] = half * (1.0 - u - c3 * v);
+    tri[1] = half * (1.0 + u - c3 * v);
+    tri[2] = c3 * v;
+    
+    line[0] = half * (1 - w);
+    line[1] = half * (1 + w);
+    
+    gradTri[0][0] = -half;
+    gradTri[0][1] = -half * c3;
+    gradTri[1][0] = half;
+    gradTri[1][1] = -half * c3;
+    gradTri[2][0] = 0.0;
+    gradTri[2][1] = c3;
+    
+    gradLine[0] = -half;
+    gradLine[1] = half;
+    
+    // Calculate gradients for nodes 1-3
+    for (int i = 0; i < 3; ++i) {
+        gradPhi[i][0] = gradTri[i][0] * line[0];
+        gradPhi[i][1] = gradTri[i][1] * line[0];
+        gradPhi[i][2] = tri[i] * gradLine[0];
+    }
+    
+    // Calculate gradients for nodes 4-6
+    for (int i = 0; i < 3; ++i) {
+        gradPhi[i+3][0] = gradTri[i][0] * line[1];
+        gradPhi[i+3][1] = gradTri[i][1] * line[1];
+        gradPhi[i+3][2] = tri[i] * gradLine[1];
+    }
+    
+    return gradPhi;
+}
+
+std::vector<std::vector<double>> ShapeFunctions::dWedgeNodalLBasisAll(double u, double v, double w) {
+    std::vector<std::vector<double>> gradPhi(6, std::vector<double>(3, 0.0));
+    std::vector<double> tri(3, 0.0);
+    std::vector<double> line(2, 0.0);
+    std::vector<std::vector<double>> gradTri(3, std::vector<double>(2, 0.0));
+    std::vector<double> gradLine(2, 0.0);
+    
+    const double half = 0.5;
+    
+    tri[0] = 1.0 - u - v;
+    tri[1] = u;
+    tri[2] = v;
+    
+    line[0] = half * (1 - w);
+    line[1] = half * (1 + w);
+    
+    gradTri[0][0] = -1.0;
+    gradTri[0][1] = -1.0;
+    gradTri[1][0] = 1.0;
+    gradTri[1][1] = 0.0;
+    gradTri[2][0] = 0.0;
+    gradTri[2][1] = 1.0;
+    
+    gradLine[0] = -half;
+    gradLine[1] = half;
+    
+    // Calculate gradients for nodes 1-3
+    for (int i = 0; i < 3; ++i) {
+        gradPhi[i][0] = gradTri[i][0] * line[0];
+        gradPhi[i][1] = gradTri[i][1] * line[0];
+        gradPhi[i][2] = tri[i] * gradLine[0];
+    }
+    
+    // Calculate gradients for nodes 4-6
+    for (int i = 0; i < 3; ++i) {
+        gradPhi[i+3][0] = gradTri[i][0] * line[1];
+        gradPhi[i+3][1] = gradTri[i][1] * line[1];
+        gradPhi[i+3][2] = tri[i] * gradLine[1];
+    }
+    
+    return gradPhi;
+}
+
+std::vector<std::vector<double>> ShapeFunctions::ddWedgeNodalPBasis(int node, double u, double v, double w) {
+    std::vector<std::vector<double>> grad(3, std::vector<double>(3, 0.0));
+    double signW = 0.0;
+    
+    switch (node) {
+        case 1: case 2: case 3:
+            signW = -1.0;
+            break;
+        case 4: case 5: case 6:
+            signW = 1.0;
+            break;
+        default:
+            throw std::invalid_argument("Unknown node for wedge element");
+    }
+    
+    // Calculate second derivatives
+    auto dL = dWedgeL(node, u, v);
+    
+    grad[0][2] = dL[0] * signW / 2.0;
+    grad[1][2] = dL[1] * signW / 2.0;
+    grad[2][0] = grad[0][2];
+    grad[2][1] = grad[1][2];
+    
+    return grad;
+}
+
+// Helper functions for wedge shape functions
+
+double ShapeFunctions::wedgeL(int node, double u, double v) {
+    switch (node) {
+        case 1:
+            return 1.0 - u - v;
+        case 2:
+            return u;
+        case 3:
+            return v;
+        default:
+            throw std::invalid_argument("Unknown node for wedge linear basis");
+    }
+}
+
+std::vector<double> ShapeFunctions::dWedgeL(int node, double u, double v) {
+    std::vector<double> grad(2, 0.0);
+    
+    switch (node) {
+        case 1:
+            grad[0] = -1.0;
+            grad[1] = -1.0;
+            break;
+        case 2:
+            grad[0] = 1.0;
+            grad[1] = 0.0;
+            break;
+        case 3:
+            grad[0] = 0.0;
+            grad[1] = 1.0;
+            break;
+        default:
+            throw std::invalid_argument("Unknown node for wedge linear basis");
+    }
+    
+    return grad;
 }

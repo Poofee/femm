@@ -9,7 +9,7 @@ namespace elmer {
 /**
  * @brief 电磁材料基类
  */
-class ElectromagneticMaterial {
+class MaterialBase {
 public:
     std::string name;
     double relativePermittivity;    ///< 相对介电常数
@@ -17,7 +17,7 @@ public:
     double conductivity;            ///< 电导率 [S/m]
     double frequency;               ///< 频率 [Hz]
     
-    ElectromagneticMaterial(double er = 1.0, double mur = 1.0, double sigma = 0.0, 
+    MaterialBase(double er = 1.0, double mur = 1.0, double sigma = 0.0, 
                            const std::string& matName = "Unknown")
         : name(matName), relativePermittivity(er), relativePermeability(mur), 
           conductivity(sigma), frequency(0.0) {}
@@ -71,7 +71,7 @@ public:
  */
 class MaterialDatabase {
 private:
-    std::unordered_map<std::string, ElectromagneticMaterial> materials;
+    std::unordered_map<std::string, MaterialBase> materials;
     
 public:
     MaterialDatabase() = default;
@@ -81,7 +81,7 @@ public:
      */
     void createPredefinedMaterials() {
         // 空气
-        materials["Air"] = ElectromagneticMaterial(1.0, 1.0, 0.0, "Air");
+        materials["Air"] = MaterialBase(1.0, 1.0, 0.0, "Air");
         
         // 铜
         materials["Copper"] = ElectromagneticMaterial(1.0, 1.0, 5.96e7, "Copper");
@@ -102,7 +102,7 @@ public:
     /**
      * @brief 获取材料
      */
-    ElectromagneticMaterial getMaterial(const std::string& name) const {
+    MaterialBase getMaterial(const std::string& name) const {
         auto it = materials.find(name);
         if (it != materials.end()) {
             return it->second;
@@ -113,7 +113,7 @@ public:
     /**
      * @brief 添加材料
      */
-    void addMaterial(const std::string& name, const ElectromagneticMaterial& material) {
+    void addMaterial(const std::string& name, const MaterialBase& material) {
         materials[name] = material;
     }
     

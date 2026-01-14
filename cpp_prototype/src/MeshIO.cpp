@@ -5,7 +5,7 @@
 #include <regex>
 #include <stdexcept>
 
-namespace ElmerCpp {
+namespace elmer {
 
 // MeshIO类实现
 std::shared_ptr<Mesh> MeshIO::loadElmerMesh(const std::string& filename) {
@@ -508,4 +508,4 @@ int MeshIO::elmerToVTKElementType(ElementType elmerType) {
     }
 }
 
-} // namespace ElmerCpp
+} // namespace elmer

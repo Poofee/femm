@@ -63,6 +63,10 @@ add_library(ElmerCppMatrixAssembly
     src/Lists.cpp
     src/Interpolation.h
     src/Interpolation.cpp
+    src/ElementDescription.h
+    src/ElementDescription.cpp
+    src/MagneticSolve.h
+    src/MagneticSolve.cpp
     # src/MagnetoDynamics2DSolver.h  # 暂时注释掉，有编译错误
     # src/MagnetoDynamics2DSolver.cpp  # 暂时注释掉，有编译错误
     # src/MagnetodynamicsSolver.h  # 暂时注释掉，有编译错误
@@ -74,8 +78,7 @@ add_library(ElmerCppMatrixAssembly
     # src/SolverRegistry.h  # 暂时注释掉，有编译错误
     # src/MPICommunicator.h  # 暂时注释掉，有编译错误
     # src/MPIUtils.h  # 暂时注释掉，有编译错误
-    src/ElementDescription.h
-    src/ElementDescription.cpp
+    
 )
 
 # Create test executables
@@ -148,23 +151,27 @@ add_executable(benchmark_magnetodynamics2d
 )
 
 add_executable(test_boundary_functions
-    test_boundary_functions.cpp
+    test/test_boundary_functions.cpp
 )
 
 add_executable(test_advanced_boundary_functions
-    test_advanced_boundary_functions.cpp
+    test/test_advanced_boundary_functions.cpp
 )
 
 add_executable(test_boundary_conditions
-    test_boundary_conditions.cpp
+    test/test_boundary_conditions.cpp
 )
 
 add_executable(test_p_element_functions
-    test_p_element_functions.cpp
+    test/test_p_element_functions.cpp
 )
 
 add_executable(test_elmer_solver
     test/test_elmer_solver.cpp
+)
+
+add_executable(test_magnetic_solve
+    test/test_magnetic_solve.cpp
 )
 
 target_include_directories(test_mesh PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -182,6 +189,7 @@ target_include_directories(test_elmer_solver PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_p_element_functions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_boundary_functions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_boundary_conditions PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_magnetic_solve PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link test executables with library
 target_link_libraries(test_mesh ElmerCppMatrixAssembly)
@@ -204,12 +212,14 @@ target_link_libraries(benchmark_magnetodynamics2d ElmerCppMatrixAssembly)
 target_link_libraries(test_elmer_solver ElmerCppMatrixAssembly)
 target_link_libraries(test_p_element_functions ElmerCppMatrixAssembly)
 target_link_libraries(test_boundary_functions ElmerCppMatrixAssembly)
+target_link_libraries(test_advanced_boundary_functions ElmerCppMatrixAssembly)
 target_link_libraries(test_boundary_conditions ElmerCppMatrixAssembly)
+target_link_libraries(test_magnetic_solve ElmerCppMatrixAssembly)
 
 # Enable testing if CTest is available
 if(BUILD_TESTING)
     enable_testing()
-    add_test(NAME ShapeFunctionsTest COMMAND test_shape_functions)
+    add_test(NAME ShapeFunctionsTest COMMAND test_shapefunctions)
     add_test(NAME InterpolationTest COMMAND test_interpolation)
 endif()
 

@@ -239,6 +239,100 @@ private:
      */
     static ShapeResult computeTetrahedronShapeFunctions(const std::vector<Node>& nodes,
                                                        double xi, double eta, double zeta);
+    
+    /**
+     * @brief Compute shape functions for prism elements
+     */
+    static ShapeResult computePrismShapeFunctions(const std::vector<Node>& nodes,
+                                                 double xi, double eta, double zeta);
+    
+    // Wedge/Prism shape functions (corresponding to Fortran WedgeNodalPBasis functions)
+    
+    /**
+     * @brief Evaluate wedge nodal basis function at point (u,v,w)
+     * @param node Node number (1-6)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Value of wedge nodal function
+     */
+    static double wedgeNodalPBasis(int node, double u, double v, double w);
+    
+    /**
+     * @brief Evaluate all wedge nodal basis functions at point (u,v,w)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Vector of 6 shape function values
+     */
+    static std::vector<double> wedgeNodalPBasisAll(double u, double v, double w);
+    
+    /**
+     * @brief Evaluate all wedge linear basis functions at point (u,v,w)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Vector of 6 linear shape function values
+     */
+    static std::vector<double> wedgeNodalLBasisAll(double u, double v, double w);
+    
+    /**
+     * @brief Evaluate gradient of wedge nodal basis function
+     * @param node Node number (1-6)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Gradient vector (3 components)
+     */
+    static std::vector<double> dWedgeNodalPBasis(int node, double u, double v, double w);
+    
+    /**
+     * @brief Evaluate gradients of all wedge nodal basis functions
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Matrix of gradients (6x3)
+     */
+    static std::vector<std::vector<double>> dWedgeNodalPBasisAll(double u, double v, double w);
+    
+    /**
+     * @brief Evaluate gradients of all wedge linear basis functions
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Matrix of gradients (6x3)
+     */
+    static std::vector<std::vector<double>> dWedgeNodalLBasisAll(double u, double v, double w);
+    
+    /**
+     * @brief Evaluate second derivatives of wedge nodal basis function
+     * @param node Node number (1-6)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @param w Natural coordinate w
+     * @return Hessian matrix (3x3)
+     */
+    static std::vector<std::vector<double>> ddWedgeNodalPBasis(int node, double u, double v, double w);
+    
+    // Helper functions for wedge shape functions
+    
+    /**
+     * @brief Evaluate wedge linear basis function
+     * @param node Node number (1-3)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @return Value of wedge linear function
+     */
+    static double wedgeL(int node, double u, double v);
+    
+    /**
+     * @brief Evaluate gradient of wedge linear basis function
+     * @param node Node number (1-3)
+     * @param u Natural coordinate u
+     * @param v Natural coordinate v
+     * @return Gradient vector (2 components)
+     */
+    static std::vector<double> dWedgeL(int node, double u, double v);
 };
 
 } // namespace elmer

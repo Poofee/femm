@@ -843,4 +843,60 @@ namespace elmerBoundaryConditionUtils {
         const std::string& name,
         const std::vector<int>& nodeIndices,
         const std::vector<double>& values);
+    
+    /**
+     * @brief 获取元素的网格边信息
+     * 
+     * @param mesh 网格对象
+     * @param element 元素对象
+     * @param edgeDegree 边度数向量
+     * @param edgeDirection 边方向向量
+     * @param edgeMaxDegree 最大边度数
+     */
+    void GetElementMeshEdgeInfo(const Mesh& mesh, const Element& element,
+                               std::vector<int>& edgeDegree,
+                               std::vector<std::vector<int>>& edgeDirection,
+                               int& edgeMaxDegree);
+    
+    /**
+     * @brief 获取元素的网格面信息
+     * 
+     * @param mesh 网格对象
+     * @param element 元素对象
+     * @param faceDegree 面度数向量
+     * @param faceDirection 面方向向量
+     * @param faceMaxDegree 最大面度数
+     */
+    void GetElementMeshFaceInfo(const Mesh& mesh, const Element& element,
+                               std::vector<int>& faceDegree,
+                               std::vector<std::vector<int>>& faceDirection,
+                               int& faceMaxDegree);
+    
+    /**
+     * @brief 面元素基函数排序
+     * 
+     * @param element 元素对象
+     * @param fDofMap 面自由度映射
+     * @param faceNumber 面编号
+     * @param reverseSign 反向符号标志
+     */
+    void FaceElementBasisOrdering(const Element& element,
+                                 std::vector<std::vector<int>>& fDofMap,
+                                 int faceNumber,
+                                 std::vector<bool>* reverseSign = nullptr);
+    
+    /**
+     * @brief 获取边基函数
+     * 
+     * @param element 元素对象
+     * @param wBasis 边基函数值
+     * @param rotWBasis 旋转边基函数值
+     * @param basis 基函数值
+     * @param dBasisdx 基函数导数
+     */
+    void GetEdgeBasis(const Element& element,
+                     std::vector<double>& wBasis,
+                     std::vector<double>& rotWBasis,
+                     std::vector<double>& basis,
+                     std::vector<std::vector<double>>& dBasisdx);
 } // namespace elmerBoundaryConditionUtils

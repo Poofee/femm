@@ -1,7 +1,7 @@
 # 编译问题解决方案记录
 
 ## 问题概述
-在Elmer FEM C++移植项目中，遇到了中文注释导致的编译警告和错误。
+在Elmer FEM C++移植项目中，遇到了中文注释导致的编译警告和CMake配置错误。
 
 ## 问题详情
 
@@ -23,6 +23,16 @@
 **根本原因**:
 - Visual Studio环境变量未正确设置
 - 编译器无法找到标准库头文件路径
+
+### 3. CMake配置目录错误
+**症状**:
+- CMake生成的文件出现在项目根目录而不是build目录
+- 根目录中出现大量CMakeCache.txt、CMakeFiles、*.vcxproj等文件
+- 项目结构混乱，不符合CMake最佳实践
+
+**根本原因**:
+- 在错误的目录中运行`cmake .`而不是`cmake ..`
+- 没有正确使用build目录进行隔离构建
 
 ## 解决方案
 
@@ -49,6 +59,42 @@ endif()
 ```batch
 call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
 ```
+
+### 方案3: 修正CMake配置目录错误
+**问题发现**: 2026年1月14日，在项目构建过程中发现CMake生成文件出现在根目录
+
+**错误操作**:
+```powershell
+# 错误：在根目录运行cmake
+cd d:\downloads\elmerfem-devel\fem\cpp_prototype
+cmake .  # ❌ 错误：应该在build目录中运行cmake ..
+```
+
+**正确操作**:
+```powershell
+# 正确：在build目录中运行cmake
+cd d:\downloads\elmerfem-devel\fem\cpp_prototype
+if (!(Test-Path "build")) { mkdir build }
+cd build
+cmake ..  # ✅ 正确：指向父目录的CMakeLists.txt
+```
+
+**清理错误文件**:
+```powershell
+# 清理根目录中的错误CMake文件
+Remove-Item CMakeCache.txt, cmake_install.cmake -ErrorAction SilentlyContinue
+Remove-Item *.vcxproj, *.sln, *.obj -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force CMakeFiles -ErrorAction SilentlyContinue
+Remove-Item *.vcxproj.filters -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force ElmerCppMatrixAssembly.dir -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force x64 -ErrorAction SilentlyContinue
+```
+
+**效果**:
+- ✅ CMake生成文件正确隔离在build目录中
+- ✅ 项目根目录保持整洁
+- ✅ 符合CMake最佳实践
+- ✅ 支持多配置构建（Debug/Release）
 
 **效果**:
 - ✅ 解决标准库头文件路径问题

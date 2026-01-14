@@ -7,7 +7,7 @@
 #include "ElementDescription.h"
 #include "Types.h"
 
-namespace ElmerCpp {
+namespace elmer {
 
 /**
  * @brief 插值模块，提供有限元插值功能
@@ -151,6 +151,6 @@ bool InterpolateVarToVarReduced(const Mesh& oldMesh,
                                double numericEps = -1.0);
 
 } // namespace Interpolation
-} // namespace ElmerCpp
+} // namespace elmer
 
 #endif // ELMER_CPP_INTERPOLATION_H

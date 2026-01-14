@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <numeric>
 
-namespace ElmerCpp {
+namespace elmer {
 namespace Interpolation {
 
 // 数值精度常量
@@ -388,4 +388,4 @@ bool InterpolateVarToVarReduced(const Mesh& oldMesh,
 }
 
 } // namespace Interpolation
-} // namespace ElmerCpp
+} // namespace elmer

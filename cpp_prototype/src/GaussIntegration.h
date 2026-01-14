@@ -73,7 +73,13 @@ public:
      * @return Integral value
      */
     template<typename Func>
-    static double integrate(const std::vector<IntegrationPoint>& points, Func func);
+    static double integrate(const std::vector<IntegrationPoint>& points, Func func) {
+        double result = 0.0;
+        for (const auto& point : points) {
+            result += point.weight * func(point.xi, point.eta, point.zeta);
+        }
+        return result;
+    }
     
 private:
     // 1D Gaussian quadrature data
@@ -85,15 +91,5 @@ private:
     // Tetrahedral integration data  
     static const std::array<std::array<double, 5>, 5> gaussTetrahedralData;
 };
-
-// Template implementation
-template<typename Func>
-double GaussIntegration::integrate(const std::vector<IntegrationPoint>& points, Func func) {
-    double result = 0.0;
-    for (const auto& point : points) {
-        result += point.weight * func(point.xi, point.eta, point.zeta);
-    }
-    return result;
-}
 
 } // namespace elmer

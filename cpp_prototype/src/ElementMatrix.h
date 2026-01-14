@@ -160,7 +160,7 @@ private:
         ElementType elementType,
         const std::vector<Node>& nodes,
         int integrationOrder,
-        std::function<std::vector<std::vector<double>>(double, double, double, const ShapeFunctions::ShapeResult&)> matrixFunction);
+        std::function<std::vector<std::vector<double>>(double, double, double, const std::vector<double>&)> matrixFunction);
 
     /**
      * @brief Compute element vector using numerical integration
@@ -174,7 +174,7 @@ private:
         ElementType elementType,
         const std::vector<Node>& nodes,
         int integrationOrder,
-        std::function<std::vector<double>(double, double, double, const ShapeFunctions::ShapeResult&)> vectorFunction);
+        std::function<std::vector<double>(double, double, double, const std::vector<double>&)> vectorFunction);
 };
 
 } // namespace elmer

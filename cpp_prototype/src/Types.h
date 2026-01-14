@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 
-namespace ElmerCpp {
+namespace elmer {
 
 /**
  * @brief 实数类型定义
@@ -105,4 +105,4 @@ struct Variable {
     Variable() : dimension(0) {}
 };
 
-} // namespace ElmerCpp
+} // namespace elmer

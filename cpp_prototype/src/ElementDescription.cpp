@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace ElmerCpp {
+namespace elmer {
 
 /**
  * @brief 获取参考P型元素节点
@@ -1033,4 +1033,4 @@ void ApplyNeumannBoundaryConditions(const Element& element, int boundaryIndex, d
     }
 }
 
-} // namespace ElmerCpp
+} // namespace elmer

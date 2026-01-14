@@ -12,7 +12,7 @@
 #include <vector>
 #include <memory>
 
-namespace ElmerCpp {
+namespace elmer {
 
 /**
  * @brief 边界类型枚举
@@ -107,6 +107,8 @@ struct ElementType {
     ElementType() : numberOfNodes(0), dimension(0), elementCode(0), numberOfBoundaries(0) {}
 };
 
+
+
 /**
  * @brief 元素结构
  * 
@@ -120,6 +122,22 @@ struct Element {
     std::vector<int> faceIndexes; ///< 元素面索引
     
     Element() : index(0) {}
+    
+    /**
+     * @brief 获取元素的边信息
+     * @return 边索引向量
+     */
+    std::vector<int> getEdges() const {
+        return edgeIndexes;
+    }
+    
+    /**
+     * @brief 获取元素的面信息
+     * @return 面索引向量
+     */
+    std::vector<int> getFaces() const {
+        return faceIndexes;
+    }
 };
 
 /**
@@ -149,22 +167,6 @@ struct Nodes {
 };
 
 /**
- * @brief 边结构
- * 
- * 描述有限元网格中的边信息。
- */
-struct Edge {
-    int index; ///< 边索引
-    std::vector<int> nodeIndexes; ///< 边上的节点索引
-    int bDofs; ///< 边上的自由度数量
-    int pDegree; ///< P型元素的度数
-    
-    Edge() : index(0), bDofs(0), pDegree(0) {}
-    Edge(int idx, const std::vector<int>& nodes) : 
-        index(idx), nodeIndexes(nodes), bDofs(0), pDegree(0) {}
-};
-
-/**
  * @brief 面结构
  * 
  * 描述有限元网格中的面信息。
@@ -177,6 +179,22 @@ struct Face {
     
     Face() : index(0), bDofs(0), pDegree(0) {}
     Face(int idx, const std::vector<int>& nodes) : 
+        index(idx), nodeIndexes(nodes), bDofs(0), pDegree(0) {}
+};
+
+/**
+ * @brief 边结构
+ * 
+ * 描述有限元网格中的边信息。
+ */
+struct Edge {
+    int index; ///< 边索引
+    std::vector<int> nodeIndexes; ///< 边上的节点索引
+    int bDofs; ///< 边上的自由度数量
+    int pDegree; ///< P型元素的度数
+    
+    Edge() : index(0), bDofs(0), pDegree(0) {}
+    Edge(int idx, const std::vector<int>& nodes) : 
         index(idx), nodeIndexes(nodes), bDofs(0), pDegree(0) {}
 };
 
@@ -724,4 +742,4 @@ void ApplyNeumannBoundaryConditions(const Element& element,
                                    double boundaryValue,
                                    std::vector<double>& forceVector);
 
-} // namespace ElmerCpp
+} // namespace elmer

@@ -379,27 +379,7 @@ void MatrixAssembly::Band_AddToMatrixElement(std::shared_ptr<elmer::Matrix> matr
     MatrixAssembly::AddToMatrixElement(matrix, i, j, value);
 }
 
-// 列表矩阵特定操作
-void MatrixAssembly::List_SetMatrixElement(std::shared_ptr<elmer::Matrix> matrix,
-                                          elmer::Integer i, elmer::Integer j, elmer::Real value) {
-    // 这里需要实现列表格式的矩阵元素设置
-    // 目前调用通用实现
-    MatrixAssembly::SetMatrixElement(matrix, i, j, value);
-}
 
-elmer::Real MatrixAssembly::List_GetMatrixElement(std::shared_ptr<elmer::Matrix> matrix,
-                                                 elmer::Integer i, elmer::Integer j) {
-    // 这里需要实现列表格式的矩阵元素获取
-    // 目前调用通用实现
-    return MatrixAssembly::GetMatrixElement(matrix, i, j);
-}
-
-void MatrixAssembly::List_AddToMatrixElement(std::shared_ptr<elmer::Matrix> matrix,
-                                            elmer::Integer i, elmer::Integer j, elmer::Real value) {
-    // 这里需要实现列表格式的矩阵元素添加
-    // 目前调用通用实现
-    MatrixAssembly::AddToMatrixElement(matrix, i, j, value);
-}
 
 } // namespace elmer
 

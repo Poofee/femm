@@ -4,6 +4,7 @@
 #include "GaussIntegration.h"
 #include "ElementMatrix.h"
 #include "LinearAlgebra.h"
+#include "IterativeSolver.h"
 #include "Mesh.h"
 #include "Material.h"
 #include <memory>

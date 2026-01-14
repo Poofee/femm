@@ -10,6 +10,9 @@
 #include <array>
 #include <iostream>
 
+// Use explicit namespace to avoid conflicts
+#include "Material.h"
+
 namespace elmer {
 
 /**
@@ -35,6 +38,11 @@ struct CouplingParameters {
     double thermalExpansionCoefficient = 0.0; ///< For thermal-structural coupling
     double jouleHeatingCoefficient = 1.0;     ///< For electromagnetic-thermal coupling
     double magnetostrictionCoefficient = 0.0; ///< For electromagnetic-structural coupling
+    
+    // Coupling flags
+    bool enableElectroThermalCoupling = true;    ///< Enable electromagnetic-thermal coupling
+    bool enableElectroStructuralCoupling = true; ///< Enable electromagnetic-structural coupling
+    bool enableThermoStructuralCoupling = true;  ///< Enable thermal-structural coupling
     
     CouplingParameters() = default;
 };
@@ -97,6 +105,13 @@ public:
     }
     
     /**
+     * @brief Set coupling type
+     */
+    void setCouplingType(CouplingType type) {
+        couplingParams.type = type;
+    }
+    
+    /**
      * @brief Solve coupled multiphysics problem
      */
     void solveCoupledProblem() {
@@ -142,6 +157,27 @@ public:
     }
     
     /**
+     * @brief Get potential field (electromagnetic)
+     */
+    const std::vector<double>& getPotentialField() const {
+        return potentialField;
+    }
+    
+    /**
+     * @brief Get temperature field
+     */
+    const std::vector<double>& getTemperatureField() const {
+        return temperatureField;
+    }
+    
+    /**
+     * @brief Get displacement field
+     */
+    const std::vector<double>& getDisplacementField() const {
+        return displacementField;
+    }
+    
+    /**
      * @brief Set material database for all solvers
      */
     void setMaterialDatabase(const MaterialDatabase& db) {
@@ -155,15 +191,17 @@ public:
      * @brief Calculate Joule heating from electromagnetic solution
      */
     std::vector<double> calculateJouleHeating(const MagnetodynamicsResults& emResults) {
-        int nNodes = mesh->getNodes().size();
+        size_t nNodes = mesh->getNodes().numberOfNodes();
         std::vector<double> jouleHeating(nNodes, 0.0);
         
         // Q = J·E = σ|E|² for conductive heating
-        for (const auto& element : mesh->getElements()) {
-            auto material = materialDB.getMaterial(element.getMaterialName());
+        // Simplified implementation using a default material
+        auto material = materialDB.getMaterial("Copper");
+        
+        for (const auto& element : mesh->getBulkElements()) {
             auto nodeIndices = element.getNodeIndices();
             
-            for (int nodeIdx : nodeIndices) {
+            for (size_t nodeIdx : nodeIndices) {
                 double E_squared = 0.0;
                 for (int i = 0; i < 3; ++i) {
                     E_squared += emResults.electricField[nodeIdx][i] * 
@@ -183,7 +221,7 @@ public:
     std::vector<std::array<double, 3>> calculateThermalExpansionForces(
         const std::vector<double>& temperature) {
         
-        int nNodes = mesh->getNodes().size();
+        size_t nNodes = mesh->getNodes().numberOfNodes();
         std::vector<std::array<double, 3>> thermalForces(nNodes, {0.0, 0.0, 0.0});
         
         // Simplified implementation
@@ -198,7 +236,7 @@ public:
     std::vector<std::array<double, 3>> calculateMagnetostrictionForces(
         const MagnetodynamicsResults& emResults) {
         
-        int nNodes = mesh->getNodes().size();
+        size_t nNodes = mesh->getNodes().numberOfNodes();
         std::vector<std::array<double, 3>> magnetostrictionForces(nNodes, {0.0, 0.0, 0.0});
         
         // Simplified implementation
@@ -207,7 +245,7 @@ public:
         return magnetostrictionForces;
     }
     
-private:
+public:
     /**
      * @brief Initialize individual solvers
      */
@@ -295,6 +333,8 @@ private:
             iteration++;
         }
     }
+
+private:
     
     /**
      * @brief Assemble monolithic system matrix for strong coupling

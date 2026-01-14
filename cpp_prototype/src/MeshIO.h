@@ -484,4 +484,4 @@ private:
     }
 };
 
-} // namespace ElmerCpp
+} // namespace elmer

@@ -613,3 +613,152 @@ std::shared_ptr<BoundaryCondition> elmerBoundaryConditionUtils::createBoundaryCo
             throw std::invalid_argument("Unsupported boundary condition type");
     }
 }
+
+void elmerBoundaryConditionUtils::GetElementMeshEdgeInfo(const Mesh& mesh, const Element& element,
+                                                        std::vector<int>& edgeDegree,
+                                                        std::vector<std::vector<int>>& edgeDirection,
+                                                        int& edgeMaxDegree) {
+    // 获取元素的边信息
+    auto elementEdges = element.getEdges();
+    edgeDegree.clear();
+    edgeDirection.clear();
+    edgeMaxDegree = 0;
+    
+    // 简化实现：假设所有边的度数为1
+    for (const auto& edgeIndex : elementEdges) {
+        // 简化实现：固定度数
+        int degree = 1;
+        edgeDegree.push_back(degree);
+        
+        // 更新最大度数
+        if (degree > edgeMaxDegree) {
+            edgeMaxDegree = degree;
+        }
+        
+        // 设置边方向（简化实现）
+        std::vector<int> direction = {1, 1}; // 默认方向
+        edgeDirection.push_back(direction);
+    }
+    
+    // 如果没有边，设置默认值
+    if (edgeDegree.empty()) {
+        edgeMaxDegree = 1;
+    }
+}
+
+void elmerBoundaryConditionUtils::GetElementMeshFaceInfo(const Mesh& mesh, const Element& element,
+                                                        std::vector<int>& faceDegree,
+                                                        std::vector<std::vector<int>>& faceDirection,
+                                                        int& faceMaxDegree) {
+    // 获取元素的面信息
+    auto elementFaces = element.getFaces();
+    faceDegree.clear();
+    faceDirection.clear();
+    faceMaxDegree = 0;
+    
+    // 简化实现：假设所有面的度数为1
+    for (const auto& faceIndex : elementFaces) {
+        // 简化实现：固定度数
+        int degree = 1;
+        faceDegree.push_back(degree);
+        
+        // 更新最大度数
+        if (degree > faceMaxDegree) {
+            faceMaxDegree = degree;
+        }
+        
+        // 设置面方向（简化实现）
+        std::vector<int> direction = {1, 1, 1}; // 默认方向
+        faceDirection.push_back(direction);
+    }
+    
+    // 如果没有面，设置默认值
+    if (faceDegree.empty()) {
+        faceMaxDegree = 1;
+    }
+}
+
+void elmerBoundaryConditionUtils::FaceElementBasisOrdering(const Element& element,
+                                                          std::vector<std::vector<int>>& fDofMap,
+                                                          int faceNumber,
+                                                          std::vector<bool>* reverseSign) {
+    // 获取元素的面信息
+    auto elementFaces = element.getFaces();
+    
+    // 清空输出参数
+    fDofMap.clear();
+    if (reverseSign) {
+        reverseSign->clear();
+    }
+    
+    // 根据面编号处理
+    if (faceNumber >= 0 && faceNumber < static_cast<int>(elementFaces.size())) {
+        // 处理特定面
+        auto faceIndex = elementFaces[faceNumber];
+        
+        // 简化的自由度映射
+        // 简化实现：固定2个自由度
+        std::vector<int> faceDofs(2);
+        for (int i = 0; i < face.bDofs; ++i) {
+            faceDofs[i] = i;
+        }
+        fDofMap.push_back(faceDofs);
+        
+        // 设置反向符号标志
+        if (reverseSign) {
+            reverseSign->push_back(false);
+        }
+    } else {
+        // 处理所有面
+        for (const auto& face : elementFaces) {
+            std::vector<int> faceDofs(face.bDofs);
+            for (int i = 0; i < face.bDofs; ++i) {
+                faceDofs[i] = i;
+            }
+            fDofMap.push_back(faceDofs);
+            
+            if (reverseSign) {
+                reverseSign->push_back(false);
+            }
+        }
+    }
+}
+
+void elmerBoundaryConditionUtils::GetEdgeBasis(const Element& element,
+                                              std::vector<double>& wBasis,
+                                              std::vector<double>& rotWBasis,
+                                              std::vector<double>& basis,
+                                              std::vector<std::vector<double>>& dBasisdx) {
+    // 获取元素的边信息
+    auto elementEdges = element.getEdges();
+    
+    // 清空输出参数
+    wBasis.clear();
+    rotWBasis.clear();
+    basis.clear();
+    dBasisdx.clear();
+    
+    // 简化的边基函数计算
+    // 简化实现：假设每个边有2个自由度
+    for (const auto& edgeIndex : elementEdges) {
+        // 边基函数值（简化实现）
+        for (int i = 0; i < 2; ++i) { // 固定2个自由度
+            wBasis.push_back(1.0); // 常数基函数
+            rotWBasis.push_back(0.0); // 旋转基函数
+            basis.push_back(1.0); // 基函数值
+            
+            // 基函数导数（简化实现）
+            std::vector<double> deriv = {0.0, 0.0, 0.0};
+            dBasisdx.push_back(deriv);
+        }
+    }
+    
+    // 如果没有边，设置默认值
+    if (wBasis.empty()) {
+        wBasis.push_back(1.0);
+        rotWBasis.push_back(0.0);
+        basis.push_back(1.0);
+        std::vector<double> deriv = {0.0, 0.0, 0.0};
+        dBasisdx.push_back(deriv);
+    }
+}

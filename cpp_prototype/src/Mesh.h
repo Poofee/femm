@@ -277,6 +277,70 @@ public:
         
         return info;
     }
+    
+    /**
+     * @brief 获取元素的边信息
+     * @return 边索引向量
+     */
+    std::vector<int> getEdges() const {
+        // 简化实现：根据元素类型返回边索引
+        // 实际实现需要更复杂的逻辑
+        std::vector<int> edges;
+        
+        switch (type_) {
+            case ElementType::LINEAR:
+                // 线性元素：边数 = 节点数
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()); ++i) {
+                    edges.push_back(i);
+                }
+                break;
+            case ElementType::QUADRATIC:
+                // 二次元素：边数 = 节点数 / 2
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()) / 2; ++i) {
+                    edges.push_back(i);
+                }
+                break;
+            default:
+                // 默认实现：每个节点对应一个边
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()); ++i) {
+                    edges.push_back(i);
+                }
+        }
+        
+        return edges;
+    }
+    
+    /**
+     * @brief 获取元素的面信息
+     * @return 面索引向量
+     */
+    std::vector<int> getFaces() const {
+        // 简化实现：根据元素类型返回面索引
+        // 实际实现需要更复杂的逻辑
+        std::vector<int> faces;
+        
+        switch (type_) {
+            case ElementType::LINEAR:
+                // 线性元素：面数 = 节点数 / 2
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()) / 2; ++i) {
+                    faces.push_back(i);
+                }
+                break;
+            case ElementType::QUADRATIC:
+                // 二次元素：面数 = 节点数 / 4
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()) / 4; ++i) {
+                    faces.push_back(i);
+                }
+                break;
+            default:
+                // 默认实现：每个节点对应一个面
+                for (int i = 0; i < static_cast<int>(nodeIndices_.size()); ++i) {
+                    faces.push_back(i);
+                }
+        }
+        
+        return faces;
+    }
 };
 
 /**

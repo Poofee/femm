@@ -21,7 +21,10 @@
 #include <vector>
 #include <array>
 
-namespace ElmerCpp {
+namespace elmer {
+
+// 引入elmer命名空间中的GaussIntegration
+using elmer::GaussIntegration;
 
 /**
  * @brief 磁动力学求解器参数
@@ -76,6 +79,22 @@ struct MagneticSolveResults {
 };
 
 /**
+ * @brief 元素节点坐标结构
+ */
+struct ElementNodes {
+    std::vector<double> x;  ///< x坐标数组
+    std::vector<double> y;  ///< y坐标数组
+    std::vector<double> z;  ///< z坐标数组
+    
+    ElementNodes() = default;
+    explicit ElementNodes(size_t size) {
+        x.resize(size);
+        y.resize(size);
+        z.resize(size);
+    }
+};
+
+/**
  * @brief 磁动力学求解器
  * 
  * 实现MHD Maxwell方程（或感应方程）的求解器，
@@ -83,6 +102,25 @@ struct MagneticSolveResults {
  */
 class MagneticSolve : public SolverBase {
 private:
+    /**
+     * @brief Shape function evaluation result
+     */
+    struct ShapeResult {
+        std::vector<double> values;        ///< Shape function values
+        std::vector<double> dNdxi;        ///< Derivatives in xi direction
+        std::vector<double> dNdeta;       ///< Derivatives in eta direction
+        std::vector<double> dNdzeta;      ///< Derivatives in zeta direction
+        std::vector<double> dNdx;         ///< Derivatives in x direction
+        std::vector<double> dNdy;         ///< Derivatives in y direction
+        std::vector<double> dNdz;         ///< Derivatives in z direction
+        double detJ;                      ///< Jacobian determinant
+        
+        ShapeResult(size_t nNodes) 
+            : values(nNodes, 0.0), dNdxi(nNodes, 0.0), dNdeta(nNodes, 0.0),
+              dNdzeta(nNodes, 0.0), dNdx(nNodes, 0.0), dNdy(nNodes, 0.0),
+              dNdz(nNodes, 0.0), detJ(0.0) {}
+    };
+    
     MagneticSolveParameters parameters;
     
     // 系统矩阵
@@ -109,46 +147,61 @@ public:
     /**
      * @brief 构造函数
      */
-    MagneticSolve() = default;
+    MagneticSolve();
     
     /**
      * @brief 析构函数
      */
-    virtual ~MagneticSolve() = default;
+    virtual ~MagneticSolve();
     
     /**
      * @brief 设置求解器参数
      */
-    void setParameters(const MagneticSolveParameters& params) {
-        parameters = params;
+    void setParameters(const SolverBaseParameters& params) override {
+        // 将通用求解器参数转换为磁动力学专用参数
+        parameters.tolerance = params.tolerance;
+        parameters.maxIterations = params.maxIterations;
+        parameters.verbose = params.verbose;
     }
     
     /**
      * @brief 获取求解器参数
      */
-    const MagneticSolveParameters& getParameters() const {
-        return parameters;
+    SolverBaseParameters getParameters() const override {
+        SolverBaseParameters params;
+        params.solverName = "MagneticSolve";
+        params.tolerance = parameters.tolerance;
+        params.maxIterations = parameters.maxIterations;
+        params.verbose = parameters.verbose;
+        return params;
+    }
+    
+    /**
+     * @brief 设置网格数据
+     */
+    void setMesh(std::shared_ptr<Mesh> mesh) {
+        mesh_ = mesh;
     }
     
     /**
      * @brief 执行求解
      */
-    virtual MagneticSolveResults solve() override;
+    virtual MagneticSolveResults solve();
     
     /**
      * @brief 组装系统矩阵
      */
-    virtual void assembleSystem() override;
+    virtual void assembleSystem();
     
     /**
      * @brief 应用边界条件
      */
-    virtual void applyBoundaryConditions() override;
+    virtual void applyBoundaryConditions();
     
     /**
      * @brief 求解线性系统
      */
-    virtual void solveLinearSystem() override;
+    virtual void solveLinearSystem();
     
     /**
      * @brief 计算导出场
@@ -211,6 +264,40 @@ public:
     void assembleBoundaryCondition(const Element& element, const ElementNodes& nodes);
     
     /**
+     * @brief 获取元素的高斯积分点
+     */
+    // std::vector<elmer::GaussIntegration::IntegrationPoint> getGaussPointsForElement(const Element& element);
+    
+    /**
+     * @brief 计算基函数及其导数
+     */
+    struct ShapeResult evaluateShapeFunctions(const Element& element, 
+                                              const ElementNodes& nodes, 
+                                              double xi, double eta, double zeta);
+    
+    /**
+     * @brief 插值场量
+     */
+    double interpolateField(const std::vector<double>& shapeValues, 
+                           const std::vector<double>& nodalValues, 
+                           int nNodes);
+    
+    /**
+     * @brief 插值场量导数
+     */
+    std::array<double, 3> interpolateFieldDerivatives(const std::vector<double>& shapeDerivatives, 
+                                                     const std::vector<double>& nodalValues, 
+                                                     int nNodes);
+    
+    /**
+     * @brief 将局部矩阵组装到全局系统
+     */
+    void assembleLocalToGlobal(const Element& element, 
+                              const std::vector<std::vector<double>>& localMassMatrix,
+                              const std::vector<std::vector<double>>& localStiffMatrix,
+                              const std::vector<double>& localForceVector);
+    
+    /**
      * @brief 初始化临时存储
      */
     void initializeTemporaryStorage();
@@ -226,4 +313,4 @@ public:
  */
 std::shared_ptr<MagneticSolve> CreateMagneticSolve();
 
-} // namespace ElmerCpp
+} // namespace elmer

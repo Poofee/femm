@@ -14,7 +14,9 @@
 #include "Mesh.h"
 #include "MaterialDatabase.h"
 #include "BoundaryConditions.h"
+#ifdef USE_MPI
 #include "MPICommunicator.h"
+#endif
 
 namespace elmer {
 
@@ -67,7 +69,9 @@ protected:
     std::shared_ptr<Mesh> mesh_;          ///< 网格数据
     std::shared_ptr<MaterialDatabase> materialDB_; ///< 材料数据库
     std::shared_ptr<BoundaryConditionManager> bc_; ///< 边界条件管理器
+#ifdef USE_MPI
     std::shared_ptr<MPICommunicator> comm_; ///< MPI通信器
+#endif
     
     // 求解器变量
     std::map<std::string, std::vector<double>> variables_; ///< 求解器变量
@@ -125,9 +129,15 @@ public:
     /**
      * @brief 设置MPI通信器
      */
+#ifdef USE_MPI
     virtual void setMPICommunicator(std::shared_ptr<MPICommunicator> comm) {
         comm_ = comm;
     }
+#else
+    virtual void setMPICommunicator(void* comm) {
+        (void)comm; // 避免未使用参数警告
+    }
+#endif
     
     /**
      * @brief 初始化求解器

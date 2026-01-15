@@ -56,7 +56,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 
 # Create library
 add_library(ElmerCppMatrixAssembly
-    src/ElmerCpp.h
     src/ShapeFunctions.h
     src/ShapeFunctions.cpp
     src/MatrixAssembly.h
@@ -87,15 +86,15 @@ add_library(ElmerCppMatrixAssembly
     src/ElementDescription.cpp
     src/MagneticSolve.h
     src/MagneticSolve.cpp
+    src/ElectromagneticMaterial.h
+    src/MaterialDatabase.h
+    src/SolverBase.h
+    src/SolverRegistry.h
     # src/MagnetoDynamics2DSolver.h  # 暂时注释掉，有编译错误
     # src/MagnetoDynamics2DSolver.cpp  # 暂时注释掉，有编译错误
     # src/MagnetodynamicsSolver.h  # 暂时注释掉，有编译错误
-    # src/ElectromagneticMaterial.h  # 暂时注释掉，有编译错误
-    # src/MaterialDatabase.h  # 暂时注释掉，有编译错误
     # src/ElmerSolver.h  # 暂时注释掉，有编译错误
     # src/ElmerSolver.cpp  # 暂时注释掉，有编译错误
-    # src/SolverBase.h  # 暂时注释掉，有编译错误
-    # src/SolverRegistry.h  # 暂时注释掉，有编译错误
     # src/MPICommunicator.h  # 暂时注释掉，有编译错误
     # src/MPIUtils.h  # 暂时注释掉，有编译错误
     

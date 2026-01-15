@@ -21,6 +21,7 @@
 #include "Mesh.h"
 #include "MaterialDatabase.h"
 #include "BoundaryConditions.h"
+#include "LoggerFactory.h"
 #include <vector>
 #include <memory>
 #include <string>

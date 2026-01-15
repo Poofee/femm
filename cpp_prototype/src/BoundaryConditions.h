@@ -670,7 +670,7 @@ public:
     void applyWithPriority(std::shared_ptr<Matrix> matrix, 
                           std::vector<double>& rhs,
                           const std::vector<int>& dofMap,
-                          std::vector<bool>& constrainedDOFs) const override {
+                          std::vector<bool>& /*constrainedDOFs*/) const override {
         applyRealExcitation(rhs, dofMap);
     }
     

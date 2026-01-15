@@ -85,7 +85,7 @@ bool HeatSolver::initialize() {
     }
     
     // 初始化温度场
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     temperatureField_.resize(numNodes, heatParams_.initialTemperature);
     heatFluxField_.resize(numNodes * 3, 0.0); // 每个节点3个分量
     
@@ -162,8 +162,8 @@ bool HeatSolver::solve() {
     // TODO: 实现真正的线性求解器
     
     // 模拟求解过程
-    int numNodes = mesh_->numberOfNodes();
-    for (int i = 0; i < numNodes; ++i) {
+    size_t numNodes = mesh_->numberOfNodes();
+    for (size_t i = 0; i < numNodes; ++i) {
         // 简化处理：直接使用右端向量作为解
         (*solution_)[i] = (*rhsVector_)[i];
     }
@@ -272,14 +272,14 @@ bool HeatSolver::assembleStiffnessMatrix() {
         return false;
     }
     
-    int numElements = mesh_->getBulkElements().size();
-    int numNodes = mesh_->numberOfNodes();
+    size_t numElements = mesh_->getBulkElements().size();
+    size_t numNodes = mesh_->numberOfNodes();
     
     // 清零刚度矩阵
     stiffnessMatrix_->Zero();
     
     // 遍历所有单元
-    for (int elemId = 0; elemId < numElements; ++elemId) {
+    for (size_t elemId = 0; elemId < numElements; ++elemId) {
         // 计算单元刚度矩阵
         std::vector<std::vector<double>> elementMatrix;
         computeElementMatrix(elemId, elementMatrix);
@@ -288,11 +288,11 @@ bool HeatSolver::assembleStiffnessMatrix() {
         auto& bulkElements = mesh_->getBulkElements();
         if (elemId < bulkElements.size()) {
             auto elementNodes = bulkElements[elemId].getNodeIndices();
-            int numElementNodes = elementNodes.size();
+            size_t numElementNodes = elementNodes.size();
             
             // 组装到全局刚度矩阵
-            for (int i = 0; i < numElementNodes; ++i) {
-                for (int j = 0; j < numElementNodes; ++j) {
+            for (size_t i = 0; i < numElementNodes; ++i) {
+                for (size_t j = 0; j < numElementNodes; ++j) {
                     int globalI = static_cast<int>(elementNodes[i]);
                     int globalJ = static_cast<int>(elementNodes[j]);
                     // 使用Matrix类的正确接口
@@ -311,10 +311,10 @@ bool HeatSolver::assembleMassMatrix() {
         return false;
     }
     
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     double massCoeff = heatParams_.density * heatParams_.specificHeat * timeIntegrationFactor_;
     
-    for (int i = 0; i < numNodes; ++i) {
+    for (size_t i = 0; i < numNodes; ++i) {
         stiffnessMatrix_->AddToElement(i, i, massCoeff);
     }
     
@@ -326,11 +326,11 @@ bool HeatSolver::assembleRhsVector() {
         return false;
     }
     
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     rhsVector_->Zero();
     
     // 添加热源项
-    for (int i = 0; i < numNodes; ++i) {
+    for (size_t i = 0; i < numNodes; ++i) {
         (*rhsVector_)[i] += heatParams_.heatSource;
     }
     
@@ -350,7 +350,7 @@ bool HeatSolver::applyBoundaryConditions() {
         return false;
     }
     
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     
     // 应用狄利克雷边界条件
     for (size_t i = 0; i < dirichletNodes_.size(); ++i) {
@@ -378,10 +378,10 @@ void HeatSolver::computeHeatFlux() {
         return;
     }
     
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     
     // 计算温度梯度（简化实现）
-    for (int i = 0; i < numNodes; ++i) {
+    for (size_t i = 0; i < numNodes; ++i) {
         // 简化处理：假设均匀温度梯度
         double gradX = 0.0;
         double gradY = 0.0;
@@ -399,13 +399,13 @@ void HeatSolver::computeElementMatrix(int elementId, std::vector<std::vector<dou
     auto& bulkElements = mesh_->getBulkElements();
     if (elementId < bulkElements.size()) {
         auto elementNodes = bulkElements[elementId].getNodeIndices();
-        int numElementNodes = elementNodes.size();
+        size_t numElementNodes = elementNodes.size();
         
         elementMatrix.resize(numElementNodes, std::vector<double>(numElementNodes, 0.0));
         
         // 简化处理：使用单位矩阵乘以系数
         double coeff = heatParams_.thermalConductivity;
-        for (int i = 0; i < numElementNodes; ++i) {
+        for (size_t i = 0; i < numElementNodes; ++i) {
             elementMatrix[i][i] = coeff;
         }
     }
@@ -416,7 +416,7 @@ void HeatSolver::computeElementMassMatrix(int elementId, std::vector<std::vector
     auto& bulkElements = mesh_->getBulkElements();
     if (elementId < bulkElements.size()) {
         auto elementNodes = bulkElements[elementId].getNodeIndices();
-        int numElementNodes = elementNodes.size();
+        size_t numElementNodes = elementNodes.size();
         
         elementMatrix.resize(numElementNodes, std::vector<double>(numElementNodes, 0.0));
         
@@ -433,12 +433,12 @@ void HeatSolver::computeElementRhsVector(int elementId, std::vector<double>& ele
     auto& bulkElements = mesh_->getBulkElements();
     if (elementId < bulkElements.size()) {
         auto elementNodes = bulkElements[elementId].getNodeIndices();
-        int numElementNodes = elementNodes.size();
+        size_t numElementNodes = elementNodes.size();
         
         elementVector.resize(numElementNodes, 0.0);
         
         // 简化处理：均匀分布热源
-        for (int i = 0; i < numElementNodes; ++i) {
+        for (size_t i = 0; i < numElementNodes; ++i) {
             elementVector[i] = heatParams_.heatSource / numElementNodes;
         }
     }

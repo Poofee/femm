@@ -53,6 +53,7 @@ endif()
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/spdlog/include)
 
 # Create library
 add_library(ElmerCppMatrixAssembly
@@ -101,6 +102,10 @@ add_library(ElmerCppMatrixAssembly
     src/InputFileParser.cpp
     src/HeatSolver.h
     src/HeatSolver.cpp
+    src/LoggerInterface.h
+    src/LoggerFactory.h
+    src/LoggerFactory.cpp
+    src/SpdlogAdapter.h
     
 )
 
@@ -156,6 +161,12 @@ add_executable(test_interpolation
 add_executable(test_input_parser
     test/test_input_parser.cpp
 )
+
+add_executable(test_logger
+    test/test_logger.cpp
+)
+
+target_link_libraries(test_logger ElmerCppMatrixAssembly)
 
 # 暂时注释掉有编译错误的测试文件
 # add_executable(test_boundary_conditions_priority

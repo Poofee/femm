@@ -44,49 +44,49 @@ std::string MagneticSolver::getName() const {
 
 bool MagneticSolver::initialize() {
     // TODO: 实现磁场求解器的完整初始化流程
-    std::cout << "开始初始化MagneticSolver..." << std::endl;
+    ELMER_INFO("开始初始化MagneticSolver...");
     
     // 1. 检查必要的组件是否已设置
     if (!mesh_ || !materialDB_ || !bc_) {
-        std::cerr << "错误: 求解器未正确初始化，缺少必要的组件" << std::endl;
+        ELMER_ERROR("求解器未正确初始化，缺少必要的组件");
         return false;
     }
     
     // 2. 分配内存
     if (!allocateMemory()) {
-        std::cerr << "错误: 内存分配失败" << std::endl;
+        ELMER_ERROR("内存分配失败");
         return false;
     }
     
     // 3. 获取材料参数
     if (!getMaterialParameters()) {
-        std::cerr << "错误: 材料参数获取失败" << std::endl;
+        ELMER_ERROR("材料参数获取失败");
         return false;
     }
     
     // 4. 获取速度场（如果存在）
     if (!getVelocityField()) {
-        std::cout << "警告: 速度场获取失败，将使用默认值" << std::endl;
+        ELMER_WARN("速度场获取失败，将使用默认值");
     }
     
     // 5. 设置求解器状态
     status_ = SolverStatus::INITIALIZED;
     
-    std::cout << "MagneticSolver初始化完成" << std::endl;
+    ELMER_INFO("MagneticSolver初始化完成");
     return true;
 }
 
 bool MagneticSolver::assemble() {
     // TODO: 实现磁场求解器的系统矩阵组装
-    std::cout << "开始组装磁场求解器系统矩阵..." << std::endl;
+    ELMER_INFO("开始组装磁场求解器系统矩阵...");
     
     if (status_ != SolverStatus::INITIALIZED) {
-        std::cerr << "错误: 求解器未初始化，无法组装系统矩阵" << std::endl;
+        ELMER_ERROR("求解器未初始化，无法组装系统矩阵");
         return false;
     }
     
     if (!stiffnessMatrix_ || !rhsVector_) {
-        std::cerr << "错误: 刚度矩阵或右端向量未初始化" << std::endl;
+        ELMER_ERROR("刚度矩阵或右端向量未初始化");
         return false;
     }
     
@@ -99,7 +99,7 @@ bool MagneticSolver::assemble() {
     
     // 检测坐标系类型
     std::string coordinateSystem = detectCoordinateSystem();
-    std::cout << "检测到坐标系类型: " << coordinateSystem << std::endl;
+    ELMER_INFO("检测到坐标系类型: {}", coordinateSystem);
     
     // 根据坐标系类型选择相应的组装方法
     if (coordinateSystem == "cartesian") {
@@ -109,36 +109,37 @@ bool MagneticSolver::assemble() {
     } else if (coordinateSystem == "general") {
         success = assembleGeneral();
     } else {
-        std::cerr << "错误: 未知的坐标系类型: " << coordinateSystem << std::endl;
+        ELMER_ERROR("未知的坐标系类型: {}", coordinateSystem);
         return false;
     }
     
     if (!success) {
-        std::cerr << "错误: 系统矩阵组装失败" << std::endl;
+        ELMER_ERROR("系统矩阵组装失败");
         return false;
     }
     
     // 组装边界条件
     if (!assembleBoundaryConditions()) {
-        std::cerr << "错误: 边界条件组装失败" << std::endl;
+        ELMER_ERROR("边界条件组装失败");
         return false;
     }
     
-    std::cout << "磁场求解器系统矩阵组装完成" << std::endl;
+    status_ = SolverStatus::ASSEMBLED;
+    ELMER_INFO("磁场求解器系统矩阵组装完成");
     return true;
 }
 
 bool MagneticSolver::solve() {
     // 基于Fortran版本的MagneticSolve.F90实现非线性迭代求解
-    std::cout << "开始求解Maxwell方程..." << std::endl;
+    ELMER_INFO("开始求解Maxwell方程...");
     
     if (status_ != SolverStatus::ASSEMBLED) {
-        std::cerr << "错误: 求解器未组装，无法求解" << std::endl;
+        ELMER_ERROR("求解器未组装，无法求解");
         return false;
     }
     
     if (!stiffnessMatrix_ || !rhsVector_) {
-        std::cerr << "错误: 系统矩阵或右端向量未初始化" << std::endl;
+        ELMER_ERROR("系统矩阵或右端向量未初始化");
         return false;
     }
     
@@ -154,35 +155,35 @@ bool MagneticSolver::solve() {
     bool converged = false;
     
     for (int iter = 1; iter <= maxNonlinearIterations_; ++iter) {
-        std::cout << "非线性迭代: " << iter << "/" << maxNonlinearIterations_ << std::endl;
+        ELMER_DEBUG("非线性迭代: {}/{}", iter, maxNonlinearIterations_);
         
         // 1. 计算残差向量
         auto residual = computeResidualVector();
         if (!residual) {
-            std::cerr << "错误: 残差向量计算失败" << std::endl;
+            ELMER_ERROR("残差向量计算失败");
             return false;
         }
         
         // 2. 计算残差范数
         currentNorm = computeVectorNorm(*residual);
-        std::cout << "残差范数: " << currentNorm << std::endl;
+        ELMER_DEBUG("残差范数: {}", currentNorm);
         
         // 3. 检查收敛性
         if (checkConvergence(prevNorm, currentNorm)) {
-            std::cout << "非线性迭代收敛于第 " << iter << " 次迭代" << std::endl;
+            ELMER_INFO("非线性迭代收敛于第 {} 次迭代", iter);
             converged = true;
             break;
         }
         
         // 4. 更新雅可比矩阵（简化实现：使用当前刚度矩阵）
         if (!updateJacobianMatrix()) {
-            std::cerr << "警告: 雅可比矩阵更新失败，使用当前刚度矩阵" << std::endl;
+            ELMER_WARN("雅可比矩阵更新失败，使用当前刚度矩阵");
         }
         
         // 5. 求解线性系统：J * Δx = -r
         auto deltaX = solveLinearSystem(*residual);
         if (!deltaX) {
-            std::cerr << "错误: 线性系统求解失败" << std::endl;
+            ELMER_ERROR("线性系统求解失败");
             return false;
         }
         
@@ -192,12 +193,12 @@ bool MagneticSolver::solve() {
         prevNorm = currentNorm;
         
         if (iter == maxNonlinearIterations_) {
-            std::cout << "警告: 达到最大非线性迭代次数" << std::endl;
+            ELMER_WARN("达到最大非线性迭代次数");
         }
     }
     
     if (!converged) {
-        std::cout << "警告: 非线性迭代未收敛" << std::endl;
+        ELMER_WARN("非线性迭代未收敛");
     }
     
     // 更新磁场变量
@@ -205,15 +206,15 @@ bool MagneticSolver::solve() {
     
     // 计算相关物理量
     if (!computeLorentzForce()) {
-        std::cerr << "警告: 洛伦兹力计算失败" << std::endl;
+        ELMER_WARN("洛伦兹力计算失败");
     }
     
     if (!computeElectricField()) {
-        std::cerr << "警告: 电场计算失败" << std::endl;
+        ELMER_WARN("电场计算失败");
     }
     
     status_ = SolverStatus::SOLVED;
-    std::cout << "Maxwell方程求解完成" << std::endl;
+    ELMER_INFO("Maxwell方程求解完成");
     return true;
 }
 
@@ -239,7 +240,7 @@ bool MagneticSolver::computeLorentzForce() {
     std::cout << "开始计算洛伦兹力..." << std::endl;
     
     // 简化实现：使用J × B公式
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     if (electricCurrent_.size() >= 3 * numNodes && magneticField_.size() >= 3 * numNodes) {
         for (int i = 0; i < numNodes; ++i) {
             // 计算J × B
@@ -401,7 +402,7 @@ bool MagneticSolver::assembleBoundaryConditions() {
         
         auto& boundaryElement = boundaryElements[bcId];
         auto elementNodes = boundaryElement.getNodeIndices();
-        int numElementNodes = elementNodes.size();
+        size_t numElementNodes = elementNodes.size();
         
         // 简化实现：直接应用狄利克雷边界条件
         // TODO: 实现完整的边界条件类型检测
@@ -432,10 +433,10 @@ bool MagneticSolver::checkConvergence(double prevNorm, double currentNorm) {
 bool MagneticSolver::assembleCartesian() {
     // 实现笛卡尔坐标系下的Maxwell方程组装
     // 基于Fortran版本的MagneticSolve.F90中的MaxwellCompose函数
-    std::cout << "使用笛卡尔坐标系组装Maxwell方程..." << std::endl;
+    ELMER_INFO("使用笛卡尔坐标系组装Maxwell方程...");
     
     if (!mesh_ || !stiffnessMatrix_ || !rhsVector_) {
-        std::cerr << "错误: 必要的组件未初始化" << std::endl;
+        ELMER_ERROR("必要的组件未初始化");
         return false;
     }
     
@@ -444,7 +445,7 @@ bool MagneticSolver::assembleCartesian() {
     
     // 检查材料参数是否已获取
     if (conductivity_.empty() || permeability_.empty()) {
-        std::cerr << "错误: 材料参数未获取" << std::endl;
+        ELMER_ERROR("材料参数未获取");
         return false;
     }
     
@@ -453,7 +454,7 @@ bool MagneticSolver::assembleCartesian() {
         // 获取单元信息
         auto& bulkElements = mesh_->getBulkElements();
         if (elemId >= bulkElements.size()) {
-            std::cerr << "错误: 单元索引超出范围" << std::endl;
+            ELMER_ERROR("单元索引超出范围");
             return false;
         }
         
@@ -466,27 +467,27 @@ bool MagneticSolver::assembleCartesian() {
         std::vector<double> elementRHS;
         
         if (!computeElementMatrices(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 矩阵计算失败" << std::endl;
+            ELMER_ERROR("单元 {} 矩阵计算失败", elemId);
             return false;
         }
         
         // 组装到全局系统
         if (!assembleToGlobalSystem(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 组装到全局系统失败" << std::endl;
+            ELMER_ERROR("单元 {} 组装到全局系统失败", elemId);
             return false;
         }
     }
     
-    std::cout << "笛卡尔坐标系组装完成，共处理 " << numElements << " 个单元" << std::endl;
+    ELMER_INFO("笛卡尔坐标系组装完成，共处理 {} 个单元", numElements);
     return true;
 }
 
 bool MagneticSolver::assembleAxisymmetric() {
     // 基于Fortran版本的MagneticSolve.F90实现柱对称坐标系组装
-    std::cout << "使用柱对称坐标系组装Maxwell方程..." << std::endl;
+    ELMER_INFO("使用柱对称坐标系组装Maxwell方程...");
     
     if (!mesh_ || !stiffnessMatrix_ || !rhsVector_) {
-        std::cerr << "错误: 网格、刚度矩阵或右端向量未初始化" << std::endl;
+        ELMER_ERROR("网格、刚度矩阵或右端向量未初始化");
         return false;
     }
     
@@ -495,7 +496,7 @@ bool MagneticSolver::assembleAxisymmetric() {
     
     // 检查材料参数是否已获取
     if (conductivity_.empty() || permeability_.empty()) {
-        std::cerr << "错误: 材料参数未获取" << std::endl;
+        ELMER_ERROR("材料参数未获取");
         return false;
     }
     
@@ -508,7 +509,7 @@ bool MagneticSolver::assembleAxisymmetric() {
         // 获取单元信息
         auto& bulkElements = mesh_->getBulkElements();
         if (elemId >= bulkElements.size()) {
-            std::cerr << "错误: 单元索引超出范围" << std::endl;
+            ELMER_ERROR("单元索引超出范围");
             return false;
         }
         
@@ -521,33 +522,33 @@ bool MagneticSolver::assembleAxisymmetric() {
         std::vector<double> elementRHS;
         
         if (!computeAxisymmetricElementMatrices(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 柱对称矩阵计算失败" << std::endl;
+            ELMER_ERROR("单元 {} 柱对称矩阵计算失败", elemId);
             return false;
         }
         
         // 组装到全局系统
         if (!assembleToGlobalSystem(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 组装到全局系统失败" << std::endl;
+            ELMER_ERROR("单元 {} 组装到全局系统失败", elemId);
             return false;
         }
     }
     
     // 组装边界条件
     if (!assembleBoundaryConditions()) {
-        std::cerr << "错误: 边界条件组装失败" << std::endl;
+        ELMER_ERROR("边界条件组装失败");
         return false;
     }
     
-    std::cout << "柱对称坐标系组装完成，共处理 " << numElements << " 个单元" << std::endl;
+    ELMER_INFO("柱对称坐标系组装完成，共处理 {} 个单元", numElements);
     return true;
 }
 
 bool MagneticSolver::assembleGeneral() {
     // 基于Fortran版本的MagneticSolve.F90实现一般坐标系组装
-    std::cout << "使用一般坐标系组装Maxwell方程..." << std::endl;
+    ELMER_INFO("使用一般坐标系组装Maxwell方程...");
     
     if (!mesh_ || !stiffnessMatrix_ || !rhsVector_) {
-        std::cerr << "错误: 网格、刚度矩阵或右端向量未初始化" << std::endl;
+        ELMER_ERROR("网格、刚度矩阵或右端向量未初始化");
         return false;
     }
     
@@ -556,7 +557,7 @@ bool MagneticSolver::assembleGeneral() {
     
     // 检查材料参数是否已获取
     if (conductivity_.empty() || permeability_.empty()) {
-        std::cerr << "错误: 材料参数未获取" << std::endl;
+        ELMER_ERROR("材料参数未获取");
         return false;
     }
     
@@ -569,7 +570,7 @@ bool MagneticSolver::assembleGeneral() {
         // 获取单元信息
         auto& bulkElements = mesh_->getBulkElements();
         if (elemId >= bulkElements.size()) {
-            std::cerr << "错误: 单元索引超出范围" << std::endl;
+            ELMER_ERROR("单元索引超出范围");
             return false;
         }
         
@@ -582,24 +583,24 @@ bool MagneticSolver::assembleGeneral() {
         std::vector<double> elementRHS;
         
         if (!computeGeneralElementMatrices(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 一般坐标系矩阵计算失败" << std::endl;
+            ELMER_ERROR("单元 {} 一般坐标系矩阵计算失败", elemId);
             return false;
         }
         
         // 组装到全局系统
         if (!assembleToGlobalSystem(elemId, elementStiffness, elementRHS)) {
-            std::cerr << "错误: 单元 " << elemId << " 组装到全局系统失败" << std::endl;
+            ELMER_ERROR("单元 {} 组装到全局系统失败", elemId);
             return false;
         }
     }
     
     // 组装边界条件
     if (!assembleBoundaryConditions()) {
-        std::cerr << "错误: 边界条件组装失败" << std::endl;
+        ELMER_ERROR("边界条件组装失败");
         return false;
     }
     
-    std::cout << "一般坐标系组装完成，共处理 " << numElements << " 个单元" << std::endl;
+    ELMER_INFO("一般坐标系组装完成，共处理 {} 个单元", numElements);
     return true;
 }
 
@@ -727,20 +728,20 @@ std::string MagneticSolver::detectCoordinateSystem() {
     }
     
     // 分析节点坐标特征
-    double minX = std::numeric_limits<double>::max();
-    double maxX = std::numeric_limits<double>::lowest();
-    double minY = std::numeric_limits<double>::max();
-    double maxY = std::numeric_limits<double>::lowest();
-    double minZ = std::numeric_limits<double>::max();
-    double maxZ = std::numeric_limits<double>::lowest();
+    double minX = (std::numeric_limits<double>::max)();
+    double maxX = (std::numeric_limits<double>::lowest)();
+    double minY = (std::numeric_limits<double>::max)();
+    double maxY = (std::numeric_limits<double>::lowest)();
+    double minZ = (std::numeric_limits<double>::max)();
+    double maxZ = (std::numeric_limits<double>::lowest)();
     
     for (const auto& node : nodes) {
-        minX = std::min(minX, node.x);
-        maxX = std::max(maxX, node.x);
-        minY = std::min(minY, node.y);
-        maxY = std::max(maxY, node.y);
-        minZ = std::min(minZ, node.z);
-        maxZ = std::max(maxZ, node.z);
+        minX = (std::min)(minX, node.x);
+        maxX = (std::max)(maxX, node.x);
+        minY = (std::min)(minY, node.y);
+        maxY = (std::max)(maxY, node.y);
+        minZ = (std::min)(minZ, node.z);
+        maxZ = (std::max)(maxZ, node.z);
     }
     
     // 检测坐标系特征
@@ -772,7 +773,7 @@ std::string MagneticSolver::detectCoordinateSystem() {
     // 检查是否为一般坐标系（三维空间，无明显对称性）
     if (rangeX > 0 && rangeY > 0 && rangeZ > 0) {
         // 检查各向异性程度
-        double anisotropy = std::max(std::max(rangeX, rangeY), rangeZ) / std::min(std::min(rangeX, rangeY), rangeZ);
+        double anisotropy = (std::max)((std::max)(rangeX, rangeY), rangeZ) / (std::min)((std::min)(rangeX, rangeY), rangeZ);
         if (anisotropy > 10.0) { // 高度各向异性
             return "general";
         }
@@ -1019,17 +1020,17 @@ bool MagneticSolver::applyNeumannBoundaryCondition(int bcId, const Element& boun
     return true;
 }
 
-bool MagneticSolver::computeCurl(const std::vector<double>& fieldX,
-                                 const std::vector<double>& fieldY, 
-                                 const std::vector<double>& fieldZ,
-                                 std::vector<double>& curlX,
-                                 std::vector<double>& curlY,
-                                 std::vector<double>& curlZ) {
+bool MagneticSolver::computeCurl(const std::vector<double>& /*fieldX*/,
+                                 const std::vector<double>& /*fieldY*/, 
+                                 const std::vector<double>& /*fieldZ*/,
+                                 std::vector<double>& /*curlX*/,
+                                 std::vector<double>& /*curlY*/,
+                                 std::vector<double>& /*curlZ*/) {
     // TODO: 实现旋度计算
     std::cout << "开始计算旋度..." << std::endl;
     
     // 简化实现：使用有限差分法计算旋度
-    int numNodes = mesh_->numberOfNodes();
+    size_t numNodes = mesh_->numberOfNodes();
     
     // TODO: 实现完整的旋度计算算法
     

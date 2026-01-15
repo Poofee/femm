@@ -250,6 +250,44 @@ void MagneticSolve::assembleCartesianElement(const Element& element, const Eleme
 - ✅ 命名空间调用正确
 - ✅ 项目结构更加清晰
 
+### 电磁求解器编译问题修复（2026-01-15）
+
+#### 解决的问题
+1. **MPI依赖问题**：电磁求解器文件依赖于MPI并行计算库，但当前项目配置中MPI被禁用
+2. **类型声明错误**：`SolverBase.h`中使用了未声明的`MPICommunicator`类型
+3. **文件引用错误**：CMakeLists.txt中仍引用已删除的`ElmerCpp.h`文件
+
+#### 技术要点
+
+**条件编译策略**：
+- 使用`#ifdef USE_MPI`宏控制MPI相关代码
+- 在不支持MPI时提供兼容的接口实现（使用`void*`参数）
+- 避免硬性依赖，提高代码的可移植性
+
+**渐进式启用方法**：
+- 优先启用不依赖MPI的文件（`ElectromagneticMaterial.h`、`MaterialDatabase.h`）
+- 修复复杂依赖关系（`SolverBase.h`、`SolverRegistry.h`）
+- 确保每一步都编译通过，避免破坏现有功能
+
+**已启用的电磁求解器基础框架**：
+- **电磁材料属性**：`ElectromagneticMaterial.h` - 介电常数、磁导率、电导率等
+- **材料数据库**：`MaterialDatabase.h` - 材料管理、B-H曲线等
+- **求解器基类**：`SolverBase.h` - 统一的求解器接口和状态管理
+- **求解器注册**：`SolverRegistry.h` - 动态求解器注册和实例化
+
+#### 修改的文件
+- **修改**: `CMakeLists.txt`（移除已删除文件引用，启用4个电磁求解器文件）
+- **修改**: `SolverBase.h`（修复MPI依赖，添加条件编译支持）
+
+#### 验证结果
+- ✅ 所有测试程序编译成功
+- ✅ 电磁求解器基础框架可用（无MPI依赖部分）
+- ✅ 项目结构更加完整，为后续电磁求解器开发奠定基础
+
+#### 仍待解决的问题
+- **需要MPI支持的文件**：`MagnetoDynamics2DSolver.h/.cpp`、`MagnetodynamicsSolver.h`、`ElmerSolver.h/.cpp`
+- **并行计算功能**：分布式线性代数、并行矩阵组装等高级功能
+
 ### 下一步计划
 - 运行所有现有测试确保系统稳定性
 - 修复CRSMatrix中的类型转换警告

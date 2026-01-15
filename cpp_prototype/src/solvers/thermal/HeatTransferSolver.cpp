@@ -175,14 +175,13 @@ std::vector<std::array<double, 3>> HeatTransferSolver::calculateHeatFlux(const s
         // Calculate at element center
         auto shapeResult = shapeFunc.computeShapeFunctions(element.getType(), {0.0, 0.0, 0.0});
         
-        if (!shapeResult.shapeFunctionDerivatives.empty()) {
+        if (!shapeResult.dNdx.empty()) {
             // Calculate temperature gradient
             std::array<double, 3> gradT = {0.0, 0.0, 0.0};
             for (size_t i = 0; i < nodeIndices.size(); ++i) {
-                for (int dim = 0; dim < 3; ++dim) {
-                    gradT[dim] += temperature[nodeIndices[i]] * 
-                                 shapeResult.shapeFunctionDerivatives[i][dim];
-                }
+                gradT[0] += temperature[nodeIndices[i]] * shapeResult.dNdx[i];
+                gradT[1] += temperature[nodeIndices[i]] * shapeResult.dNdy[i];
+                gradT[2] += temperature[nodeIndices[i]] * shapeResult.dNdz[i];
             }
             
             // Calculate heat flux: q = -k * ∇T
@@ -209,14 +208,13 @@ std::vector<std::array<double, 3>> HeatTransferSolver::calculateTemperatureGradi
         // Calculate at element center
         auto shapeResult = shapeFunc.computeShapeFunctions(element.getType(), {0.0, 0.0, 0.0});
         
-        if (!shapeResult.shapeFunctionDerivatives.empty()) {
+        if (!shapeResult.dNdx.empty()) {
             // Calculate temperature gradient
             std::array<double, 3> elementGradT = {0.0, 0.0, 0.0};
             for (size_t i = 0; i < nodeIndices.size(); ++i) {
-                for (int dim = 0; dim < 3; ++dim) {
-                    elementGradT[dim] += temperature[nodeIndices[i]] * 
-                                        shapeResult.shapeFunctionDerivatives[i][dim];
-                }
+                elementGradT[0] += temperature[nodeIndices[i]] * shapeResult.dNdx[i];
+                elementGradT[1] += temperature[nodeIndices[i]] * shapeResult.dNdy[i];
+                elementGradT[2] += temperature[nodeIndices[i]] * shapeResult.dNdz[i];
             }
             
             // Distribute to nodes

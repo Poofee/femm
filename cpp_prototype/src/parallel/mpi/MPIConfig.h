@@ -1,15 +1,18 @@
-// MPIConfig.h - MPI配置和通信包装器定义
-// 对应Fortran模块: MPI.F90, Parallel.F90
+// MPIConfig.h - MPI配置和通信包装器定�?// 对应Fortran模块: MPI.F90, Parallel.F90
 
 #pragma once
 
 #ifdef MPI_CXX_FOUND
 #include <mpi.h>
 #else
-// MPI模拟类型定义（当MPI不可用时）
-typedef int MPI_Comm;
+// MPI模拟类型定义（当MPI不可用时�?typedef int MPI_Comm;
+typedef int MPI_Datatype;
 #define MPI_COMM_WORLD 0
 #define MPI_COMM_NULL -1
+#define MPI_INT 1
+#define MPI_DOUBLE 2
+#define MPI_FLOAT 3
+#define MPI_CHAR 4
 #endif
 
 #include <memory>
@@ -19,20 +22,17 @@ typedef int MPI_Comm;
 
 namespace elmer {
 
-// ===== MPI配置类 =====
+// ===== MPI配置�?=====
 class MPIConfig {
 private:
     static MPIConfig* instance_;  // 单例实例
-    bool initialized_;            // MPI初始化标志
-    int rank_;                   // 当前进程排名
+    bool initialized_;            // MPI初始化标�?    int rank_;                   // 当前进程排名
     int size_;                   // 进程总数
     
-    // 私有构造函数
-    MPIConfig();
+    // 私有构造函�?    MPIConfig();
     
 public:
-    // 禁止拷贝和赋值
-    MPIConfig(const MPIConfig&) = delete;
+    // 禁止拷贝和赋�?    MPIConfig(const MPIConfig&) = delete;
     MPIConfig& operator=(const MPIConfig&) = delete;
     
     // 获取单例实例
@@ -61,12 +61,9 @@ class MPICommunicator {
 private:
     int rank_;                   // 当前进程排名
     int size_;                   // 进程总数
-    MPI_Comm comm_;              // MPI通信器
-    bool ownsComm_;              // 是否拥有通信器
-    
+    MPI_Comm comm_;              // MPI通信�?    bool ownsComm_;              // 是否拥有通信�?    
 public:
-    // 构造函数
-    MPICommunicator(MPI_Comm comm = MPI_COMM_WORLD, bool ownsComm = false);
+    // 构造函�?    MPICommunicator(MPI_Comm comm = MPI_COMM_WORLD, bool ownsComm = false);
     
     // 析构函数
     ~MPICommunicator();
@@ -98,8 +95,7 @@ public:
     void reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, MPI_Op op, int root = 0) const;
     void allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, MPI_Op op) const;
     
-    // 自定义归约操作
-    void sum(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, int root = 0) const;
+    // 自定义归约操�?    void sum(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, int root = 0) const;
     void allsum(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type) const;
     
     void max(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, int root = 0) const;
@@ -108,8 +104,7 @@ public:
     void min(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type, int root = 0) const;
     void allmin(const void* sendbuf, void* recvbuf, int count, MPI_Datatype type) const;
     
-    // 创建子通信器
-    std::shared_ptr<MPICommunicator> split(int color, int key) const;
+    // 创建子通信�?    std::shared_ptr<MPICommunicator> split(int color, int key) const;
     
     // 错误处理
     static void checkMPIError(int errorCode, const std::string& operation = "");
@@ -145,11 +140,9 @@ namespace MPIUtils {
     // 获取全局MPI配置
     MPIConfig& getConfig();
     
-    // 获取默认通信器
-    std::shared_ptr<MPICommunicator> getDefaultComm();
+    // 获取默认通信�?    std::shared_ptr<MPICommunicator> getDefaultComm();
     
-    // 检查是否在MPI环境中运行
-    bool isMPIEnabled();
+    // 检查是否在MPI环境中运�?    bool isMPIEnabled();
     
     // 获取进程总数
     int getWorldSize();
@@ -157,11 +150,9 @@ namespace MPIUtils {
     // 获取当前进程排名
     int getWorldRank();
     
-    // 检查是否是主进程
-    bool isMasterProcess();
+    // 检查是否是主进�?    bool isMasterProcess();
     
-    // 同步所有进程
-    void barrier();
+    // 同步所有进�?    void barrier();
     
     // 打印MPI信息
     void printMPIInfo();

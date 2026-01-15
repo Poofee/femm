@@ -21,6 +21,10 @@ else()
     message(WARNING "OpenMP not found - parallel features will be disabled")
 endif()
 
+# Include directories
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/spdlog/include)
+
 # Create library with simplified structure (no MPI modules)
 add_library(ElmerCppMatrixAssembly
     # Core infrastructure modules
@@ -108,32 +112,9 @@ add_library(ElmerCppMatrixAssembly
     src/boundary/BoundaryConditions.cpp
 )
 
-# 设置头文件搜索路径 - 这是关键修复
-target_include_directories(ElmerCppMatrixAssembly PUBLIC
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/core/base
-    ${CMAKE_SOURCE_DIR}/src/core/math
-    ${CMAKE_SOURCE_DIR}/src/core/mesh
-    ${CMAKE_SOURCE_DIR}/src/core/utils
-    ${CMAKE_SOURCE_DIR}/src/core/logging
-    ${CMAKE_SOURCE_DIR}/src/solvers
-    ${CMAKE_SOURCE_DIR}/src/solvers/base
-    ${CMAKE_SOURCE_DIR}/src/solvers/electromagnetic
-    ${CMAKE_SOURCE_DIR}/src/solvers/thermal
-    ${CMAKE_SOURCE_DIR}/src/io/input
-    ${CMAKE_SOURCE_DIR}/src/boundary
-    ${CMAKE_SOURCE_DIR}/spdlog/include
-)
-
 # Create simple test executable
 add_executable(test_simple
     test/test_simple.cpp
 )
 
 target_link_libraries(test_simple ElmerCppMatrixAssembly)
-
-# 设置测试程序的头文件搜索路径
-target_include_directories(test_simple PUBLIC
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/spdlog/include
-)

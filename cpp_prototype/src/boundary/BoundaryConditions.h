@@ -1,8 +1,8 @@
 #pragma once
 
-#include "LinearAlgebra.h"
-#include "Mesh.h"
-#include "Types.h"
+#include "../core/math/LinearAlgebra.h"
+#include "../core/mesh/Mesh.h"
+#include "../core/base/Types.h"
 #include <algorithm>
 #include <complex>
 #include <functional>
@@ -17,32 +17,32 @@ namespace elmer {
  * @brief 基础边界条件类型
  */
 enum class BoundaryConditionType {
-    DIRICHLET,          ///< 固定值边界条件
+    DIRICHLET,          ///< 固定值边界条�?
     NEUMANN,            ///< 固定通量/梯度边界条件  
     ROBIN,              ///< 混合边界条件
-    PERIODIC,           ///< 周期性边界条件
+    PERIODIC,           ///< 周期性边界条�?
     SYMMETRY,           ///< 对称边界条件
-    ANTISYMMETRY,       ///< 反对称边界条件
+    ANTISYMMETRY,       ///< 反对称边界条�?
     
-    // 电磁场特定边界条件
-    MAGNETIC_SYMMETRY,   ///< 磁对称边界条件 (B法向 = 0)
+    // 电磁场特定边界条�?
+    MAGNETIC_SYMMETRY,   ///< 磁对称边界条�?(B法向 = 0)
     MAGNETIC_ANTISYMMETRY, ///< 磁反对称边界条件 (B切向 = 0)
-    ELECTRIC_INSULATION, ///< 电绝缘边界条件 (J法向 = 0)
-    INFINITY_BC,        ///< 无穷远边界条件
+    ELECTRIC_INSULATION, ///< 电绝缘边界条�?(J法向 = 0)
+    INFINITY_BC,        ///< 无穷远边界条�?
     
     // 谐波分析特定边界条件
-    HARMONIC_EXCITATION, ///< 谐波激励边界条件
-    HARMONIC_CURRENT,    ///< 谐波电流源
-    HARMONIC_VOLTAGE,    ///< 谐波电压源
+    HARMONIC_EXCITATION, ///< 谐波激励边界条�?
+    HARMONIC_CURRENT,    ///< 谐波电流�?
+    HARMONIC_VOLTAGE,    ///< 谐波电压�?
     HARMONIC_FLUX,       ///< 谐波磁通源
     
-    // 热分析特定边界条件
+    // 热分析特定边界条�?
     CONVECTION,         ///< 对流边界条件
     RADIATION,          ///< 辐射边界条件
     
     // 结构分析特定边界条件
     DISPLACEMENT,       ///< 固定位移边界条件
-    TRACTION,           ///< 表面牵引力边界条件
+    TRACTION,           ///< 表面牵引力边界条�?
     PRESSURE,           ///< 压力边界条件
     SPRING              ///< 弹簧边界条件
 };
@@ -68,24 +68,24 @@ public:
     const std::string& name() const { return name_; }
     
     /**
-     * @brief 获取受此边界条件影响的节点
+     * @brief 获取受此边界条件影响的节�?
      */
     virtual const std::vector<int>& getNodeIndices() const = 0;
     
     /**
-     * @brief 获取边界条件值
+     * @brief 获取边界条件�?
      */
     virtual const std::vector<double>& getValues() const = 0;
     
     /**
-     * @brief 将边界条件应用到系统矩阵和右端向量
+     * @brief 将边界条件应用到系统矩阵和右端向�?
      */
     virtual void apply(std::shared_ptr<elmer::Matrix> matrix, 
                       std::vector<double>& rhs,
                       const std::vector<int>& dofMap) const = 0;
     
     /**
-     * @brief 应用带优先级处理的边界条件
+     * @brief 应用带优先级处理的边界条�?
      */
     virtual void applyWithPriority(std::shared_ptr<elmer::Matrix> matrix, 
                                   std::vector<double>& rhs,
@@ -115,7 +115,7 @@ public:
      * @brief 检查边界条件是否耦合多个物理类型
      */
     virtual bool isCoupledForPhysics(const std::vector<std::string>& physicsTypes) const {
-        // 默认实现：检查边界条件是否与所有物理类型相关
+        // 默认实现：检查边界条件是否与所有物理类型相�?
         for (const auto& physicsType : physicsTypes) {
             if (!isRelevantForPhysics(physicsType)) {
                 return false;
@@ -125,17 +125,17 @@ public:
     }
     
     /**
-     * @brief 按名称获取参数值
+     * @brief 按名称获取参数�?
      */
     virtual double getParameter(const std::string& name, double defaultValue = 0.0) const = 0;
     
     /**
-     * @brief 按名称获取布尔参数值
+     * @brief 按名称获取布尔参数�?
      */
     virtual bool getBooleanParameter(const std::string& name, bool defaultValue = false) const = 0;
     
     /**
-     * @brief 按名称获取字符串参数值
+     * @brief 按名称获取字符串参数�?
      */
     virtual std::string getStringParameter(const std::string& name, 
                                           const std::string& defaultValue = "") const = 0;
@@ -599,9 +599,9 @@ private:
  */
 
 /**
- * @brief 谐波激励边界条件
+ * @brief 谐波激励边界条�?
  * 
- * 用于谐波分析的激励源边界条件，支持复数激励
+ * 用于谐波分析的激励源边界条件，支持复数激�?
  */
 class HarmonicExcitationBoundaryCondition : public BoundaryCondition {
 public:
@@ -609,7 +609,7 @@ public:
         : BoundaryCondition(BoundaryConditionType::HARMONIC_EXCITATION, name) {}
     
     /**
-     * @brief 设置谐波激励参数
+     * @brief 设置谐波激励参�?
      */
     void setHarmonicParameters(const std::vector<int>& nodeIndices,
                               const std::vector<double>& amplitudes,
@@ -622,7 +622,7 @@ public:
     }
     
     /**
-     * @brief 设置复数激励值
+     * @brief 设置复数激励�?
      */
     void setComplexExcitation(const std::vector<int>& nodeIndices,
                              const std::vector<std::complex<double>>& complexValues) {
@@ -633,18 +633,18 @@ public:
     
     const std::vector<int>& getNodeIndices() const override { return nodeIndices_; }
     const std::vector<double>& getValues() const override { 
-        // 返回幅值作为实数值
+        // 返回幅值作为实数�?
         return amplitudes_; 
     }
     
     /**
-     * @brief 获取复数激励值
+     * @brief 获取复数激励�?
      */
     const std::vector<std::complex<double>>& getComplexValues() const {
         if (useComplexValues_) {
             return complexValues_;
         } else {
-            // 从幅值和相位计算复数值
+            // 从幅值和相位计算复数�?
             static std::vector<std::complex<double>> computedValues;
             computedValues.resize(amplitudes_.size());
             for (size_t i = 0; i < amplitudes_.size(); ++i) {
@@ -662,8 +662,8 @@ public:
     void apply(std::shared_ptr<Matrix> matrix, 
                std::vector<double>& rhs,
                const std::vector<int>& dofMap) const override {
-        // 谐波边界条件通常应用于复数系统
-        // 对于实数系统，使用幅值作为激励
+        // 谐波边界条件通常应用于复数系�?
+        // 对于实数系统，使用幅值作为激�?
         applyRealExcitation(rhs, dofMap);
     }
     
@@ -694,7 +694,7 @@ public:
     }
     
     bool isActiveForElement(const Element& element) const override {
-        // 检查元素是否包含边界节点
+        // 检查元素是否包含边界节�?
         auto elemNodeIndices = element.getNodeIndices();
         for (int nodeIdx : nodeIndices_) {
             if (std::find(elemNodeIndices.begin(), elemNodeIndices.end(), nodeIdx) != elemNodeIndices.end()) {
@@ -705,7 +705,7 @@ public:
     }
     
     bool isRelevantForPhysics(const std::string& physicsType) const override {
-        // 谐波激励适用于电磁问题
+        // 谐波激励适用于电磁问�?
         return physicsType == "MagnetoDynamics" || 
                physicsType == "ElectroMagnetics" ||
                physicsType == "HarmonicAnalysis";
@@ -731,12 +731,12 @@ public:
 
 private:
     std::vector<int> nodeIndices_;
-    std::vector<double> amplitudes_;  ///< 激励幅值
-    std::vector<double> phases_;      ///< 激励相位 [rad]
-    double frequency_ = 0.0;          ///< 激励频率 [Hz]
+    std::vector<double> amplitudes_;  ///< 激励幅�?
+    std::vector<double> phases_;      ///< 激励相�?[rad]
+    double frequency_ = 0.0;          ///< 激励频�?[Hz]
     
-    std::vector<std::complex<double>> complexValues_; ///< 复数激励值
-    bool useComplexValues_ = false;   ///< 是否使用复数激励值
+    std::vector<std::complex<double>> complexValues_; ///< 复数激励�?
+    bool useComplexValues_ = false;   ///< 是否使用复数激励�?
     
     /**
      * @brief 应用实数激励到右端向量
@@ -755,7 +755,7 @@ private:
 };
 
 /**
- * @brief 谐波电流源边界条件
+ * @brief 谐波电流源边界条�?
  */
 class HarmonicCurrentBoundaryCondition : public HarmonicExcitationBoundaryCondition {
 public:
@@ -779,7 +779,7 @@ public:
 };
 
 /**
- * @brief 谐波电压源边界条件
+ * @brief 谐波电压源边界条�?
  */
 class HarmonicVoltageBoundaryCondition : public HarmonicExcitationBoundaryCondition {
 public:
@@ -847,8 +847,8 @@ namespace elmerBoundaryConditionUtils {
      * 
      * @param mesh 网格对象
      * @param element 元素对象
-     * @param edgeDegree 边度数向量
-     * @param edgeDirection 边方向向量
+     * @param edgeDegree 边度数向�?
+     * @param edgeDirection 边方向向�?
      * @param edgeMaxDegree 最大边度数
      */
     void GetElementMeshEdgeInfo(const elmer::Mesh& mesh, const elmer::Element& element,
@@ -861,8 +861,8 @@ namespace elmerBoundaryConditionUtils {
      * 
      * @param mesh 网格对象
      * @param element 元素对象
-     * @param faceDegree 面度数向量
-     * @param faceDirection 面方向向量
+     * @param faceDegree 面度数向�?
+     * @param faceDirection 面方向向�?
      * @param faceMaxDegree 最大面度数
      */
     void GetElementMeshFaceInfo(const elmer::Mesh& mesh, const elmer::Element& element,
@@ -875,7 +875,7 @@ namespace elmerBoundaryConditionUtils {
      * 
      * @param element 元素对象
      * @param fDofMap 面自由度映射
-     * @param faceNumber 面编号
+     * @param faceNumber 面编�?
      * @param reverseSign 反向符号标志
      */
     void FaceElementBasisOrdering(const elmer::Element& element,
@@ -887,10 +887,10 @@ namespace elmerBoundaryConditionUtils {
      * @brief 获取边基函数
      * 
      * @param element 元素对象
-     * @param wBasis 边基函数值
-     * @param rotWBasis 旋转边基函数值
-     * @param basis 基函数值
-     * @param dBasisdx 基函数导数
+     * @param wBasis 边基函数�?
+     * @param rotWBasis 旋转边基函数�?
+     * @param basis 基函数�?
+     * @param dBasisdx 基函数导�?
      */
     void GetEdgeBasis(const elmer::Element& element,
                      std::vector<double>& wBasis,
@@ -898,3 +898,4 @@ namespace elmerBoundaryConditionUtils {
                      std::vector<double>& basis,
                      std::vector<std::vector<double>>& dBasisdx);
 } // namespace elmerBoundaryConditionUtils
+

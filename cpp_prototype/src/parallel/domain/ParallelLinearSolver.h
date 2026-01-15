@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "DistributedLinearAlgebra.h"
-#include "IterativeSolver.h"
+#include "../../parallel/mpi/DistributedLinearAlgebra.h"
+#include "../../core/math/IterativeSolver.h"
 #include "LinearAlgebra.h"
 #include <memory>
 #include <vector>
@@ -17,16 +17,11 @@ namespace elmer {
  */
 class ParallelLinearSolver {
 protected:
-    std::shared_ptr<MPICommunicator> comm_;           // MPI通信器
-    std::shared_ptr<DistributedLinearSystem> linearSystem_; // 分布式线性系统
+    std::shared_ptr<MPICommunicator> comm_;           // MPI通信�?    std::shared_ptr<DistributedLinearSystem> linearSystem_; // 分布式线性系�?    
+    // 求解器参�?    double tolerance_ = 1.0e-8;        // 收敛容差
+    int maxIterations_ = 1000;         // 最大迭代次�?    int verbosity_ = 0;                // 输出详细程度
     
-    // 求解器参数
-    double tolerance_ = 1.0e-8;        // 收敛容差
-    int maxIterations_ = 1000;         // 最大迭代次数
-    int verbosity_ = 0;                // 输出详细程度
-    
-    // 求解状态
-    bool isInitialized_ = false;
+    // 求解状�?    bool isInitialized_ = false;
     bool isConverged_ = false;
     int iterations_ = 0;
     double residual_ = 0.0;
@@ -38,16 +33,14 @@ public:
     virtual ~ParallelLinearSolver() = default;
     
     /**
-     * @brief 设置线性系统
-     */
+     * @brief 设置线性系�?     */
     void setLinearSystem(std::shared_ptr<DistributedLinearSystem> linearSystem) {
         linearSystem_ = linearSystem;
         isInitialized_ = false;
     }
     
     /**
-     * @brief 设置求解器参数
-     */
+     * @brief 设置求解器参�?     */
     void setParameters(double tolerance, int maxIterations, int verbosity = 0) {
         tolerance_ = tolerance;
         maxIterations_ = maxIterations;
@@ -60,31 +53,25 @@ public:
     virtual void initialize() = 0;
     
     /**
-     * @brief 求解线性系统
-     * @param x 解向量（输出）
-     * @param b 右端向量
+     * @brief 求解线性系�?     * @param x 解向量（输出�?     * @param b 右端向量
      * @return 求解是否成功
      */
     virtual bool solve(std::shared_ptr<DistributedVector> x, 
                       std::shared_ptr<DistributedVector> b) = 0;
     
     /**
-     * @brief 求解线性系统（使用线性系统内部的右端向量）
-     * @param x 解向量（输出）
-     * @return 求解是否成功
+     * @brief 求解线性系统（使用线性系统内部的右端向量�?     * @param x 解向量（输出�?     * @return 求解是否成功
      */
     virtual bool solve(std::shared_ptr<DistributedVector> x) = 0;
     
     /**
-     * @brief 获取求解状态
-     */
+     * @brief 获取求解状�?     */
     bool isConverged() const { return isConverged_; }
     int getIterations() const { return iterations_; }
     double getResidual() const { return residual_; }
     
     /**
-     * @brief 重置求解器状态
-     */
+     * @brief 重置求解器状�?     */
     virtual void reset() {
         isInitialized_ = false;
         isConverged_ = false;
@@ -93,15 +80,10 @@ public:
     }
     
     /**
-     * @brief 获取求解器统计信息
-     */
+     * @brief 获取求解器统计信�?     */
     struct SolverStatistics {
         int iterations;         // 迭代次数
-        double residual;        // 最终残差
-        double solveTime;       // 求解时间（秒）
-        double communicationTime; // 通信时间（秒）
-        bool converged;         // 收敛状态
-    };
+        double residual;        // 最终残�?        double solveTime;       // 求解时间（秒�?        double communicationTime; // 通信时间（秒�?        bool converged;         // 收敛状�?    };
     
     virtual SolverStatistics getStatistics() const {
         SolverStatistics stats;
@@ -126,8 +108,7 @@ private:
     std::shared_ptr<DistributedVector> r_;  // 残差向量
     std::shared_ptr<DistributedVector> p_;  // 搜索方向向量
     std::shared_ptr<DistributedVector> Ap_; // 矩阵向量乘积结果
-    std::shared_ptr<DistributedVector> z_;  // 预条件残差向量
-    
+    std::shared_ptr<DistributedVector> z_;  // 预条件残差向�?    
 public:
     ParallelConjugateGradientSolver(std::shared_ptr<MPICommunicator> comm = nullptr)
         : ParallelLinearSolver(comm) {}
@@ -158,15 +139,12 @@ private:
 };
 
 /**
- * @brief 并行GMRES求解器
- */
+ * @brief 并行GMRES求解�? */
 class ParallelGMRESSolver : public ParallelLinearSolver {
 private:
     int restartSize_ = 30;  // 重启大小
     
-    // Krylov子空间向量
-    std::vector<std::shared_ptr<DistributedVector>> v_; // 正交基向量
-    std::vector<std::shared_ptr<DistributedVector>> z_; // 预条件基向量
+    // Krylov子空间向�?    std::vector<std::shared_ptr<DistributedVector>> v_; // 正交基向�?    std::vector<std::shared_ptr<DistributedVector>> z_; // 预条件基向量
     
     // Hessenberg矩阵
     std::vector<std::vector<double>> h_; // Hessenberg矩阵
@@ -195,13 +173,11 @@ private:
     void arnoldiProcess(int k, std::shared_ptr<DistributedVector> v0);
     
     /**
-     * @brief 求解最小二乘问题
-     */
+     * @brief 求解最小二乘问�?     */
     void solveLeastSquares(int k);
     
     /**
-     * @brief 更新解向量
-     */
+     * @brief 更新解向�?     */
     void updateSolution(std::shared_ptr<DistributedVector> x, int k);
 };
 
@@ -255,21 +231,18 @@ private:
 class ParallelSolverFactory {
 public:
     enum SolverType {
-        CG,     // 共轭梯度法
-        GMRES,  // GMRES方法
+        CG,     // 共轭梯度�?        GMRES,  // GMRES方法
         BICGSTAB // 双共轭梯度稳定法
     };
     
     /**
-     * @brief 创建并行求解器
-     */
+     * @brief 创建并行求解�?     */
     static std::shared_ptr<ParallelLinearSolver> createSolver(
         SolverType type, 
         std::shared_ptr<MPICommunicator> comm = nullptr);
     
     /**
-     * @brief 创建带预条件子的并行求解器
-     */
+     * @brief 创建带预条件子的并行求解�?     */
     static std::shared_ptr<ParallelLinearSolver> createSolverWithPreconditioner(
         SolverType solverType,
         ParallelPreconditioner::PreconditionerType preconditionerType,
@@ -277,3 +250,4 @@ public:
 };
 
 } // namespace elmer
+

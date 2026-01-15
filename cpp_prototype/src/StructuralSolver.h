@@ -1,287 +1,219 @@
+/**
+ * @file HeatSolver.h
+ * @brief Elmer FEM热传导求解器
+ * 
+ * 实现热传导方程的有限元求解，支持稳态和瞬态热分析
+ */
+
 #pragma once
 
-#include "ShapeFunctions.h"
-#include "GaussIntegration.h"
-#include "ElementMatrix.h"
-#include "LinearAlgebra.h"
-#include "IterativeSolver.h"
-#include "Mesh.h"
-#include "Material.h"
+#include "../../core/base/SolverBase.h"
+#include "../core/base/Types.h"
 #include <memory>
 #include <vector>
-#include <array>
 
 namespace elmer {
 
 /**
- * @brief Boundary condition types for structural simulations
+ * @brief 热传导求解器参数结构�?
  */
-enum class Structural_BoundaryType {
-    DISPLACEMENT,       ///< Fixed displacement
-    FORCE,              ///< Applied force
-    PRESSURE,           ///< Applied pressure
-    SPRING,             ///< Spring support
-    PERIODIC,           ///< Periodic boundary condition
-    SYMMETRY            ///< Symmetry boundary condition
+struct HeatSolverParameters {
+    double thermalConductivity = 1.0;        ///< 热导�?[W/(m·K)]
+    double density = 1.0;                    ///< 密度 [kg/m³]
+    double specificHeat = 1.0;               ///< 比热�?[J/(kg·K)]
+    double heatSource = 0.0;                 ///< 热源�?[W/m³]
+    double initialTemperature = 293.15;      ///< 初始温度 [K]
+    double ambientTemperature = 293.15;      ///< 环境温度 [K]
+    double heatTransferCoefficient = 0.0;    ///< 热传导系�?[W/(m²·K)]
+    
+    // 边界条件类型
+    enum BoundaryType {
+        DIRICHLET,      ///< 狄利克雷边界条件（固定温度）
+        NEUMANN,        ///< 诺伊曼边界条件（热通量�?
+        ROBIN           ///< 罗宾边界条件（对流换热）
+    };
+    
+    HeatSolverParameters() = default;
 };
 
 /**
- * @brief Boundary condition for structural simulations
- */
-struct StructuralBoundaryCondition {
-    Structural_BoundaryType type;
-    std::vector<int> nodeIndices;     ///< Nodes affected by this BC
-    std::vector<std::array<double, 3>> values; ///< Boundary values (displacement or force)
-    std::string name;                 ///< Boundary condition name
-    
-    // Additional parameters for specific boundary types
-    double springConstant = 0.0;      ///< For spring BC
-    double pressureValue = 0.0;       ///< For pressure BC
-    
-    StructuralBoundaryCondition(Structural_BoundaryType t = Structural_BoundaryType::DISPLACEMENT, 
-                               const std::string& n = "")
-        : type(t), name(n) {}
-};
-
-/**
- * @brief Solver parameters for structural simulations
- */
-struct StructuralParameters {
-    // Solver control
-    double tolerance = 1.0e-8;        ///< Convergence tolerance
-    int maxIterations = 1000;         ///< Maximum iterations
-    
-    // Analysis type
-    bool isTransient = false;         ///< Transient analysis flag
-    double timeStep = 1.0;            ///< Time step for transient analysis
-    int timeSteps = 100;              ///< Number of time steps
-    
-    // Physical parameters
-    bool includeThermalExpansion = false; ///< Include thermal expansion effects
-    bool includeBodyForces = false;       ///< Include gravity and other body forces
-    bool includeInertia = false;          ///< Include inertia effects (transient)
-    
-    // Body forces
-    std::array<double, 3> gravity = {0.0, 0.0, -9.81}; ///< Gravity vector [m/s²]
-    
-    // Output control
-    bool calculateStresses = true;    ///< Calculate stresses
-    bool calculateStrains = true;     ///< Calculate strains
-    bool calculateReactionForces = true; ///< Calculate reaction forces
-    
-    // Preconditioning
-    std::string preconditioner = "ILU0"; ///< Preconditioner type
-    
-    StructuralParameters() = default;
-};
-
-/**
- * @brief Results from structural simulation
- */
-struct StructuralResults {
-    // Primary solution
-    std::vector<std::array<double, 3>> displacement;   ///< Displacement field [m]
-    
-    // Derived fields
-    std::vector<std::array<double, 6>> stress;         ///< Stress tensor [Pa] (σ_xx, σ_yy, σ_zz, τ_xy, τ_xz, τ_yz)
-    std::vector<std::array<double, 6>> strain;         ///< Strain tensor (ε_xx, ε_yy, ε_zz, γ_xy, γ_xz, γ_yz)
-    std::vector<std::array<double, 3>> reactionForce;  ///< Reaction forces [N]
-    
-    // Time-dependent results (for transient analysis)
-    std::vector<std::vector<std::array<double, 3>>> displacementHistory; ///< Displacement history
-    std::vector<double> timePoints;                    ///< Time points
-    
-    // Convergence information
-    int iterations = 0;                      ///< Number of iterations
-    double residual = 0.0;                   ///< Final residual
-    bool converged = false;                  ///< Convergence status
-    
-    // Global quantities
-    double totalStrainEnergy = 0.0;          ///< Total strain energy [J]
-    double maxVonMisesStress = 0.0;          ///< Maximum von Mises stress [Pa]
-    double maxDisplacement = 0.0;            ///< Maximum displacement [m]
-    
-    StructuralResults() = default;
-};
-
-/**
- * @brief Structural solver for mechanical analysis
+ * @brief 热传导求解器�?
  * 
- * This solver handles linear elastic structural mechanics problems:
- * - Static and dynamic analysis
- * - Thermal expansion effects
- * - Various boundary conditions (displacement, force, pressure)
- * - Stress and strain calculation
+ * 实现热传导方程的有限元求解，支持稳态和瞬态分�?
  */
-class StructuralSolver {
+class HeatSolver : public LinearSolverBase {
 private:
-    std::shared_ptr<Mesh> mesh;
-    MaterialDatabase materialDB;
-    StructuralParameters parameters;
+    HeatSolverParameters heatParams_;        ///< 热传导求解器参数
+    std::vector<double> temperatureField_;   ///< 温度�?
+    std::vector<double> heatFluxField_;      ///< 热通量�?
     
-    // Boundary conditions
-    std::vector<StructuralBoundaryCondition> boundaryConditions;
+    // 边界条件数据
+    std::vector<int> dirichletNodes_;        ///< 狄利克雷边界节点
+    std::vector<double> dirichletValues_;    ///< 狄利克雷边界�?
+    std::vector<int> neumannEdges_;          ///< 诺伊曼边界边
+    std::vector<double> neumannValues_;      ///< 诺伊曼边界�?
+    std::vector<int> robinEdges_;            ///< 罗宾边界�?
+    std::vector<double> robinCoefficients_;  ///< 罗宾边界系数
+    std::vector<double> robinAmbientTemps_;  ///< 罗宾边界环境温度
     
-    // System matrices and vectors
-    std::shared_ptr<CRSMatrix> stiffnessMatrix;       ///< Stiffness matrix
-    std::shared_ptr<CRSMatrix> massMatrix;            ///< Mass matrix (transient)
-    std::shared_ptr<Vector> forceVector;              ///< Force vector
-    std::shared_ptr<Vector> boundaryVector;           ///< Boundary condition vector
-    
-    // Solution vectors
-    std::shared_ptr<Vector> displacementVector;       ///< Displacement solution
-    std::shared_ptr<Vector> previousDisplacement;     ///< Previous time step displacement
-    std::shared_ptr<Vector> velocityVector;           ///< Velocity (for transient)
-    std::shared_ptr<Vector> accelerationVector;       ///< Acceleration (for transient)
-    
-    // Temperature field (for thermal expansion)
-    std::vector<double> temperatureField;
-    
-    // Iterative solver
-    std::unique_ptr<IterativeSolver> solver;
+    // 瞬态分析相�?
+    std::vector<double> prevTemperature_;    ///< 上一时间步温度场
+    double timeIntegrationFactor_ = 1.0;     ///< 时间积分因子
     
 public:
     /**
-     * @brief Constructor
+     * @brief 构造函�?
      */
-    StructuralSolver(std::shared_ptr<Mesh> meshPtr = nullptr);
+    HeatSolver();
     
     /**
-     * @brief Set the mesh for the simulation
+     * @brief 析构函数
      */
-    void setMesh(std::shared_ptr<Mesh> meshPtr);
+    virtual ~HeatSolver() = default;
     
     /**
-     * @brief Set solver parameters
+     * @brief 设置热传导求解器参数
      */
-    void setParameters(const StructuralParameters& params);
+    void setHeatParameters(const HeatSolverParameters& params);
     
     /**
-     * @brief Add a boundary condition
+     * @brief 获取热传导求解器参数
      */
-    void addBoundaryCondition(const StructuralBoundaryCondition& bc);
+    HeatSolverParameters getHeatParameters() const;
     
     /**
-     * @brief Clear all boundary conditions
+     * @brief 设置狄利克雷边界条件
      */
-    void clearBoundaryConditions();
+    void setDirichletBoundary(const std::vector<int>& nodes, const std::vector<double>& values);
     
     /**
-     * @brief Set temperature field for thermal expansion
+     * @brief 设置诺伊曼边界条�?
      */
-    void setTemperatureField(const std::vector<double>& temperature);
+    void setNeumannBoundary(const std::vector<int>& edges, const std::vector<double>& values);
     
     /**
-     * @brief Assemble the system matrices
+     * @brief 设置罗宾边界条件
      */
-    void assembleSystem();
+    void setRobinBoundary(const std::vector<int>& edges, const std::vector<double>& coefficients, 
+                         const std::vector<double>& ambientTemps);
     
     /**
-     * @brief Solve the structural problem
+     * @brief 初始化求解器
      */
-    StructuralResults solve();
+    bool initialize() override;
     
     /**
-     * @brief Solve transient structural problem
+     * @brief 组装系统矩阵
      */
-    StructuralResults solveTransient();
+    bool assemble() override;
     
     /**
-     * @brief Calculate stresses from displacement field
+     * @brief 求解系统
      */
-    std::vector<std::array<double, 6>> calculateStresses(const std::vector<std::array<double, 3>>& displacement);
+    bool solve() override;
     
     /**
-     * @brief Set material database
+     * @brief 获取求解结果（温度场�?
      */
-    void setMaterialDatabase(const MaterialDatabase& db) {
-        materialDB = db;
-    }
+    std::vector<double> getSolution() const override;
     
     /**
-     * @brief Set body forces for the simulation
+     * @brief 获取热通量�?
      */
-    void setBodyForces(const std::vector<std::array<double, 3>>& bodyForces) {
-        // This would set the body force vector
-        // For now, this is a placeholder implementation
-        std::cout << "Setting body forces for structural simulation" << std::endl;
-    }
+    std::vector<double> getHeatFlux() const;
     
     /**
-     * @brief Set thermal forces for thermal expansion
+     * @brief 获取最大温�?
      */
-    void setThermalForces(const std::vector<std::array<double, 3>>& thermalForces) {
-        // This would set the thermal expansion forces
-        // For now, this is a placeholder implementation
-        std::cout << "Setting thermal forces for structural simulation" << std::endl;
-    }
+    double getMaxTemperature() const;
     
     /**
-     * @brief Calculate strains from displacement field
+     * @brief 获取最小温�?
      */
-    std::vector<std::array<double, 6>> calculateStrains(const std::vector<std::array<double, 3>>& displacement);
+    double getMinTemperature() const;
     
     /**
-     * @brief Calculate reaction forces
+     * @brief 获取平均温度
      */
-    std::vector<std::array<double, 3>> calculateReactionForces(const std::vector<std::array<double, 3>>& displacement);
+    double getAverageTemperature() const;
     
     /**
-     * @brief Apply boundary conditions to the system
+     * @brief 检查收敛�?
      */
-    void applyBoundaryConditions();
+    bool checkConvergence() const;
     
     /**
-     * @brief Calculate element stiffness matrix
+     * @brief 获取残差
      */
-    std::vector<std::vector<double>> calculateElementStiffnessMatrix(const Element& element);
+    double getResidual() const;
     
     /**
-     * @brief Calculate element mass matrix
+     * @brief 支持瞬态计�?
      */
-    std::vector<std::vector<double>> calculateElementMassMatrix(const Element& element);
+    bool supportsTransient() const override { return true; }
     
     /**
-     * @brief Calculate element force vector
+     * @brief 执行时间步进
      */
-    std::vector<double> calculateElementForceVector(const Element& element);
+    bool executeTimeStep(int timeStepIndex, double currentTime);
     
     /**
-     * @brief Calculate element thermal expansion vector
+     * @brief 保存求解器状�?
      */
-    std::vector<double> calculateElementThermalExpansion(const Element& element);
+    bool saveState(const std::string& filename) const;
+    
+    /**
+     * @brief 加载求解器状�?
+     */
+    bool loadState(const std::string& filename);
     
 private:
     /**
-     * @brief Initialize the solver
+     * @brief 组装刚度矩阵
      */
-    void initialize();
+    bool assembleStiffnessMatrix();
     
     /**
-     * @brief Check if the system is properly set up
+     * @brief 组装质量矩阵（用于瞬态分析）
      */
-    bool isSystemReady() const;
+    bool assembleMassMatrix();
     
     /**
-     * @brief Update time step for transient analysis
+     * @brief 组装右端向量
      */
-    void updateTimeStep(int step, double time);
+    bool assembleRhsVector();
     
     /**
-     * @brief Calculate constitutive matrix (D matrix) for linear elasticity
+     * @brief 应用边界条件
      */
-    std::vector<std::vector<double>> calculateConstitutiveMatrix(const Material& material);
+    bool applyBoundaryConditions();
     
     /**
-     * @brief Calculate strain-displacement matrix (B matrix)
+     * @brief 计算热通量
      */
-    std::vector<std::vector<double>> calculateStrainDisplacementMatrix(
-        const std::vector<std::vector<double>>& shapeDerivatives);
+    void computeHeatFlux();
     
     /**
-     * @brief Calculate von Mises stress
+     * @brief 计算单元热传导矩�?
      */
-    double calculateVonMisesStress(const std::array<double, 6>& stress) const;
+    void computeElementMatrix(int elementId, std::vector<std::vector<double>>& elementMatrix) const;
+    
+    /**
+     * @brief 计算单元质量矩阵
+     */
+    void computeElementMassMatrix(int elementId, std::vector<std::vector<double>>& elementMatrix) const;
+    
+    /**
+     * @brief 计算单元右端向量
+     */
+    void computeElementRhsVector(int elementId, std::vector<double>& elementVector) const;
+    
+    /**
+     * @brief 计算形函数和导数
+     */
+    void computeShapeFunctions(double xi, double eta, std::vector<double>& N, 
+                              std::vector<std::vector<double>>& dN) const;
 };
 
 } // namespace elmer
+

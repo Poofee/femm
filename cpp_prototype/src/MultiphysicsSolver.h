@@ -1,360 +1,219 @@
+/**
+ * @file HeatSolver.h
+ * @brief Elmer FEM热传导求解器
+ * 
+ * 实现热传导方程的有限元求解，支持稳态和瞬态热分析
+ */
+
 #pragma once
 
-#include "MagnetodynamicsSolver.h"
-#include "HeatTransferSolver.h"
-#include "StructuralSolver.h"
-#include "Mesh.h"
-#include "Material.h"
+#include "../../core/base/SolverBase.h"
+#include "../core/base/Types.h"
 #include <memory>
 #include <vector>
-#include <array>
-#include <iostream>
-
-// Use explicit namespace to avoid conflicts
-#include "Material.h"
 
 namespace elmer {
 
 /**
- * @brief Types of multiphysics coupling
+ * @brief 热传导求解器参数结构�?
  */
-enum class CouplingType {
-    NONE,                   ///< No coupling
-    WEAK,                   ///< Weak coupling (sequential)
-    STRONG,                 ///< Strong coupling (simultaneous)
-    ITERATIVE              ///< Iterative coupling
+struct HeatSolverParameters {
+    double thermalConductivity = 1.0;        ///< 热导�?[W/(m·K)]
+    double density = 1.0;                    ///< 密度 [kg/m³]
+    double specificHeat = 1.0;               ///< 比热�?[J/(kg·K)]
+    double heatSource = 0.0;                 ///< 热源�?[W/m³]
+    double initialTemperature = 293.15;      ///< 初始温度 [K]
+    double ambientTemperature = 293.15;      ///< 环境温度 [K]
+    double heatTransferCoefficient = 0.0;    ///< 热传导系�?[W/(m²·K)]
+    
+    // 边界条件类型
+    enum BoundaryType {
+        DIRICHLET,      ///< 狄利克雷边界条件（固定温度）
+        NEUMANN,        ///< 诺伊曼边界条件（热通量�?
+        ROBIN           ///< 罗宾边界条件（对流换热）
+    };
+    
+    HeatSolverParameters() = default;
 };
 
 /**
- * @brief Coupling parameters for multiphysics simulations
- */
-struct CouplingParameters {
-    CouplingType type = CouplingType::WEAK;
-    int maxCouplingIterations = 10;          ///< Maximum iterations for iterative coupling
-    double couplingTolerance = 1.0e-6;       ///< Tolerance for coupling convergence
-    bool updateGeometry = false;             ///< Update mesh geometry during coupling
-    
-    // Physical coupling parameters
-    double thermalExpansionCoefficient = 0.0; ///< For thermal-structural coupling
-    double jouleHeatingCoefficient = 1.0;     ///< For electromagnetic-thermal coupling
-    double magnetostrictionCoefficient = 0.0; ///< For electromagnetic-structural coupling
-    
-    // Coupling flags
-    bool enableElectroThermalCoupling = true;    ///< Enable electromagnetic-thermal coupling
-    bool enableElectroStructuralCoupling = true; ///< Enable electromagnetic-structural coupling
-    bool enableThermoStructuralCoupling = true;  ///< Enable thermal-structural coupling
-    
-    CouplingParameters() = default;
-};
-
-/**
- * @brief Multiphysics solver for coupled problems
+ * @brief 热传导求解器�?
  * 
- * This solver handles coupling between different physical fields:
- * - Electromagnetic-thermal coupling (Joule heating)
- * - Electromagnetic-structural coupling (Lorentz forces, magnetostriction)
- * - Thermal-structural coupling (thermal expansion)
+ * 实现热传导方程的有限元求解，支持稳态和瞬态分�?
  */
-class MultiphysicsSolver {
+class HeatSolver : public LinearSolverBase {
 private:
-    std::shared_ptr<Mesh> mesh;
-    MaterialDatabase materialDB;
-    CouplingParameters couplingParams;
+    HeatSolverParameters heatParams_;        ///< 热传导求解器参数
+    std::vector<double> temperatureField_;   ///< 温度�?
+    std::vector<double> heatFluxField_;      ///< 热通量�?
     
-    // Individual solvers
-    std::shared_ptr<MagnetodynamicsSolver> emSolver;
-    std::shared_ptr<HeatTransferSolver> thermalSolver;
-    std::shared_ptr<StructuralSolver> structuralSolver;
+    // 边界条件数据
+    std::vector<int> dirichletNodes_;        ///< 狄利克雷边界节点
+    std::vector<double> dirichletValues_;    ///< 狄利克雷边界�?
+    std::vector<int> neumannEdges_;          ///< 诺伊曼边界边
+    std::vector<double> neumannValues_;      ///< 诺伊曼边界�?
+    std::vector<int> robinEdges_;            ///< 罗宾边界�?
+    std::vector<double> robinCoefficients_;  ///< 罗宾边界系数
+    std::vector<double> robinAmbientTemps_;  ///< 罗宾边界环境温度
     
-    // Coupling matrices and vectors
-    std::shared_ptr<CRSMatrix> couplingMatrix;
-    std::shared_ptr<Vector> couplingRHS;
-    
-    // Solution fields
-    std::vector<double> temperatureField;     ///< Temperature field
-    std::vector<double> displacementField;    ///< Structural displacement field
-    std::vector<double> potentialField;       ///< Electromagnetic potential field
+    // 瞬态分析相�?
+    std::vector<double> prevTemperature_;    ///< 上一时间步温度场
+    double timeIntegrationFactor_ = 1.0;     ///< 时间积分因子
     
 public:
     /**
-     * @brief Constructor
+     * @brief 构造函�?
      */
-    MultiphysicsSolver(std::shared_ptr<Mesh> m = nullptr)
-        : mesh(m) {
-        materialDB.createPredefinedMaterials();
-        if (mesh) {
-            initializeSolvers();
-        }
-    }
+    HeatSolver();
     
     /**
-     * @brief Set the mesh for the simulation
+     * @brief 析构函数
      */
-    void setMesh(std::shared_ptr<Mesh> m) {
-        mesh = m;
-        if (mesh) {
-            initializeSolvers();
-        }
-    }
+    virtual ~HeatSolver() = default;
     
     /**
-     * @brief Set coupling parameters
+     * @brief 设置热传导求解器参数
      */
-    void setCouplingParameters(const CouplingParameters& params) {
-        couplingParams = params;
-    }
+    void setHeatParameters(const HeatSolverParameters& params);
     
     /**
-     * @brief Set coupling type
+     * @brief 获取热传导求解器参数
      */
-    void setCouplingType(CouplingType type) {
-        couplingParams.type = type;
-    }
+    HeatSolverParameters getHeatParameters() const;
     
     /**
-     * @brief Solve coupled multiphysics problem
+     * @brief 设置狄利克雷边界条件
      */
-    void solveCoupledProblem() {
-        if (!mesh) {
-            throw std::runtime_error("Mesh not set for multiphysics simulation");
-        }
-        
-        switch (couplingParams.type) {
-            case CouplingType::WEAK:
-                solveWeakCoupling();
-                break;
-            case CouplingType::STRONG:
-                solveStrongCoupling();
-                break;
-            case CouplingType::ITERATIVE:
-                solveIterativeCoupling();
-                break;
-            default:
-                solveUncoupled();
-                break;
-        }
-    }
+    void setDirichletBoundary(const std::vector<int>& nodes, const std::vector<double>& values);
     
     /**
-     * @brief Get electromagnetic solver
+     * @brief 设置诺伊曼边界条�?
      */
-    std::shared_ptr<MagnetodynamicsSolver> getElectromagneticSolver() {
-        return emSolver;
-    }
+    void setNeumannBoundary(const std::vector<int>& edges, const std::vector<double>& values);
     
     /**
-     * @brief Get thermal solver
+     * @brief 设置罗宾边界条件
      */
-    std::shared_ptr<HeatTransferSolver> getThermalSolver() {
-        return thermalSolver;
-    }
+    void setRobinBoundary(const std::vector<int>& edges, const std::vector<double>& coefficients, 
+                         const std::vector<double>& ambientTemps);
     
     /**
-     * @brief Get structural solver
+     * @brief 初始化求解器
      */
-    std::shared_ptr<StructuralSolver> getStructuralSolver() {
-        return structuralSolver;
-    }
+    bool initialize() override;
     
     /**
-     * @brief Get potential field (electromagnetic)
+     * @brief 组装系统矩阵
      */
-    const std::vector<double>& getPotentialField() const {
-        return potentialField;
-    }
+    bool assemble() override;
     
     /**
-     * @brief Get temperature field
+     * @brief 求解系统
      */
-    const std::vector<double>& getTemperatureField() const {
-        return temperatureField;
-    }
+    bool solve() override;
     
     /**
-     * @brief Get displacement field
+     * @brief 获取求解结果（温度场�?
      */
-    const std::vector<double>& getDisplacementField() const {
-        return displacementField;
-    }
+    std::vector<double> getSolution() const override;
     
     /**
-     * @brief Set material database for all solvers
+     * @brief 获取热通量�?
      */
-    void setMaterialDatabase(const MaterialDatabase& db) {
-        materialDB = db;
-        if (emSolver) emSolver->setMaterialDatabase(materialDB);
-        if (thermalSolver) thermalSolver->setMaterialDatabase(materialDB);
-        if (structuralSolver) structuralSolver->setMaterialDatabase(materialDB);
-    }
+    std::vector<double> getHeatFlux() const;
     
     /**
-     * @brief Calculate Joule heating from electromagnetic solution
+     * @brief 获取最大温�?
      */
-    std::vector<double> calculateJouleHeating(const MagnetodynamicsResults& emResults) {
-        size_t nNodes = mesh->getNodes().numberOfNodes();
-        std::vector<double> jouleHeating(nNodes, 0.0);
-        
-        // Q = J·E = σ|E|² for conductive heating
-        // Simplified implementation using a default material
-        auto material = materialDB.getMaterial("Copper");
-        
-        for (const auto& element : mesh->getBulkElements()) {
-            auto nodeIndices = element.getNodeIndices();
-            
-            for (size_t nodeIdx : nodeIndices) {
-                double E_squared = 0.0;
-                for (int i = 0; i < 3; ++i) {
-                    E_squared += emResults.electricField[nodeIdx][i] * 
-                                emResults.electricField[nodeIdx][i];
-                }
-                jouleHeating[nodeIdx] += material.conductivity * E_squared * 
-                                       couplingParams.jouleHeatingCoefficient;
-            }
-        }
-        
-        return jouleHeating;
-    }
+    double getMaxTemperature() const;
     
     /**
-     * @brief Calculate thermal expansion forces
+     * @brief 获取最小温�?
      */
-    std::vector<std::array<double, 3>> calculateThermalExpansionForces(
-        const std::vector<double>& temperature) {
-        
-        size_t nNodes = mesh->getNodes().numberOfNodes();
-        std::vector<std::array<double, 3>> thermalForces(nNodes, {0.0, 0.0, 0.0});
-        
-        // Simplified implementation
-        // In practice, this would involve stress-strain relationships
-        
-        return thermalForces;
-    }
+    double getMinTemperature() const;
     
     /**
-     * @brief Calculate magnetostriction forces
+     * @brief 获取平均温度
      */
-    std::vector<std::array<double, 3>> calculateMagnetostrictionForces(
-        const MagnetodynamicsResults& emResults) {
-        
-        size_t nNodes = mesh->getNodes().numberOfNodes();
-        std::vector<std::array<double, 3>> magnetostrictionForces(nNodes, {0.0, 0.0, 0.0});
-        
-        // Simplified implementation
-        // In practice, this would involve magnetostrictive coefficients
-        
-        return magnetostrictionForces;
-    }
-    
-public:
-    /**
-     * @brief Initialize individual solvers
-     */
-    void initializeSolvers() {
-        emSolver = std::make_shared<MagnetodynamicsSolver>(mesh);
-        // Initialize other solvers here
-    }
+    double getAverageTemperature() const;
     
     /**
-     * @brief Solve uncoupled problems
+     * @brief 检查收敛�?
      */
-    void solveUncoupled() {
-        // Solve each physics independently
-        if (emSolver) {
-            auto emResults = emSolver->solve();
-            // Store results
-        }
-        // Solve other physics here
-    }
+    bool checkConvergence() const;
     
     /**
-     * @brief Solve with weak coupling (sequential)
+     * @brief 获取残差
      */
-    void solveWeakCoupling() {
-        // Sequential solution: solve one physics, then the other
-        
-        // Step 1: Solve electromagnetic problem
-        auto emResults = emSolver->solve();
-        
-        // Step 2: Calculate coupling effects
-        auto jouleHeating = calculateJouleHeating(emResults);
-        auto lorentzForces = emResults.lorentzForce;
-        
-        // Step 3: Solve thermal problem with Joule heating
-        // thermalSolver->setHeatSource(jouleHeating);
-        // auto thermalResults = thermalSolver->solve();
-        
-        // Step 4: Solve structural problem with thermal and electromagnetic forces
-        // structuralSolver->setBodyForces(lorentzForces);
-        // structuralSolver->setThermalForces(thermalExpansionForces);
-        // auto structuralResults = structuralSolver->solve();
-        
-        // Store results
-        potentialField = emResults.potentialReal;
-    }
+    double getResidual() const;
     
     /**
-     * @brief Solve with strong coupling (simultaneous)
+     * @brief 支持瞬态计�?
      */
-    void solveStrongCoupling() {
-        // Assemble monolithic system matrix
-        assembleMonolithicSystem();
-        
-        // Solve the coupled system
-        // This would involve a larger linear system with all fields
-    }
+    bool supportsTransient() const override { return true; }
     
     /**
-     * @brief Solve with iterative coupling
+     * @brief 执行时间步进
      */
-    void solveIterativeCoupling() {
-        double residual = 1.0;
-        int iteration = 0;
-        
-        while (residual > couplingParams.couplingTolerance && 
-               iteration < couplingParams.maxCouplingIterations) {
-            
-            // Solve electromagnetic problem
-            auto emResults = emSolver->solve();
-            
-            // Calculate coupling terms
-            auto jouleHeating = calculateJouleHeating(emResults);
-            auto lorentzForces = emResults.lorentzForce;
-            
-            // Solve other physics with coupling terms
-            // thermalSolver->setHeatSource(jouleHeating);
-            // auto thermalResults = thermalSolver->solve();
-            
-            // structuralSolver->setBodyForces(lorentzForces);
-            // auto structuralResults = structuralSolver->solve();
-            
-            // Calculate coupling residual
-            residual = calculateCouplingResidual();
-            
-            iteration++;
-        }
-    }
-
+    bool executeTimeStep(int timeStepIndex, double currentTime);
+    
+    /**
+     * @brief 保存求解器状�?
+     */
+    bool saveState(const std::string& filename) const;
+    
+    /**
+     * @brief 加载求解器状�?
+     */
+    bool loadState(const std::string& filename);
+    
 private:
+    /**
+     * @brief 组装刚度矩阵
+     */
+    bool assembleStiffnessMatrix();
     
     /**
-     * @brief Assemble monolithic system matrix for strong coupling
+     * @brief 组装质量矩阵（用于瞬态分析）
      */
-    void assembleMonolithicSystem() {
-        // This would assemble a large system matrix that includes
-        // all coupled physics in a single matrix
-        
-        // Implementation depends on the specific coupling
-    }
+    bool assembleMassMatrix();
     
     /**
-     * @brief Calculate coupling residual for iterative method
+     * @brief 组装右端向量
      */
-    double calculateCouplingResidual() {
-        // Calculate the residual between coupled solutions
-        // This measures how much the solutions have changed between iterations
-        
-        return 0.0; // Placeholder
-    }
+    bool assembleRhsVector();
+    
+    /**
+     * @brief 应用边界条件
+     */
+    bool applyBoundaryConditions();
+    
+    /**
+     * @brief 计算热通量
+     */
+    void computeHeatFlux();
+    
+    /**
+     * @brief 计算单元热传导矩�?
+     */
+    void computeElementMatrix(int elementId, std::vector<std::vector<double>>& elementMatrix) const;
+    
+    /**
+     * @brief 计算单元质量矩阵
+     */
+    void computeElementMassMatrix(int elementId, std::vector<std::vector<double>>& elementMatrix) const;
+    
+    /**
+     * @brief 计算单元右端向量
+     */
+    void computeElementRhsVector(int elementId, std::vector<double>& elementVector) const;
+    
+    /**
+     * @brief 计算形函数和导数
+     */
+    void computeShapeFunctions(double xi, double eta, std::vector<double>& N, 
+                              std::vector<std::vector<double>>& dN) const;
 };
 
 } // namespace elmer
+

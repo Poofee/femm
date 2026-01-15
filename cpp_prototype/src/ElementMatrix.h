@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "Types.h"
-#include "ShapeFunctions.h"
-#include "GaussIntegration.h"
+#include "core/base/Types.h"
+#include "core/utils/ShapeFunctions.h"
+#include "core/utils/GaussIntegration.h"
 #include <vector>
 #include <functional>
 
@@ -178,3 +178,4 @@ private:
 };
 
 } // namespace elmer
+

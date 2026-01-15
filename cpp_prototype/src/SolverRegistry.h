@@ -32,6 +32,8 @@ struct SolverRegistration {
     bool isParallel = false;             ///< 是否支持并行
     bool isTransient = false;            ///< 是否支持瞬态
     
+    SolverRegistration() = default;
+    
     SolverRegistration(const std::string& n, const std::string& desc, 
                       SolverFactoryFunction fac)
         : name(n), description(desc), factory(fac) {}
@@ -205,7 +207,7 @@ private:
     std::vector<std::shared_ptr<SolverBase>> solvers_;
     std::shared_ptr<Mesh> mesh_;
     std::shared_ptr<MaterialDatabase> materialDB_;
-    std::shared_ptr<BoundaryConditions> bc_;
+    std::shared_ptr<BoundaryConditionManager> bc_;
     std::shared_ptr<MPICommunicator> comm_;
     
 public:
@@ -226,9 +228,9 @@ public:
     }
     
     /**
-     * @brief 设置边界条件
+     * @brief 设置边界条件管理器
      */
-    void setBoundaryConditions(std::shared_ptr<BoundaryConditions> bc) {
+    void setBoundaryConditions(std::shared_ptr<BoundaryConditionManager> bc) {
         bc_ = bc;
     }
     
@@ -249,7 +251,7 @@ public:
             if (mesh_) solver->setMesh(mesh_);
             if (materialDB_) solver->setMaterialDatabase(materialDB_);
             if (bc_) solver->setBoundaryConditions(bc_);
-            if (comm_) solver->setMPICommunicator(comm_);
+            if (comm_) solver->setMPICommunicator(comm_.get());
             
             solvers_.push_back(solver);
         } else {

@@ -97,7 +97,7 @@ private:
     
     std::shared_ptr<Mesh> mesh_;                        ///< 网格数据
     std::shared_ptr<MaterialDatabase> materialDB_;      ///< 材料数据库
-    std::shared_ptr<BoundaryConditions> bc_;            ///< 边界条件
+    std::shared_ptr<BoundaryConditionManager> bc_;      ///< 边界条件管理器
     std::shared_ptr<MPICommunicator> comm_;             ///< MPI通信器
     
     std::unique_ptr<SolverManager> solverManager_;      ///< 求解器管理器
@@ -181,6 +181,12 @@ public:
      */
     void cleanup();
     
+public:
+    /**
+     * @brief 处理命令行参数
+     */
+    void processCommandLineArguments(int argc, char** argv);
+    
 private:
     /**
      * @brief 打印横幅信息
@@ -221,11 +227,6 @@ private:
      * @brief 检查收敛性
      */
     bool checkConvergence();
-    
-    /**
-     * @brief 处理命令行参数
-     */
-    void processCommandLineArguments(int argc, char** argv);
     
     /**
      * @brief 获取CPU时间

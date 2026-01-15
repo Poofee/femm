@@ -95,8 +95,8 @@ add_library(ElmerCppMatrixAssembly
     src/MagnetoDynamics2DSolver.h
     src/MagnetodynamicsSolver.h
     src/ElmerSolver.h
+    src/ElmerSolver.cpp
     # src/MagnetoDynamics2DSolver.cpp  # 暂时注释掉，有编译错误
-    # src/ElmerSolver.cpp  # 暂时注释掉，有编译错误
     
 )
 

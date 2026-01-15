@@ -7,6 +7,7 @@
 #include "LinearAlgebra.h"
 #include "Mesh.h"
 #include "BoundaryConditions.h"
+#include "MaterialDatabase.h"
 #include "IterativeSolver.h"
 #include "NonlinearSolver.h"
 #include "DistributedLinearAlgebra.h"
@@ -316,11 +317,6 @@ public:
     void assembleSystemOptimized();
     
     /**
-     * @brief 并行矩阵组装
-     */
-    void assembleSystemParallel();
-    
-    /**
      * @brief 增量式矩阵更新（非线性迭代优化）
      */
     void updateSystemIncremental();
@@ -340,111 +336,24 @@ public:
      * 
      * 对应Fortran的MagnetoDynamics2D_Init子程序
      */
-    void initialize() {
-        if (!mesh) {
-            throw std::runtime_error("Mesh not set for initialization");
-        }
-        
-        // 检查坐标系
-        if (parameters.coordinateSystem == MagnetoDynamics2DParameters::AXISYMMETRIC ||
-            parameters.coordinateSystem == MagnetoDynamics2DParameters::CYLINDRIC_SYMMETRIC) {
-            // 轴对称情况下的特殊处理
-            if (parameters.useInfinityBC) {
-                std::cout << "Warning: Infinity BC not yet available in axisymmetric case!" << std::endl;
-            }
-        }
-        
-        // 初始化基函数缓存（如果启用）
-        if (useBasisFunctionsCache) {
-            initializeBasisFunctionCache();
-        }
-        
-        std::cout << "MagnetoDynamics2D solver initialized" << std::endl;
-    }
+    void initialize();
     
     /**
      * @brief 组装系统矩阵
      * 
      * 对应Fortran的LocalMatrix子程序
      */
-    void assembleSystem() {
-        if (!mesh) {
-            throw std::runtime_error("Mesh not set for assembly");
-        }
-        
-        // 检查是否使用并行模式
-        if (isParallel()) {
-            assembleSystemParallel();
-        } else {
-            assembleSystemSerial();
-        }
-    }
+    void assembleSystem();
     
     /**
      * @brief 串行组装系统矩阵
      */
-    void assembleSystemSerial() {
-        size_t nNodes = mesh->getNodes().numberOfNodes();
-        
-        // 初始化系统矩阵（每个节点1个自由度：A_z）
-        stiffnessMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
-        rhsVector = std::shared_ptr<Vector>(Vector::Create(nNodes));
-        
-        if (parameters.isTransient) {
-            massMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
-            dampingMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
-        }
-        
-        // 组装单元贡献
-        assembleElementContributions();
-        
-        // 组装边界条件贡献
-        assembleBoundaryContributions();
-        
-        // 应用边界条件
-        applyBoundaryConditions();
-        
-        systemAssembled = true;
-        
-        std::cout << "System assembly completed (serial)" << std::endl;
-    }
+    void assembleSystemSerial();
     
     /**
      * @brief 并行组装系统矩阵
      */
-    void assembleSystemParallel() {
-        if (!parallelAssembler_) {
-            throw std::runtime_error("Parallel assembler not initialized");
-        }
-        
-        // 执行域分解
-        auto decompositionResult = performDomainDecomposition();
-        
-        // 初始化分布式系统矩阵
-        size_t nNodes = mesh->getNodes().numberOfNodes();
-        distributedStiffnessMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
-        distributedRhsVector_ = std::make_shared<DistributedVector>(nNodes, comm_);
-        
-        if (parameters.isTransient) {
-            distributedMassMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
-            distributedDampingMatrix_ = std::make_shared<DistributedMatrix>(nNodes, nNodes, comm_);
-        }
-        
-        // 并行组装单元贡献
-        assembleElementContributionsParallel(decompositionResult);
-        
-        // 并行组装边界条件贡献
-        assembleBoundaryContributionsParallel(decompositionResult);
-        
-        // 并行应用边界条件
-        applyBoundaryConditionsParallel();
-        
-        systemAssembled = true;
-        
-        if (comm_->getRank() == 0) {
-            std::cout << "System assembly completed (parallel)" << std::endl;
-        }
-    }
+    void assembleSystemParallel();
     
     /**
      * @brief 设置非线性求解器
@@ -559,32 +468,7 @@ public:
     /**
      * @brief 串行求解线性系统
      */
-    std::vector<double> solveLinearSystem() {
-        if (!stiffnessMatrix || !rhsVector) {
-            throw std::runtime_error("System matrices not assembled");
-        }
-        
-        // 创建迭代求解器
-        auto solver = std::make_shared<ConjugateGradientSolver>();
-        solver->setMatrix(stiffnessMatrix);
-        solver->setParameters(parameters.tolerance, parameters.maxIterations);
-        
-        // 求解
-        auto solution = std::shared_ptr<Vector>(Vector::Create(rhsVector->Size()));
-        bool success = solver->solve(*solution, *rhsVector);
-        
-        if (!success) {
-            throw std::runtime_error("Linear solver failed to converge");
-        }
-        
-        // 转换为向量
-        std::vector<double> result(solution->Size());
-        for (size_t i = 0; i < solution->Size(); ++i) {
-            result[i] = (*solution)[i];
-        }
-        
-        return result;
-    }
+    std::vector<double> solveLinearSystem();
     
     /**
      * @brief 简单非线性迭代求解
@@ -801,11 +685,6 @@ private:
      * @brief 计算磁通密度
      */
     std::vector<double> computeMagneticFluxDensity();
-    
-    /**
-     * @brief 求解线性系统
-     */
-    std::vector<double> solveLinearSystem();
     
     /**
      * @brief 检查收敛性

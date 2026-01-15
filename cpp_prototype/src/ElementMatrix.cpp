@@ -18,7 +18,7 @@ std::vector<std::vector<double>> ElementMatrix::computeStiffnessMatrix(
         case ElementType::LINEAR:
             dim = 1;
             break;
-        case ElementType::QUADRILATERAL:
+        case ElementType::QUADRATIC:
             dim = 2;
             break;
         case ElementType::HEXAHEDRON:
@@ -76,7 +76,7 @@ std::vector<std::vector<double>> ElementMatrix::computeMassMatrix(
             
             int nNodes = nodes.size();
             int dim = (elementType == ElementType::LINEAR) ? 1 : 
-                     (elementType == ElementType::QUADRILATERAL) ? 2 : 3;
+                     (elementType == ElementType::QUADRATIC) ? 2 : 3;
             int dofSize = nNodes * dim;
             
             std::vector<std::vector<double>> me(dofSize, std::vector<double>(dofSize, 0.0));
@@ -110,7 +110,7 @@ std::vector<double> ElementMatrix::computeLoadVector(
             
             int nNodes = nodes.size();
             int dim = (elementType == ElementType::LINEAR) ? 1 : 
-                     (elementType == ElementType::QUADRILATERAL) ? 2 : 3;
+                     (elementType == ElementType::QUADRATIC) ? 2 : 3;
             int dofSize = nNodes * dim;
             
             std::vector<double> fe(dofSize, 0.0);
@@ -138,7 +138,7 @@ std::vector<std::vector<double>> ElementMatrix::computeConductivityMatrix(
             
             int nNodes = nodes.size();
             int dim = (elementType == ElementType::LINEAR) ? 1 : 
-                     (elementType == ElementType::QUADRILATERAL) ? 2 : 3;
+                     (elementType == ElementType::QUADRATIC) ? 2 : 3;
             
             std::vector<std::vector<double>> ke(nNodes, std::vector<double>(nNodes, 0.0));
             
@@ -197,7 +197,7 @@ std::vector<std::vector<double>> ElementMatrix::computeConvectionMatrix(
             
             int nNodes = nodes.size();
             int dim = (elementType == ElementType::LINEAR) ? 1 : 
-                     (elementType == ElementType::QUADRILATERAL) ? 2 : 3;
+                     (elementType == ElementType::QUADRATIC) ? 2 : 3;
             
             // Interpolate velocity at integration point
             std::array<double, 3> v = {0.0, 0.0, 0.0};
@@ -333,7 +333,7 @@ std::vector<std::vector<double>> ElementMatrix::integrateElementMatrix(
         case ElementType::LINEAR:
             points = GaussIntegration::get1DPoints(integrationOrder);
             break;
-        case ElementType::QUADRILATERAL:
+        case ElementType::QUADRATIC:
             points = GaussIntegration::getQuadrilateralPoints(integrationOrder);
             break;
         case ElementType::HEXAHEDRON:
@@ -378,7 +378,7 @@ std::vector<double> ElementMatrix::integrateElementVector(
         case ElementType::LINEAR:
             points = GaussIntegration::get1DPoints(integrationOrder);
             break;
-        case ElementType::QUADRILATERAL:
+        case ElementType::QUADRATIC:
             points = GaussIntegration::getQuadrilateralPoints(integrationOrder);
             break;
         case ElementType::HEXAHEDRON:

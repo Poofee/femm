@@ -393,10 +393,10 @@ bool MagneticSolver::assembleElementMatrix(int elementId) {
 bool MagneticSolver::assembleBoundaryConditions() {
     // 实现边界条件组装
     // 基于Fortran版本的MagneticSolve.F90中的边界条件处理
-    std::cout << "开始组装边界条件..." << std::endl;
+    ELMER_INFO("开始组装边界条件...");
     
     if (!bc_ || !mesh_) {
-        std::cout << "警告: 边界条件管理器或网格未设置，跳过边界条件组装" << std::endl;
+        ELMER_WARN("边界条件管理器或网格未设置，跳过边界条件组装");
         return true;
     }
     
@@ -404,7 +404,7 @@ bool MagneticSolver::assembleBoundaryConditions() {
     int numBoundaryElements = mesh_->getBoundaryElements().size();
     
     if (numBoundaryElements == 0) {
-        std::cout << "没有边界单元，跳过边界条件组装" << std::endl;
+        ELMER_INFO("没有边界单元，跳过边界条件组装");
         return true;
     }
     
@@ -414,7 +414,7 @@ bool MagneticSolver::assembleBoundaryConditions() {
     
     for (int bcId = 0; bcId < numBoundaryElements; ++bcId) {
         if (bcId >= boundaryElements.size()) {
-            std::cerr << "错误: 边界单元索引超出范围" << std::endl;
+            ELMER_ERROR("边界单元索引超出范围: {} >= {}", bcId, boundaryElements.size());
             return false;
         }
         
@@ -422,30 +422,213 @@ bool MagneticSolver::assembleBoundaryConditions() {
         auto elementNodes = boundaryElement.getNodeIndices();
         size_t numElementNodes = elementNodes.size();
         
-        // 简化实现：直接应用狄利克雷边界条件
-        // TODO: 实现完整的边界条件类型检测
-        if (!applyDirichletBoundaryCondition(bcId, boundaryElement)) {
-            std::cerr << "错误: 边界条件应用失败" << std::endl;
+        // 检测边界条件类型
+        std::string bcType = detectBoundaryConditionType(bcId, boundaryElement);
+        ELMER_DEBUG("边界条件 {} 类型: {}", bcId, bcType);
+        
+        bool success = false;
+        
+        // 根据边界条件类型应用相应的处理
+        if (bcType == "dirichlet") {
+            success = applyDirichletBoundaryCondition(bcId, boundaryElement);
+        } else if (bcType == "neumann") {
+            success = applyNeumannBoundaryCondition(bcId, boundaryElement);
+        } else if (bcType == "magnetic_force") {
+            success = applyMagneticForceBoundaryCondition(bcId, boundaryElement);
+        } else if (bcType == "periodic") {
+            success = applyPeriodicBoundaryCondition(bcId, boundaryElement);
+        } else {
+            ELMER_WARN("未知边界条件类型: {}，跳过处理", bcType);
+            success = true; // 跳过未知类型
+        }
+        
+        if (!success) {
+            ELMER_ERROR("边界条件 {} 应用失败", bcId);
             return false;
         }
+        
         processedBC++;
     }
     
-    std::cout << "边界条件组装完成，共处理 " << processedBC << " 个边界条件" << std::endl;
+    ELMER_INFO("边界条件组装完成，共处理 {} 个边界条件", processedBC);
+    return true;
+}
+
+std::string MagneticSolver::detectBoundaryConditionType(int bcId, const Element& boundaryElement) {
+    // 基于Fortran版本的边界条件检测逻辑
+    // 检测边界条件的类型（狄利克雷、诺伊曼、磁力、周期性等）
+    
+    if (!bc_ || !mesh_) {
+        ELMER_WARN("边界条件管理器或网格未设置，使用默认狄利克雷边界条件");
+        return "dirichlet";
+    }
+    
+    // 获取边界条件参数
+    auto elementNodes = boundaryElement.getNodeIndices();
+    
+    // 检查是否存在狄利克雷边界条件（固定值）
+    bool hasDirichlet = false;
+    bool hasNeumann = false;
+    bool hasMagneticForce = false;
+    bool hasPeriodic = false;
+    
+    // 简化实现：基于边界条件管理器的检测
+    // 实际应该根据边界条件的具体参数进行检测
+    
+    // 检查边界条件名称和类型
+    std::string bcName = bc_->getBoundaryConditionName(bcId);
+    
+    // 基于名称的简单检测
+    if (bcName.find("fixed") != std::string::npos || 
+        bcName.find("dirichlet") != std::string::npos ||
+        bcName.find("essential") != std::string::npos) {
+        hasDirichlet = true;
+    } else if (bcName.find("flux") != std::string::npos || 
+               bcName.find("neumann") != std::string::npos ||
+               bcName.find("natural") != std::string::npos) {
+        hasNeumann = true;
+    } else if (bcName.find("force") != std::string::npos || 
+               bcName.find("magnetic") != std::string::npos) {
+        hasMagneticForce = true;
+    } else if (bcName.find("periodic") != std::string::npos || 
+               bcName.find("cyclic") != std::string::npos) {
+        hasPeriodic = true;
+    }
+    
+    // 优先级：狄利克雷 > 诺伊曼 > 磁力 > 周期性 > 默认狄利克雷
+    if (hasDirichlet) {
+        return "dirichlet";
+    } else if (hasNeumann) {
+        return "neumann";
+    } else if (hasMagneticForce) {
+        return "magnetic_force";
+    } else if (hasPeriodic) {
+        return "periodic";
+    }
+    
+    // 默认返回狄利克雷边界条件
+    return "dirichlet";
+}
+
+bool MagneticSolver::applyPeriodicBoundaryCondition(int bcId, const Element& boundaryElement) {
+    // 实现周期性边界条件
+    // 基于Fortran版本的周期性边界条件处理
+    
+    if (!bc_ || !stiffnessMatrix_ || !rhsVector_) {
+        ELMER_ERROR("必要的组件未初始化");
+        return false;
+    }
+    
+    auto elementNodes = boundaryElement.getNodeIndices();
+    int numElementNodes = elementNodes.size();
+    
+    // 获取主节点和从节点（周期性边界条件对）
+    std::vector<int> masterNodes;
+    std::vector<int> slaveNodes;
+    
+    // 简化实现：假设前一半节点是主节点，后一半是从节点
+    for (int i = 0; i < numElementNodes / 2; ++i) {
+        masterNodes.push_back(static_cast<int>(elementNodes[i]));
+    }
+    for (int i = numElementNodes / 2; i < numElementNodes; ++i) {
+        slaveNodes.push_back(static_cast<int>(elementNodes[i]));
+    }
+    
+    // 应用周期性边界条件：从节点 = 主节点
+    for (size_t i = 0; i < masterNodes.size() && i < slaveNodes.size(); ++i) {
+        int masterNode = masterNodes[i];
+        int slaveNode = slaveNodes[i];
+        
+        // 对每个自由度应用周期性条件
+        for (int dof = 0; dof < 3; ++dof) {
+            int masterDof = masterNode * 3 + dof;
+            int slaveDof = slaveNode * 3 + dof;
+            
+            // 设置从节点的解等于主节点的解
+            // 这需要在求解过程中特殊处理
+            
+            // 简化实现：在刚度矩阵中设置约束
+            if (masterDof < stiffnessMatrix_->GetNumRows() && 
+                slaveDof < stiffnessMatrix_->GetNumRows()) {
+                
+                // 将主节点的贡献加到从节点
+                for (int col = 0; col < stiffnessMatrix_->GetNumCols(); ++col) {
+                    double masterValue = stiffnessMatrix_->GetElement(masterDof, col);
+                    double slaveValue = stiffnessMatrix_->GetElement(slaveDof, col);
+                    
+                    // 合并贡献
+                    stiffnessMatrix_->SetElement(slaveDof, col, masterValue + slaveValue);
+                }
+                
+                // 清零从节点的行（除了对角线）
+                for (int col = 0; col < stiffnessMatrix_->GetNumCols(); ++col) {
+                    if (col != slaveDof) {
+                        stiffnessMatrix_->SetElement(slaveDof, col, 0.0);
+                    }
+                }
+                
+                // 设置从节点对角线为1
+                stiffnessMatrix_->SetElement(slaveDof, slaveDof, 1.0);
+                
+                // 设置右端向量
+                (*rhsVector_)[slaveDof] = (*rhsVector_)[masterDof];
+            }
+        }
+    }
+    
     return true;
 }
 
 bool MagneticSolver::checkConvergence(double prevNorm, double currentNorm) {
-    // TODO: 实现收敛性检查
+    // 基于Fortran版本的收敛性检查实现
+    // 实现多种收敛准则：相对残差、绝对残差、增量范数
+    
     if (prevNorm == 0.0) {
+        ELMER_DEBUG("第一次迭代，不检查收敛");
         return false; // 第一次迭代，不检查收敛
     }
     
+    // 计算相对残差变化
     double relativeChange = 2.0 * std::abs(prevNorm - currentNorm) / (prevNorm + currentNorm);
     
-    std::cout << "相对变化: " << relativeChange << ", 容差: " << nonlinearTolerance_ << std::endl;
+    // 计算绝对残差
+    double absoluteResidual = currentNorm;
     
-    return relativeChange < nonlinearTolerance_;
+    // 计算相对残差（相对于初始残差）
+    static double initialNorm = prevNorm;
+    double relativeResidual = currentNorm / initialNorm;
+    
+    ELMER_DEBUG("收敛检查: 相对变化={}, 绝对残差={}, 相对残差={}, 容差={}", 
+                relativeChange, absoluteResidual, relativeResidual, nonlinearTolerance_);
+    
+    // 多种收敛准则（满足任一条件即可）
+    bool converged = false;
+    
+    // 1. 相对残差变化准则
+    if (relativeChange < nonlinearTolerance_) {
+        ELMER_DEBUG("满足相对变化收敛准则");
+        converged = true;
+    }
+    
+    // 2. 绝对残差准则
+    if (absoluteResidual < 1e-12) {
+        ELMER_DEBUG("满足绝对残差收敛准则");
+        converged = true;
+    }
+    
+    // 3. 相对残差准则
+    if (relativeResidual < nonlinearTolerance_ * 0.1) {
+        ELMER_DEBUG("满足相对残差收敛准则");
+        converged = true;
+    }
+    
+    // 4. 检查残差是否发散
+    if (currentNorm > 1e6 * prevNorm && prevNorm > 1e-12) {
+        ELMER_WARN("残差发散: currentNorm={}, prevNorm={}", currentNorm, prevNorm);
+        // 不设置收敛，但也不报错，让迭代继续
+    }
+    
+    return converged;
 }
 
 bool MagneticSolver::assembleCartesian() {
@@ -808,7 +991,7 @@ bool MagneticSolver::computeElementMatrices(int elementId,
     // 计算单元刚度矩阵和右端向量
     
     if (!mesh_ || elementId < 0 || elementId >= mesh_->getBulkElements().size()) {
-        std::cerr << "错误: 无效的单元索引" << std::endl;
+        ELMER_ERROR("无效的单元索引: {}", elementId);
         return false;
     }
     
@@ -833,13 +1016,140 @@ bool MagneticSolver::computeElementMatrices(int elementId,
         }
     }
     
-    // 计算单元几何信息（简化实现）
-    // TODO: 实现完整的形状函数和积分计算
+    // 获取单元节点坐标
+    std::vector<double> nodeCoordsX(numElementNodes);
+    std::vector<double> nodeCoordsY(numElementNodes);
+    std::vector<double> nodeCoordsZ(numElementNodes);
     
-    // 简化实现：创建对角矩阵
-    for (int i = 0; i < numElementNodes * 3; ++i) {
-        elementStiffness[i][i] = 1.0; // 单位矩阵
-        elementRHS[i] = 0.0; // 零右端向量
+    for (int i = 0; i < numElementNodes; ++i) {
+        int nodeId = static_cast<int>(elementNodes[i]);
+        auto node = mesh_->getNode(nodeId);
+        nodeCoordsX[i] = node.x;
+        nodeCoordsY[i] = node.y;
+        nodeCoordsZ[i] = node.z;
+    }
+    
+    // 计算单元雅可比矩阵和形状函数导数
+    // 基于Fortran的MaxwellCompose函数实现
+    
+    // 高斯积分点（根据单元类型选择）
+    int numGaussPoints = 8; // 对于3D单元使用8个高斯点
+    
+    for (int gaussPoint = 0; gaussPoint < numGaussPoints; ++gaussPoint) {
+        // 计算高斯点坐标和权重
+        double xi, eta, zeta, weight;
+        getGaussPoint3D(gaussPoint, xi, eta, zeta, weight);
+        
+        // 计算形状函数和导数
+        std::vector<double> shapeFunctions(numElementNodes);
+        std::vector<double> dShapeDXi(numElementNodes);
+        std::vector<double> dShapeDEta(numElementNodes);
+        std::vector<double> dShapeDZeta(numElementNodes);
+        
+        computeShapeFunctions3D(xi, eta, zeta, shapeFunctions, dShapeDXi, dShapeDEta, dShapeDZeta);
+        
+        // 计算雅可比矩阵
+        double jacobian[3][3] = {{0}};
+        for (int i = 0; i < numElementNodes; ++i) {
+            jacobian[0][0] += dShapeDXi[i] * nodeCoordsX[i];
+            jacobian[0][1] += dShapeDXi[i] * nodeCoordsY[i];
+            jacobian[0][2] += dShapeDXi[i] * nodeCoordsZ[i];
+            jacobian[1][0] += dShapeDEta[i] * nodeCoordsX[i];
+            jacobian[1][1] += dShapeDEta[i] * nodeCoordsY[i];
+            jacobian[1][2] += dShapeDEta[i] * nodeCoordsZ[i];
+            jacobian[2][0] += dShapeDZeta[i] * nodeCoordsX[i];
+            jacobian[2][1] += dShapeDZeta[i] * nodeCoordsY[i];
+            jacobian[2][2] += dShapeDZeta[i] * nodeCoordsZ[i];
+        }
+        
+        // 计算雅可比行列式
+        double detJ = jacobian[0][0] * (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1])
+                    - jacobian[0][1] * (jacobian[1][0] * jacobian[2][2] - jacobian[1][2] * jacobian[2][0])
+                    + jacobian[0][2] * (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]);
+        
+        if (detJ <= 0.0) {
+            ELMER_ERROR("单元 {} 的雅可比行列式为负或零", elementId);
+            return false;
+        }
+        
+        // 计算形状函数在全局坐标系中的导数
+        std::vector<double> dShapeDX(numElementNodes);
+        std::vector<double> dShapeDY(numElementNodes);
+        std::vector<double> dShapeDZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            // 使用雅可比矩阵的逆计算全局导数
+            dShapeDX[i] = (1.0/detJ) * (
+                (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1]) * dShapeDXi[i] +
+                (jacobian[0][2] * jacobian[2][1] - jacobian[0][1] * jacobian[2][2]) * dShapeDEta[i] +
+                (jacobian[0][1] * jacobian[1][2] - jacobian[0][2] * jacobian[1][1]) * dShapeDZeta[i]
+            );
+            
+            dShapeDY[i] = (1.0/detJ) * (
+                (jacobian[1][2] * jacobian[2][0] - jacobian[1][0] * jacobian[2][2]) * dShapeDXi[i] +
+                (jacobian[0][0] * jacobian[2][2] - jacobian[0][2] * jacobian[2][0]) * dShapeDEta[i] +
+                (jacobian[0][2] * jacobian[1][0] - jacobian[0][0] * jacobian[1][2]) * dShapeDZeta[i]
+            );
+            
+            dShapeDZ[i] = (1.0/detJ) * (
+                (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]) * dShapeDXi[i] +
+                (jacobian[0][1] * jacobian[2][0] - jacobian[0][0] * jacobian[2][1]) * dShapeDEta[i] +
+                (jacobian[0][0] * jacobian[1][1] - jacobian[0][1] * jacobian[1][0]) * dShapeDZeta[i]
+            );
+        }
+        
+        // 计算单元刚度矩阵（基于Maxwell方程）
+        for (int i = 0; i < numElementNodes; ++i) {
+            for (int j = 0; j < numElementNodes; ++j) {
+                // 计算材料参数在高斯点的平均值
+                double avgConductivity = 0.5 * (elemConductivity[i] + elemConductivity[j]);
+                double avgPermeability = 0.5 * (elemPermeability[i] + elemPermeability[j]);
+                
+                // 计算刚度矩阵项（涡流项 + 扩散项）
+                double stiffnessTerm = weight * detJ * (
+                    avgConductivity * (dShapeDX[i] * dShapeDX[j] + dShapeDY[i] * dShapeDY[j] + dShapeDZ[i] * dShapeDZ[j]) +
+                    (1.0 / avgPermeability) * (dShapeDX[i] * dShapeDX[j] + dShapeDY[i] * dShapeDY[j] + dShapeDZ[i] * dShapeDZ[j])
+                );
+                
+                // 组装到3x3子矩阵
+                for (int dofI = 0; dofI < 3; ++dofI) {
+                    for (int dofJ = 0; dofJ < 3; ++dofJ) {
+                        int row = i * 3 + dofI;
+                        int col = j * 3 + dofJ;
+                        
+                        // 对角线项
+                        if (dofI == dofJ) {
+                            elementStiffness[row][col] += stiffnessTerm;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 计算右端向量（源项和边界条件）
+        for (int i = 0; i < numElementNodes; ++i) {
+            double shapeFunction = shapeFunctions[i];
+            
+            // 考虑瞬态项（如果启用）
+            if (transientSimulation_ && timeStep_ > 0.0) {
+                // 添加质量矩阵贡献
+                for (int j = 0; j < numElementNodes; ++j) {
+                    double massTerm = weight * detJ * shapeFunctions[i] * shapeFunctions[j] * elemConductivity[j] / timeStep_;
+                    
+                    for (int dof = 0; dof < 3; ++dof) {
+                        int row = i * 3 + dof;
+                        int col = j * 3 + dof;
+                        elementStiffness[row][col] += massTerm;
+                    }
+                }
+            }
+            
+            // 添加源项（简化实现）
+            for (int dof = 0; dof < 3; ++dof) {
+                int index = i * 3 + dof;
+                elementRHS[index] += weight * detJ * shapeFunction * 0.0; // 零源项
+            }
+        }
     }
     
     return true;
@@ -1038,21 +1348,250 @@ bool MagneticSolver::applyNeumannBoundaryCondition(int bcId, const Element& boun
     return true;
 }
 
-bool MagneticSolver::computeCurl(const std::vector<double>& /*fieldX*/,
-                                 const std::vector<double>& /*fieldY*/, 
-                                 const std::vector<double>& /*fieldZ*/,
-                                 std::vector<double>& /*curlX*/,
-                                 std::vector<double>& /*curlY*/,
-                                 std::vector<double>& /*curlZ*/) {
-    // TODO: 实现旋度计算
-    std::cout << "开始计算旋度..." << std::endl;
+bool MagneticSolver::computeCurl(const std::vector<double>& fieldX,
+                                 const std::vector<double>& fieldY, 
+                                 const std::vector<double>& fieldZ,
+                                 std::vector<double>& curlX,
+                                 std::vector<double>& curlY,
+                                 std::vector<double>& curlZ) {
+    // 基于Fortran版本的旋度计算实现
+    // 使用有限元方法计算向量场的旋度
     
-    // 简化实现：使用有限差分法计算旋度
+    ELMER_INFO("开始计算旋度...");
+    
+    if (!mesh_ || fieldX.empty() || fieldY.empty() || fieldZ.empty()) {
+        ELMER_ERROR("网格或场量数据未初始化");
+        return false;
+    }
+    
     size_t numNodes = mesh_->numberOfNodes();
     
-    // TODO: 实现完整的旋度计算算法
+    // 检查输入场量尺寸
+    if (fieldX.size() != numNodes || fieldY.size() != numNodes || fieldZ.size() != numNodes) {
+        ELMER_ERROR("场量尺寸与节点数不匹配: fieldX={}, fieldY={}, fieldZ={}, nodes={}", 
+                   fieldX.size(), fieldY.size(), fieldZ.size(), numNodes);
+        return false;
+    }
     
-    std::cout << "旋度计算完成" << std::endl;
+    // 初始化输出向量
+    curlX.resize(numNodes, 0.0);
+    curlY.resize(numNodes, 0.0);
+    curlZ.resize(numNodes, 0.0);
+    
+    // 获取网格节点坐标
+    auto& nodes = mesh_->getNodes();
+    
+    // 使用有限元方法计算旋度
+    // 旋度公式：∇ × F = (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
+    
+    // 遍历所有单元计算旋度
+    auto& bulkElements = mesh_->getBulkElements();
+    int numElements = bulkElements.size();
+    
+    for (int elemId = 0; elemId < numElements; ++elemId) {
+        auto& element = bulkElements[elemId];
+        auto elementNodes = element.getNodeIndices();
+        int numElementNodes = elementNodes.size();
+        
+        // 获取单元节点坐标
+        std::vector<double> nodeCoordsX(numElementNodes);
+        std::vector<double> nodeCoordsY(numElementNodes);
+        std::vector<double> nodeCoordsZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            int nodeId = static_cast<int>(elementNodes[i]);
+            auto node = mesh_->getNode(nodeId);
+            nodeCoordsX[i] = node.x;
+            nodeCoordsY[i] = node.y;
+            nodeCoordsZ[i] = node.z;
+        }
+        
+        // 获取单元场量值
+        std::vector<double> elemFieldX(numElementNodes);
+        std::vector<double> elemFieldY(numElementNodes);
+        std::vector<double> elemFieldZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            int nodeId = static_cast<int>(elementNodes[i]);
+            elemFieldX[i] = fieldX[nodeId];
+            elemFieldY[i] = fieldY[nodeId];
+            elemFieldZ[i] = fieldZ[nodeId];
+        }
+        
+        // 计算单元旋度
+        std::vector<double> elemCurlX(numElementNodes, 0.0);
+        std::vector<double> elemCurlY(numElementNodes, 0.0);
+        std::vector<double> elemCurlZ(numElementNodes, 0.0);
+        
+        if (!computeElementCurl(elemId, nodeCoordsX, nodeCoordsY, nodeCoordsZ,
+                               elemFieldX, elemFieldY, elemFieldZ,
+                               elemCurlX, elemCurlY, elemCurlZ)) {
+            ELMER_ERROR("单元 {} 旋度计算失败", elemId);
+            return false;
+        }
+        
+        // 将单元旋度组装到节点旋度
+        for (int i = 0; i < numElementNodes; ++i) {
+            int nodeId = static_cast<int>(elementNodes[i]);
+            
+            // 累加旋度值（后续需要平均）
+            curlX[nodeId] += elemCurlX[i];
+            curlY[nodeId] += elemCurlY[i];
+            curlZ[nodeId] += elemCurlZ[i];
+        }
+    }
+    
+    // 计算节点平均旋度
+    std::vector<int> nodeElementCount(numNodes, 0);
+    
+    // 统计每个节点所属的单元数
+    for (int elemId = 0; elemId < numElements; ++elemId) {
+        auto& element = bulkElements[elemId];
+        auto elementNodes = element.getNodeIndices();
+        
+        for (int i = 0; i < elementNodes.size(); ++i) {
+            int nodeId = static_cast<int>(elementNodes[i]);
+            if (nodeId < numNodes) {
+                nodeElementCount[nodeId]++;
+            }
+        }
+    }
+    
+    // 平均旋度值
+    for (size_t i = 0; i < numNodes; ++i) {
+        if (nodeElementCount[i] > 0) {
+            curlX[i] /= nodeElementCount[i];
+            curlY[i] /= nodeElementCount[i];
+            curlZ[i] /= nodeElementCount[i];
+        }
+    }
+    
+    ELMER_INFO("旋度计算完成，节点数: {}", numNodes);
+    return true;
+}
+
+bool MagneticSolver::computeElementCurl(int elementId,
+                                       const std::vector<double>& nodeCoordsX,
+                                       const std::vector<double>& nodeCoordsY,
+                                       const std::vector<double>& nodeCoordsZ,
+                                       const std::vector<double>& fieldX,
+                                       const std::vector<double>& fieldY,
+                                       const std::vector<double>& fieldZ,
+                                       std::vector<double>& curlX,
+                                       std::vector<double>& curlY,
+                                       std::vector<double>& curlZ) {
+    // 计算单元旋度
+    // 使用高斯积分计算旋度在单元内的分布
+    
+    int numElementNodes = nodeCoordsX.size();
+    
+    // 初始化输出
+    curlX.assign(numElementNodes, 0.0);
+    curlY.assign(numElementNodes, 0.0);
+    curlZ.assign(numElementNodes, 0.0);
+    
+    // 高斯积分点
+    int numGaussPoints = 8;
+    
+    for (int gaussPoint = 0; gaussPoint < numGaussPoints; ++gaussPoint) {
+        double xi, eta, zeta, weight;
+        getGaussPoint3D(gaussPoint, xi, eta, zeta, weight);
+        
+        // 计算形状函数和导数
+        std::vector<double> shapeFunctions;
+        std::vector<double> dShapeDXi, dShapeDEta, dShapeDZeta;
+        computeShapeFunctions3D(xi, eta, zeta, shapeFunctions, dShapeDXi, dShapeDEta, dShapeDZeta);
+        
+        // 计算雅可比矩阵
+        double jacobian[3][3] = {{0}};
+        for (int i = 0; i < numElementNodes; ++i) {
+            jacobian[0][0] += dShapeDXi[i] * nodeCoordsX[i];
+            jacobian[0][1] += dShapeDXi[i] * nodeCoordsY[i];
+            jacobian[0][2] += dShapeDXi[i] * nodeCoordsZ[i];
+            jacobian[1][0] += dShapeDEta[i] * nodeCoordsX[i];
+            jacobian[1][1] += dShapeDEta[i] * nodeCoordsY[i];
+            jacobian[1][2] += dShapeDEta[i] * nodeCoordsZ[i];
+            jacobian[2][0] += dShapeDZeta[i] * nodeCoordsX[i];
+            jacobian[2][1] += dShapeDZeta[i] * nodeCoordsY[i];
+            jacobian[2][2] += dShapeDZeta[i] * nodeCoordsZ[i];
+        }
+        
+        // 计算雅可比行列式
+        double detJ = jacobian[0][0] * (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1])
+                    - jacobian[0][1] * (jacobian[1][0] * jacobian[2][2] - jacobian[1][2] * jacobian[2][0])
+                    + jacobian[0][2] * (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]);
+        
+        if (detJ <= 0.0) {
+            ELMER_ERROR("单元 {} 的雅可比行列式为负或零", elementId);
+            return false;
+        }
+        
+        // 计算形状函数在全局坐标系中的导数
+        std::vector<double> dShapeDX(numElementNodes);
+        std::vector<double> dShapeDY(numElementNodes);
+        std::vector<double> dShapeDZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            // 使用雅可比矩阵的逆计算全局导数
+            dShapeDX[i] = (1.0/detJ) * (
+                (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1]) * dShapeDXi[i] +
+                (jacobian[0][2] * jacobian[2][1] - jacobian[0][1] * jacobian[2][2]) * dShapeDEta[i] +
+                (jacobian[0][1] * jacobian[1][2] - jacobian[0][2] * jacobian[1][1]) * dShapeDZeta[i]
+            );
+            
+            dShapeDY[i] = (1.0/detJ) * (
+                (jacobian[1][2] * jacobian[2][0] - jacobian[1][0] * jacobian[2][2]) * dShapeDXi[i] +
+                (jacobian[0][0] * jacobian[2][2] - jacobian[0][2] * jacobian[2][0]) * dShapeDEta[i] +
+                (jacobian[0][2] * jacobian[1][0] - jacobian[0][0] * jacobian[1][2]) * dShapeDZeta[i]
+            );
+            
+            dShapeDZ[i] = (1.0/detJ) * (
+                (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]) * dShapeDXi[i] +
+                (jacobian[0][1] * jacobian[2][0] - jacobian[0][0] * jacobian[2][1]) * dShapeDEta[i] +
+                (jacobian[0][0] * jacobian[1][1] - jacobian[0][1] * jacobian[1][0]) * dShapeDZeta[i]
+            );
+        }
+        
+        // 计算高斯点的场量值
+        double Fx = 0.0, Fy = 0.0, Fz = 0.0;
+        for (int i = 0; i < numElementNodes; ++i) {
+            Fx += shapeFunctions[i] * fieldX[i];
+            Fy += shapeFunctions[i] * fieldY[i];
+            Fz += shapeFunctions[i] * fieldZ[i];
+        }
+        
+        // 计算场量的导数（用于旋度计算）
+        double dFx_dx = 0.0, dFx_dy = 0.0, dFx_dz = 0.0;
+        double dFy_dx = 0.0, dFy_dy = 0.0, dFy_dz = 0.0;
+        double dFz_dx = 0.0, dFz_dy = 0.0, dFz_dz = 0.0;
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            dFx_dx += dShapeDX[i] * fieldX[i];
+            dFx_dy += dShapeDY[i] * fieldX[i];
+            dFx_dz += dShapeDZ[i] * fieldX[i];
+            
+            dFy_dx += dShapeDX[i] * fieldY[i];
+            dFy_dy += dShapeDY[i] * fieldY[i];
+            dFy_dz += dShapeDZ[i] * fieldY[i];
+            
+            dFz_dx += dShapeDX[i] * fieldZ[i];
+            dFz_dy += dShapeDY[i] * fieldZ[i];
+            dFz_dz += dShapeDZ[i] * fieldZ[i];
+        }
+        
+        // 计算旋度：∇ × F = (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
+        double curlX_gauss = dFz_dy - dFy_dz;
+        double curlY_gauss = dFx_dz - dFz_dx;
+        double curlZ_gauss = dFy_dx - dFx_dy;
+        
+        // 将高斯点的旋度分配到节点
+        for (int i = 0; i < numElementNodes; ++i) {
+            curlX[i] += weight * detJ * shapeFunctions[i] * curlX_gauss;
+            curlY[i] += weight * detJ * shapeFunctions[i] * curlY_gauss;
+            curlZ[i] += weight * detJ * shapeFunctions[i] * curlZ_gauss;
+        }
+    }
+    
     return true;
 }
 
@@ -1098,13 +1637,198 @@ double MagneticSolver::computeVectorNorm(const Vector& vec) {
 }
 
 bool MagneticSolver::updateJacobianMatrix() {
-    // 更新雅可比矩阵（简化实现：使用当前刚度矩阵）
-    // TODO: 实现基于当前解的雅可比矩阵更新
-    
-    // 对于线性问题，雅可比矩阵就是刚度矩阵
+    // 基于Fortran版本的雅可比矩阵更新实现
     // 对于非线性问题，需要根据当前解重新计算雅可比矩阵
     
-    std::cout << "雅可比矩阵更新完成" << std::endl;
+    if (!mesh_ || !stiffnessMatrix_ || !solution_) {
+        ELMER_ERROR("必要的组件未初始化");
+        return false;
+    }
+    
+    // 检查是否为非线性问题
+    bool isNonlinearProblem = checkNonlinearity();
+    
+    if (!isNonlinearProblem) {
+        // 线性问题：雅可比矩阵就是刚度矩阵
+        ELMER_DEBUG("线性问题，使用当前刚度矩阵作为雅可比矩阵");
+        return true;
+    }
+    
+    // 非线性问题：需要重新计算雅可比矩阵
+    ELMER_DEBUG("非线性问题，重新计算雅可比矩阵");
+    
+    // 保存当前刚度矩阵（作为雅可比矩阵的基础）
+    auto originalStiffness = stiffnessMatrix_->Clone();
+    
+    // 清零当前刚度矩阵（准备重新组装）
+    stiffnessMatrix_->Zero();
+    
+    // 基于当前解重新组装系统矩阵
+    int numElements = mesh_->getBulkElements().size();
+    
+    for (int elemId = 0; elemId < numElements; ++elemId) {
+        // 获取单元信息
+        auto& bulkElements = mesh_->getBulkElements();
+        if (elemId >= bulkElements.size()) {
+            ELMER_ERROR("单元索引超出范围");
+            return false;
+        }
+        
+        auto& element = bulkElements[elemId];
+        auto elementNodes = element.getNodeIndices();
+        
+        // 计算单元雅可比矩阵（考虑非线性材料）
+        std::vector<std::vector<double>> elementJacobian;
+        std::vector<double> elementRHS;
+        
+        if (!computeNonlinearElementJacobian(elemId, elementJacobian, elementRHS)) {
+            ELMER_ERROR("单元 {} 非线性雅可比矩阵计算失败", elemId);
+            return false;
+        }
+        
+        // 组装到全局雅可比矩阵
+        if (!assembleToGlobalSystem(elemId, elementJacobian, elementRHS)) {
+            ELMER_ERROR("单元 {} 雅可比矩阵组装失败", elemId);
+            return false;
+        }
+    }
+    
+    // 重新组装边界条件
+    if (!assembleBoundaryConditions()) {
+        ELMER_ERROR("边界条件重新组装失败");
+        return false;
+    }
+    
+    ELMER_DEBUG("雅可比矩阵更新完成");
+    return true;
+}
+
+bool MagneticSolver::checkNonlinearity() {
+    // 检查问题是否为非线性
+    // 基于材料参数和场量的非线性特性
+    
+    if (!materialDB_ || !mesh_) {
+        ELMER_DEBUG("材料数据库或网格未设置，假设为线性问题");
+        return false;
+    }
+    
+    // 检查材料非线性（如非线性磁导率）
+    int numNodes = mesh_->numberOfNodes();
+    
+    for (int i = 0; i < numNodes; ++i) {
+        // 检查磁导率是否与磁场强度相关（非线性磁性材料）
+        double B = 0.0;
+        if (magneticField_.size() > i) {
+            B = magneticField_[i];
+        }
+        
+        // 简化实现：检查磁导率是否随磁场变化
+        // 实际应该根据材料模型进行判断
+        if (B > 1.0) { // 磁场强度较大时可能进入非线性区域
+            ELMER_DEBUG("检测到非线性材料特性，磁场强度={}", B);
+            return true;
+        }
+    }
+    
+    // 检查速度场的非线性效应
+    for (int i = 0; i < numNodes; ++i) {
+        double velocity = 0.0;
+        if (velocityX_.size() > i) {
+            velocity = std::sqrt(velocityX_[i] * velocityX_[i] + 
+                               velocityY_[i] * velocityY_[i] + 
+                               velocityZ_[i] * velocityZ_[i]);
+        }
+        
+        if (velocity > 0.1) { // 速度较大时可能产生非线性对流项
+            ELMER_DEBUG("检测到非线性对流效应，速度={}", velocity);
+            return true;
+        }
+    }
+    
+    ELMER_DEBUG("问题为线性");
+    return false;
+}
+
+bool MagneticSolver::computeNonlinearElementJacobian(int elementId, 
+                                                    std::vector<std::vector<double>>& elementJacobian,
+                                                    std::vector<double>& elementRHS) {
+    // 计算非线性单元的雅可比矩阵
+    // 基于当前解考虑材料非线性
+    
+    if (!mesh_ || elementId < 0 || elementId >= mesh_->getBulkElements().size()) {
+        ELMER_ERROR("无效的单元索引: {}", elementId);
+        return false;
+    }
+    
+    auto& bulkElements = mesh_->getBulkElements();
+    auto& element = bulkElements[elementId];
+    auto elementNodes = element.getNodeIndices();
+    int numElementNodes = elementNodes.size();
+    
+    // 初始化雅可比矩阵和右端向量
+    elementJacobian.resize(numElementNodes * 3, std::vector<double>(numElementNodes * 3, 0.0));
+    elementRHS.resize(numElementNodes * 3, 0.0);
+    
+    // 获取单元当前解
+    std::vector<double> elementSolution(numElementNodes * 3, 0.0);
+    for (int i = 0; i < numElementNodes; ++i) {
+        int nodeId = static_cast<int>(elementNodes[i]);
+        for (int dof = 0; dof < 3; ++dof) {
+            int globalDof = nodeId * 3 + dof;
+            if (solution_ && globalDof < solution_->Size()) {
+                elementSolution[i * 3 + dof] = (*solution_)[globalDof];
+            }
+        }
+    }
+    
+    // 计算非线性雅可比矩阵（考虑材料参数随场量的变化）
+    // 这里实现简化的非线性模型
+    
+    for (int gaussPoint = 0; gaussPoint < 8; ++gaussPoint) {
+        double xi, eta, zeta, weight;
+        getGaussPoint3D(gaussPoint, xi, eta, zeta, weight);
+        
+        // 计算形状函数和导数
+        std::vector<double> shapeFunctions;
+        std::vector<double> dShapeDXi, dShapeDEta, dShapeDZeta;
+        computeShapeFunctions3D(xi, eta, zeta, shapeFunctions, dShapeDXi, dShapeDEta, dShapeDZeta);
+        
+        // 计算高斯点的磁场强度
+        double Bx = 0.0, By = 0.0, Bz = 0.0;
+        for (int i = 0; i < numElementNodes; ++i) {
+            Bx += shapeFunctions[i] * elementSolution[i * 3];
+            By += shapeFunctions[i] * elementSolution[i * 3 + 1];
+            Bz += shapeFunctions[i] * elementSolution[i * 3 + 2];
+        }
+        
+        double B = std::sqrt(Bx * Bx + By * By + Bz * Bz);
+        
+        // 计算非线性磁导率（简化模型）
+        double nonlinearPermeability = 1.0 / (1.0 + 0.1 * B * B); // 饱和磁性材料模型
+        
+        // 计算雅可比矩阵项（考虑非线性）
+        for (int i = 0; i < numElementNodes; ++i) {
+            for (int j = 0; j < numElementNodes; ++j) {
+                // 考虑非线性磁导率的贡献
+                double jacobianTerm = weight * nonlinearPermeability * 
+                                    (dShapeDXi[i] * dShapeDXi[j] + 
+                                     dShapeDEta[i] * dShapeDEta[j] + 
+                                     dShapeDZeta[i] * dShapeDZeta[j]);
+                
+                for (int dofI = 0; dofI < 3; ++dofI) {
+                    for (int dofJ = 0; dofJ < 3; ++dofJ) {
+                        int row = i * 3 + dofI;
+                        int col = j * 3 + dofJ;
+                        
+                        if (dofI == dofJ) {
+                            elementJacobian[row][col] += jacobianTerm;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     return true;
 }
 
@@ -1175,6 +1899,113 @@ bool MagneticSolver::updateMagneticFieldFromSolution() {
     }
     
     return true;
+}
+
+// ===== 高斯积分和形状函数计算 =====
+
+void MagneticSolver::getGaussPoint3D(int gaussPoint, double& xi, double& eta, double& zeta, double& weight) {
+    // 3D高斯积分点坐标和权重（8点积分）
+    // 基于标准高斯积分表
+    
+    static const double gaussPoints[8][4] = {
+        {-0.577350269189626, -0.577350269189626, -0.577350269189626, 1.0},
+        { 0.577350269189626, -0.577350269189626, -0.577350269189626, 1.0},
+        {-0.577350269189626,  0.577350269189626, -0.577350269189626, 1.0},
+        { 0.577350269189626,  0.577350269189626, -0.577350269189626, 1.0},
+        {-0.577350269189626, -0.577350269189626,  0.577350269189626, 1.0},
+        { 0.577350269189626, -0.577350269189626,  0.577350269189626, 1.0},
+        {-0.577350269189626,  0.577350269189626,  0.577350269189626, 1.0},
+        { 0.577350269189626,  0.577350269189626,  0.577350269189626, 1.0}
+    };
+    
+    if (gaussPoint >= 0 && gaussPoint < 8) {
+        xi = gaussPoints[gaussPoint][0];
+        eta = gaussPoints[gaussPoint][1];
+        zeta = gaussPoints[gaussPoint][2];
+        weight = gaussPoints[gaussPoint][3];
+    } else {
+        // 默认值
+        xi = 0.0;
+        eta = 0.0;
+        zeta = 0.0;
+        weight = 1.0;
+    }
+}
+
+void MagneticSolver::computeShapeFunctions3D(double xi, double eta, double zeta,
+                                            std::vector<double>& shapeFunctions,
+                                            std::vector<double>& dShapeDXi,
+                                            std::vector<double>& dShapeDEta,
+                                            std::vector<double>& dShapeDZeta) {
+    // 计算3D线性六面体单元的形函数和导数
+    // 假设单元有8个节点
+    
+    int numNodes = 8; // 六面体单元有8个节点
+    shapeFunctions.resize(numNodes);
+    dShapeDXi.resize(numNodes);
+    dShapeDEta.resize(numNodes);
+    dShapeDZeta.resize(numNodes);
+    
+    // 标准六面体单元形函数
+    shapeFunctions[0] = 0.125 * (1.0 - xi) * (1.0 - eta) * (1.0 - zeta);
+    shapeFunctions[1] = 0.125 * (1.0 + xi) * (1.0 - eta) * (1.0 - zeta);
+    shapeFunctions[2] = 0.125 * (1.0 + xi) * (1.0 + eta) * (1.0 - zeta);
+    shapeFunctions[3] = 0.125 * (1.0 - xi) * (1.0 + eta) * (1.0 - zeta);
+    shapeFunctions[4] = 0.125 * (1.0 - xi) * (1.0 - eta) * (1.0 + zeta);
+    shapeFunctions[5] = 0.125 * (1.0 + xi) * (1.0 - eta) * (1.0 + zeta);
+    shapeFunctions[6] = 0.125 * (1.0 + xi) * (1.0 + eta) * (1.0 + zeta);
+    shapeFunctions[7] = 0.125 * (1.0 - xi) * (1.0 + eta) * (1.0 + zeta);
+    
+    // 形函数对ξ的导数
+    dShapeDXi[0] = -0.125 * (1.0 - eta) * (1.0 - zeta);
+    dShapeDXi[1] =  0.125 * (1.0 - eta) * (1.0 - zeta);
+    dShapeDXi[2] =  0.125 * (1.0 + eta) * (1.0 - zeta);
+    dShapeDXi[3] = -0.125 * (1.0 + eta) * (1.0 - zeta);
+    dShapeDXi[4] = -0.125 * (1.0 - eta) * (1.0 + zeta);
+    dShapeDXi[5] =  0.125 * (1.0 - eta) * (1.0 + zeta);
+    dShapeDXi[6] =  0.125 * (1.0 + eta) * (1.0 + zeta);
+    dShapeDXi[7] = -0.125 * (1.0 + eta) * (1.0 + zeta);
+    
+    // 形函数对η的导数
+    dShapeDEta[0] = -0.125 * (1.0 - xi) * (1.0 - zeta);
+    dShapeDEta[1] = -0.125 * (1.0 + xi) * (1.0 - zeta);
+    dShapeDEta[2] =  0.125 * (1.0 + xi) * (1.0 - zeta);
+    dShapeDEta[3] =  0.125 * (1.0 - xi) * (1.0 - zeta);
+    dShapeDEta[4] = -0.125 * (1.0 - xi) * (1.0 + zeta);
+    dShapeDEta[5] = -0.125 * (1.0 + xi) * (1.0 + zeta);
+    dShapeDEta[6] =  0.125 * (1.0 + xi) * (1.0 + zeta);
+    dShapeDEta[7] =  0.125 * (1.0 - xi) * (1.0 + zeta);
+    
+    // 形函数对ζ的导数
+    dShapeDZeta[0] = -0.125 * (1.0 - xi) * (1.0 - eta);
+    dShapeDZeta[1] = -0.125 * (1.0 + xi) * (1.0 - eta);
+    dShapeDZeta[2] = -0.125 * (1.0 + xi) * (1.0 + eta);
+    dShapeDZeta[3] = -0.125 * (1.0 - xi) * (1.0 + eta);
+    dShapeDZeta[4] =  0.125 * (1.0 - xi) * (1.0 - eta);
+    dShapeDZeta[5] =  0.125 * (1.0 + xi) * (1.0 - eta);
+    dShapeDZeta[6] =  0.125 * (1.0 + xi) * (1.0 + eta);
+    dShapeDZeta[7] =  0.125 * (1.0 - xi) * (1.0 + eta);
+}
+
+void MagneticSolver::deallocateMemory() {
+    // 释放所有分配的内存
+    magneticField_.clear();
+    electricCurrent_.clear();
+    lorentzForce_.clear();
+    electricField_.clear();
+    
+    velocityX_.clear();
+    velocityY_.clear();
+    velocityZ_.clear();
+    
+    conductivity_.clear();
+    permeability_.clear();
+    
+    appliedMagneticFieldX_.clear();
+    appliedMagneticFieldY_.clear();
+    appliedMagneticFieldZ_.clear();
+    
+    allocationsDone_ = false;
 }
 
 } // namespace elmer

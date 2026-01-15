@@ -132,6 +132,87 @@ private:
     
     // 洛伦兹力计算（基于Fortran子程序）
     bool computeLorentzForceNodal();
+    
+    // 高斯积分和形状函数计算
+    void getGaussPoint3D(int gaussPoint, double& xi, double& eta, double& zeta, double& weight);
+    void computeShapeFunctions3D(double xi, double eta, double zeta,
+                                std::vector<double>& shapeFunctions,
+                                std::vector<double>& dShapeDXi,
+                                std::vector<double>& dShapeDEta,
+                                std::vector<double>& dShapeDZeta);
+    
+    // 内存管理
+    void deallocateMemory();
+    
+    // 边界条件应用函数
+    bool applyMagneticForceBoundaryCondition(int bcId, const Element& boundaryElement);
+    bool applyDirichletBoundaryCondition(int bcId, const Element& boundaryElement);
+    bool applyNeumannBoundaryCondition(int bcId, const Element& boundaryElement);
+    
+    // 坐标系特定组装函数
+    bool assembleCartesian();
+    bool assembleAxisymmetric();
+    bool assembleGeneral();
+    
+    // 单元矩阵计算函数
+    bool computeAxisymmetricElementMatrices(int elementId, 
+                                           std::vector<std::vector<double>>& elementStiffness,
+                                           std::vector<double>& elementRHS);
+    bool computeGeneralElementMatrices(int elementId, 
+                                      std::vector<std::vector<double>>& elementStiffness,
+                                      std::vector<double>& elementRHS);
+    bool computeElementMatrices(int elementId, 
+                               std::vector<std::vector<double>>& elementStiffness,
+                               std::vector<double>& elementRHS);
+    bool assembleToGlobalSystem(int elementId,
+                               const std::vector<std::vector<double>>& elementStiffness,
+                               const std::vector<double>& elementRHS);
+    
+    // 非线性迭代辅助函数
+    std::unique_ptr<Vector> computeResidualVector();
+    double computeVectorNorm(const Vector& vec);
+    bool updateJacobianMatrix();
+    std::unique_ptr<Vector> solveLinearSystem(const Vector& residual);
+    bool updateSolutionVector(const Vector& deltaX);
+    bool updateMagneticFieldFromSolution();
+    
+    // 坐标系检测
+    std::string detectCoordinateSystem();
+    
+    // 旋度计算
+    bool computeCurl(const std::vector<double>& fieldX,
+                    const std::vector<double>& fieldY, 
+                    const std::vector<double>& fieldZ,
+                    std::vector<double>& curlX,
+                    std::vector<double>& curlY,
+                    std::vector<double>& curlZ);
+    
+    // 节点场计算
+    bool computeNodalField();
+    
+    // 边界条件检测和周期性边界条件
+    std::string detectBoundaryConditionType(int bcId, const Element& boundaryElement);
+    bool applyPeriodicBoundaryCondition(int bcId, const Element& boundaryElement);
+    
+    // 非线性问题检测和雅可比矩阵计算
+    bool checkNonlinearity();
+    bool computeNonlinearElementJacobian(int elementId, 
+                                       std::vector<std::vector<double>>& elementJacobian,
+                                       std::vector<double>& elementRHS);
+    
+    // 旋度计算辅助函数
+    bool computeElementCurl(int elementId,
+                           const std::vector<double>& nodeCoordsX,
+                           const std::vector<double>& nodeCoordsY,
+                           const std::vector<double>& nodeCoordsZ,
+                           const std::vector<double>& fieldX,
+                           const std::vector<double>& fieldY,
+                           const std::vector<double>& fieldZ,
+                           std::vector<double>& curlX,
+                           std::vector<double>& curlY,
+                           std::vector<double>& curlZ);
 };
+
+} // namespace elmer
 
 } // namespace elmer

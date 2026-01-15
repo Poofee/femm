@@ -5,6 +5,11 @@
 
 #ifdef MPI_CXX_FOUND
 #include <mpi.h>
+#else
+// MPI模拟类型定义（当MPI不可用时）
+typedef int MPI_Comm;
+#define MPI_COMM_WORLD 0
+#define MPI_COMM_NULL -1
 #endif
 
 #include <memory>

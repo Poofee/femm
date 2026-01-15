@@ -99,6 +99,8 @@ add_library(ElmerCppMatrixAssembly
     src/ElmerSolver.cpp
     src/InputFileParser.h
     src/InputFileParser.cpp
+    src/HeatSolver.h
+    src/HeatSolver.cpp
     
 )
 

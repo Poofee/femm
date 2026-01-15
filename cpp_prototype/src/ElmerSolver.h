@@ -56,6 +56,8 @@ struct SimulationParameters {
     bool verbose = true;                                ///< 详细输出
     int outputInterval = 1;                             ///< 输出间隔
     std::string outputFormat = "vtk";                  ///< 输出格式
+    std::string outputDir = "./results";               ///< 输出目录
+    bool checkOnly = false;                             ///< 只检查不执行
     
     // 并行参数
     bool useMPI = false;                                ///< 是否使用MPI
@@ -112,6 +114,16 @@ private:
     bool initialized_ = false;                          ///< 是否已初始化
     bool meshLoaded_ = false;                           ///< 网格是否已加载
     bool inputFileParsed_ = false;                      ///< 输入文件是否已解析
+    
+    // 时间步进控制
+    int timeStepIndex_ = 0;                             ///< 当前时间步索引
+    double currentTime_ = 0.0;                          ///< 当前时间
+    
+    // 性能监控
+    double startCPUTime_ = 0.0;                         ///< 开始CPU时间
+    double endCPUTime_ = 0.0;                           ///< 结束CPU时间
+    double startRealTime_ = 0.0;                        ///< 开始实际时间
+    double endRealTime_ = 0.0;                          ///< 结束实际时间
     
 public:
     /**
@@ -240,6 +252,41 @@ private:
      * @brief 获取实际时间
      */
     double getRealTime() const;
+    
+    /**
+     * @brief 更新时间变边界条件
+     */
+    bool updateTimeDependentBoundaryConditions(double currentTime);
+    
+    /**
+     * @brief 保存VTK格式结果
+     */
+    bool saveResultsVTK(const std::string& filename, int timeStepIndex, double currentTime);
+    
+    /**
+     * @brief 保存Gmsh格式结果
+     */
+    bool saveResultsGmsh(const std::string& filename, int timeStepIndex, double currentTime);
+    
+    /**
+     * @brief 保存CSV格式结果
+     */
+    bool saveResultsCSV(const std::string& filename, int timeStepIndex, double currentTime);
+    
+    /**
+     * @brief 开始计时器
+     */
+    void startTimer();
+    
+    /**
+     * @brief 停止计时器
+     */
+    void stopTimer();
+    
+    /**
+     * @brief 打印性能统计
+     */
+    void printPerformanceStats() const;
 };
 
 /**

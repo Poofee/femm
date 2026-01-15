@@ -27,13 +27,31 @@ namespace elmer {
 // ===== 构造函数和析构函数 =====
 
 MagneticSolver::MagneticSolver() {
-    // TODO: 初始化磁场求解器参数
-    std::cout << "MagneticSolver构造函数完成" << std::endl;
+    // 基于Fortran版本的MagneticSolve.F90初始化参数
+    ELMER_DEBUG("初始化MagneticSolver...");
+    
+    // 设置默认参数（基于Fortran代码中的默认值）
+    maxNonlinearIterations_ = 10;        // NonlinearIter默认值
+    nonlinearTolerance_ = 1e-6;           // Nonlinear System Convergence Tolerance
+    stabilize_ = true;                    // Stabilize默认值
+    transientSimulation_ = false;         // TransientSimulation默认值
+    timeStep_ = 0.0;                      // dt默认值
+    
+    // 初始化状态标志
+    allocationsDone_ = false;
+    userDefinedVelo_ = false;
+    calculateMagneticForce_ = false;
+    
+    ELMER_DEBUG("MagneticSolver构造函数完成");
 }
 
 MagneticSolver::~MagneticSolver() {
-    // TODO: 实现资源清理
-    std::cout << "MagneticSolver析构函数完成" << std::endl;
+    ELMER_DEBUG("开始清理MagneticSolver资源...");
+    
+    // 释放内存（基于Fortran的DEALLOCATE）
+    deallocateMemory();
+    
+    ELMER_DEBUG("MagneticSolver析构函数完成");
 }
 
 // ===== 基本接口函数 =====

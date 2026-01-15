@@ -176,6 +176,27 @@ private:
      */
     bool updateMagneticFieldFromSolution();
     
+    // 坐标系相关函数
+    /**
+     * @brief 计算柱对称坐标系下的单元矩阵
+     */
+    bool computeAxisymmetricElementMatrices(int elementId, 
+                                           std::vector<std::vector<double>>& elementStiffness,
+                                           std::vector<double>& elementRHS);
+    
+    /**
+     * @brief 计算一般坐标系下的单元矩阵
+     */
+    bool computeGeneralElementMatrices(int elementId, 
+                                      std::vector<std::vector<double>>& elementStiffness,
+                                      std::vector<double>& elementRHS);
+    
+    // 坐标系检测函数
+    /**
+     * @brief 检测坐标系类型
+     */
+    std::string detectCoordinateSystem();
+    
     /**
      * @brief 分配内存
      */

@@ -18,6 +18,7 @@
 #include "BoundaryConditions.h"
 #include "MPICommunicator.h"
 #include "MPIUtils.h"
+#include "InputFileParser.h"
 
 // 前向声明
 namespace elmer {
@@ -101,6 +102,7 @@ private:
     std::shared_ptr<MPICommunicator> comm_;             ///< MPI通信器
     
     std::unique_ptr<SolverManager> solverManager_;      ///< 求解器管理器
+    std::unique_ptr<InputFileParser> inputParser_;      ///< 输入文件解析器
     
     // 时间控制
     std::chrono::steady_clock::time_point startTime_;   ///< 开始时间
@@ -109,6 +111,7 @@ private:
     // 状态标志
     bool initialized_ = false;                          ///< 是否已初始化
     bool meshLoaded_ = false;                           ///< 网格是否已加载
+    bool inputFileParsed_ = false;                      ///< 输入文件是否已解析
     
 public:
     /**

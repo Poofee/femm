@@ -97,6 +97,8 @@ add_library(ElmerCppMatrixAssembly
     src/MagnetodynamicsSolver.h
     src/ElmerSolver.h
     src/ElmerSolver.cpp
+    src/InputFileParser.h
+    src/InputFileParser.cpp
     
 )
 
@@ -147,6 +149,10 @@ add_executable(test_lists
 
 add_executable(test_interpolation
     test/test_interpolation.cpp
+)
+
+add_executable(test_input_parser
+    test/test_input_parser.cpp
 )
 
 # 暂时注释掉有编译错误的测试文件
@@ -200,6 +206,7 @@ target_include_directories(test_shapefunctions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_crs_matrix PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_lists PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(test_interpolation PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_input_parser PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # target_include_directories(test_boundary_conditions_priority PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # target_include_directories(test_magnetodynamics2d_solver PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # target_include_directories(test_harmonic_analysis PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -224,6 +231,7 @@ target_link_libraries(test_element_utils ElmerCppMatrixAssembly)
 target_link_libraries(test_crs_matrix ElmerCppMatrixAssembly)
 target_link_libraries(test_lists ElmerCppMatrixAssembly)
 target_link_libraries(test_interpolation ElmerCppMatrixAssembly)
+target_link_libraries(test_input_parser ElmerCppMatrixAssembly)
 # target_link_libraries(test_boundary_conditions_priority ElmerCppMatrixAssembly)
 # target_link_libraries(test_magnetodynamics2d_solver ElmerCppMatrixAssembly)
 # target_link_libraries(test_harmonic_analysis ElmerCppMatrixAssembly)

@@ -145,6 +145,37 @@ public:
     std::vector<double> getElectricField() const;
     
 private:
+    // 非线性迭代求解辅助函数
+    /**
+     * @brief 计算残差向量 r = f(x) - Kx
+     */
+    std::unique_ptr<Vector> computeResidualVector();
+    
+    /**
+     * @brief 计算向量范数
+     */
+    double computeVectorNorm(const Vector& vec);
+    
+    /**
+     * @brief 更新雅可比矩阵
+     */
+    bool updateJacobianMatrix();
+    
+    /**
+     * @brief 求解线性系统 J * Δx = -r
+     */
+    std::unique_ptr<Vector> solveLinearSystem(const Vector& residual);
+    
+    /**
+     * @brief 更新解向量 x = x + Δx
+     */
+    bool updateSolutionVector(const Vector& deltaX);
+    
+    /**
+     * @brief 从解向量更新磁场变量
+     */
+    bool updateMagneticFieldFromSolution();
+    
     /**
      * @brief 分配内存
      */

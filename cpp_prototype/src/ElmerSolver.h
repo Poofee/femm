@@ -147,6 +147,16 @@ public:
     SimulationParameters getParameters() const;
     
     /**
+     * @brief 验证仿真参数
+     */
+    bool validateParameters(const SimulationParameters& params);
+    
+    /**
+     * @brief 注册电磁相关求解器
+     */
+    bool registerElectromagneticSolvers();
+    
+    /**
      * @brief 初始化求解器
      */
     bool initialize();

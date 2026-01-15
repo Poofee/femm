@@ -84,8 +84,8 @@ add_library(ElmerCppMatrixAssembly
     src/Interpolation.cpp
     src/ElementDescription.h
     src/ElementDescription.cpp
-    src/MagneticSolve.h
-    src/MagneticSolve.cpp
+    src/MagneticSolver.h
+    src/MagneticSolver.cpp
     src/ElectromagneticMaterial.h
     src/MaterialDatabase.h
     src/SolverBase.h

@@ -682,7 +682,7 @@ bool CheckBoundaryContinuity(const BoundaryContinuity& bc1, const BoundaryContin
  * 处理边界条件，包括设置边界值和边界类型。
  */
 void ProcessBoundaryConditions(const ElementType& element, const std::vector<double>& boundaryValues, 
-                              std::vector<BoundaryCondition>& boundaryConditions) {
+                              std::vector<SimpleBoundaryCondition>& boundaryConditions) {
     int nBoundaries = element.numberOfBoundaries;
     
     // 确保输出数组大小正确

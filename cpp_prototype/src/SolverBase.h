@@ -66,7 +66,7 @@ protected:
     
     std::shared_ptr<Mesh> mesh_;          ///< 网格数据
     std::shared_ptr<MaterialDatabase> materialDB_; ///< 材料数据库
-    std::shared_ptr<BoundaryConditions> bc_; ///< 边界条件
+    std::shared_ptr<BoundaryConditionManager> bc_; ///< 边界条件管理器
     std::shared_ptr<MPICommunicator> comm_; ///< MPI通信器
     
     // 求解器变量
@@ -118,7 +118,7 @@ public:
     /**
      * @brief 设置边界条件
      */
-    virtual void setBoundaryConditions(std::shared_ptr<BoundaryConditions> bc) {
+    virtual void setBoundaryConditions(std::shared_ptr<BoundaryConditionManager> bc) {
         bc_ = bc;
     }
     
@@ -234,7 +234,11 @@ public:
      */
     virtual std::vector<double> getSolution() const override {
         if (solution_) {
-            return solution_->getData();
+            std::vector<double> result(solution_->Size());
+            for (int i = 0; i < solution_->Size(); ++i) {
+                result[i] = (*solution_)[i];
+            }
+            return result;
         }
         return {};
     }

@@ -347,68 +347,6 @@ public:
     }
 };
 
-/**
- * @brief Material database for electromagnetic simulations
- */
-class MaterialDatabase {
-private:
-    std::map<std::string, ElectromagneticMaterial> materials;
-    
-public:
-    // Add material to database
-    void addMaterial(const std::string& name, const ElectromagneticMaterial& material) {
-        materials[name] = material;
-    }
-    
-    // Get material by name
-    ElectromagneticMaterial& getMaterial(const std::string& name) {
-        auto it = materials.find(name);
-        if (it == materials.end()) {
-            throw std::runtime_error("Material not found: " + name);
-        }
-        return it->second;
-    }
-    
-    // Check if material exists
-    bool hasMaterial(const std::string& name) const {
-        return materials.find(name) != materials.end();
-    }
-    
-    // Get all material names
-    std::vector<std::string> getMaterialNames() const {
-        std::vector<std::string> names;
-        for (const auto& pair : materials) {
-            names.push_back(pair.first);
-        }
-        return names;
-    }
-    
-    // Create predefined materials
-    void createPredefinedMaterials() {
-        // Vacuum
-        ElectromagneticMaterial vacuum(1.0, 1.0, 0.0, "Vacuum");
-        addMaterial("Vacuum", vacuum);
-        
-        // Air
-        ElectromagneticMaterial air(1.0006, 1.00000037, 0.0, "Air");
-        addMaterial("Air", air);
-        
-        // Copper
-        ElectromagneticMaterial copper(1.0, 1.0, 5.96e7, "Copper");
-        addMaterial("Copper", copper);
-        
-        // Iron (linear approximation)
-        ElectromagneticMaterial iron(1.0, 5000.0, 1.0e7, "Iron");
-        addMaterial("Iron", iron);
-        
-        // Silicon steel (typical transformer core)
-        ElectromagneticMaterial siliconSteel(1.0, 2000.0, 2.0e6, "SiliconSteel");
-        addMaterial("SiliconSteel", siliconSteel);
-        
-        // Water (distilled)
-        ElectromagneticMaterial water(80.1, 1.0, 5.5e-6, "Water");
-        addMaterial("Water", water);
-    }
-};
+
 
 } // namespace elmer

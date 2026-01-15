@@ -21,14 +21,34 @@ else()
     message(WARNING "OpenMP not found - parallel features will be disabled")
 endif()
 
-# Find MPI for distributed parallel computing
-find_package(MPI)
-if(MPI_CXX_FOUND)
-    message(STATUS "MPI found: ${MPI_VERSION}")
+# Find MPI for distributed parallel computing (暂时禁用)
+# 手动指定MPI路径（根据plan/tasks.md中的配置）
+set(MPI_ROOT "C:/Program Files (x86)/Microsoft SDKs/MPI")
+
+# 暂时禁用MPI支持，先确保基础编译通过
+if(EXISTS "${MPI_ROOT}" AND FALSE)  # 设置为FALSE暂时禁用
+    message(STATUS "使用手动配置的MPI路径: ${MPI_ROOT}")
+    set(MPI_INCLUDE_PATH "${MPI_ROOT}/Include")
+    set(MPI_LIB_PATH "${MPI_ROOT}/Lib/x64")
+    
+    # 手动设置MPI变量
+    set(MPI_CXX_FOUND TRUE)
+    
+    # 使用引号正确处理包含路径
+    set(MPI_CXX_COMPILE_FLAGS "-I\"${MPI_INCLUDE_PATH}\"")
+    set(MPI_CXX_LINK_FLAGS "-LIBPATH:\"${MPI_LIB_PATH}\" msmpi.lib")
+    
+    # 添加到编译和链接标志
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS}")
+    
+    # 添加包含目录（使用引号）
+    include_directories("${MPI_INCLUDE_PATH}")
+    
+    # 定义USE_MPI宏
+    add_definitions(-DUSE_MPI)
 else()
-    message(WARNING "MPI not found - distributed parallel features will be disabled")
+    message(WARNING "MPI暂时禁用 - 先确保基础功能编译通过")
 endif()
 
 # Include directories

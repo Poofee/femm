@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "ElectromagneticMaterial.h"
 
 namespace elmer {
 
@@ -71,7 +72,7 @@ public:
  */
 class MaterialDatabase {
 private:
-    std::unordered_map<std::string, MaterialBase> materials;
+    std::unordered_map<std::string, ElectromagneticMaterial> materials;
     
 public:
     MaterialDatabase() = default;
@@ -81,7 +82,7 @@ public:
      */
     void createPredefinedMaterials() {
         // 空气
-        materials["Air"] = MaterialBase(1.0, 1.0, 0.0, "Air");
+        materials["Air"] = ElectromagneticMaterial(1.0, 1.0, 0.0, "Air");
         
         // 铜
         materials["Copper"] = ElectromagneticMaterial(1.0, 1.0, 5.96e7, "Copper");
@@ -102,7 +103,7 @@ public:
     /**
      * @brief 获取材料
      */
-    MaterialBase getMaterial(const std::string& name) const {
+    ElectromagneticMaterial getMaterial(const std::string& name) const {
         auto it = materials.find(name);
         if (it != materials.end()) {
             return it->second;
@@ -113,7 +114,7 @@ public:
     /**
      * @brief 添加材料
      */
-    void addMaterial(const std::string& name, const MaterialBase& material) {
+    void addMaterial(const std::string& name, const ElectromagneticMaterial& material) {
         materials[name] = material;
     }
     

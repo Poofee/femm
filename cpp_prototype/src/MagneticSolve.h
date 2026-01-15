@@ -33,6 +33,7 @@ struct MagneticSolveParameters {
     // 求解器控制
     double tolerance = 1.0e-8;        ///< 收敛容差
     int maxIterations = 1000;         ///< 最大迭代次数
+    bool verbose = true;              ///< 详细输出
     
     // 物理参数
     bool includeDisplacementCurrent = false;  ///< 包含位移电流
@@ -186,7 +187,17 @@ public:
     /**
      * @brief 执行求解
      */
-    virtual MagneticSolveResults solve();
+    virtual bool solve() override;
+    
+    /**
+     * @brief 组装系统矩阵（SolverBase纯虚函数实现）
+     */
+    virtual bool assemble() override;
+    
+    /**
+     * @brief 获取求解结果（SolverBase纯虚函数实现）
+     */
+    virtual std::vector<double> getSolution() const override;
     
     /**
      * @brief 组装系统矩阵

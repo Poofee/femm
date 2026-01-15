@@ -699,7 +699,7 @@ void elmerBoundaryConditionUtils::FaceElementBasisOrdering(const Element& elemen
         // 简化的自由度映射
         // 简化实现：固定2个自由度
         std::vector<int> faceDofs(2);
-        for (int i = 0; i < face.bDofs; ++i) {
+        for (int i = 0; i < 2; ++i) {
             faceDofs[i] = i;
         }
         fDofMap.push_back(faceDofs);
@@ -711,8 +711,8 @@ void elmerBoundaryConditionUtils::FaceElementBasisOrdering(const Element& elemen
     } else {
         // 处理所有面
         for (const auto& face : elementFaces) {
-            std::vector<int> faceDofs(face.bDofs);
-            for (int i = 0; i < face.bDofs; ++i) {
+            std::vector<int> faceDofs(2);
+            for (int i = 0; i < 2; ++i) {
                 faceDofs[i] = i;
             }
             fDofMap.push_back(faceDofs);

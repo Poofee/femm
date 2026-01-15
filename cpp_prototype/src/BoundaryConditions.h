@@ -11,46 +11,44 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace elmer;
-
 namespace elmer {
 
 /**
- * @brief Base boundary condition type
+ * @brief 基础边界条件类型
  */
 enum class BoundaryConditionType {
-    DIRICHLET,          ///< Fixed value boundary condition
-    NEUMANN,            ///< Fixed flux/gradient boundary condition  
-    ROBIN,              ///< Mixed boundary condition
-    PERIODIC,           ///< Periodic boundary condition
-    SYMMETRY,           ///< Symmetry boundary condition
-    ANTISYMMETRY,       ///< Antisymmetry boundary condition
+    DIRICHLET,          ///< 固定值边界条件
+    NEUMANN,            ///< 固定通量/梯度边界条件  
+    ROBIN,              ///< 混合边界条件
+    PERIODIC,           ///< 周期性边界条件
+    SYMMETRY,           ///< 对称边界条件
+    ANTISYMMETRY,       ///< 反对称边界条件
     
-    // Electromagnetic specific boundary conditions
-    MAGNETIC_SYMMETRY,   ///< Magnetic symmetry (B normal = 0)
-    MAGNETIC_ANTISYMMETRY, ///< Magnetic antisymmetry (B tangential = 0)
-    ELECTRIC_INSULATION, ///< Electric insulation (J normal = 0)
-    INFINITY_BC,        ///< Infinity boundary condition
+    // 电磁场特定边界条件
+    MAGNETIC_SYMMETRY,   ///< 磁对称边界条件 (B法向 = 0)
+    MAGNETIC_ANTISYMMETRY, ///< 磁反对称边界条件 (B切向 = 0)
+    ELECTRIC_INSULATION, ///< 电绝缘边界条件 (J法向 = 0)
+    INFINITY_BC,        ///< 无穷远边界条件
     
-    // Harmonic analysis specific boundary conditions
-    HARMONIC_EXCITATION, ///< Harmonic excitation boundary condition
-    HARMONIC_CURRENT,    ///< Harmonic current source
-    HARMONIC_VOLTAGE,    ///< Harmonic voltage source
-    HARMONIC_FLUX,       ///< Harmonic magnetic flux source
+    // 谐波分析特定边界条件
+    HARMONIC_EXCITATION, ///< 谐波激励边界条件
+    HARMONIC_CURRENT,    ///< 谐波电流源
+    HARMONIC_VOLTAGE,    ///< 谐波电压源
+    HARMONIC_FLUX,       ///< 谐波磁通源
     
-    // Thermal specific boundary conditions
-    CONVECTION,         ///< Convective boundary condition
-    RADIATION,          ///< Radiative boundary condition
+    // 热分析特定边界条件
+    CONVECTION,         ///< 对流边界条件
+    RADIATION,          ///< 辐射边界条件
     
-    // Structural specific boundary conditions
-    DISPLACEMENT,       ///< Fixed displacement
-    TRACTION,           ///< Surface traction
-    PRESSURE,           ///< Pressure boundary condition
-    SPRING              ///< Spring boundary condition
+    // 结构分析特定边界条件
+    DISPLACEMENT,       ///< 固定位移边界条件
+    TRACTION,           ///< 表面牵引力边界条件
+    PRESSURE,           ///< 压力边界条件
+    SPRING              ///< 弹簧边界条件
 };
 
 /**
- * @brief Base class for all boundary conditions
+ * @brief 所有边界条件的基类
  */
 class BoundaryCondition {
 public:
@@ -60,50 +58,50 @@ public:
     virtual ~BoundaryCondition() = default;
     
     /**
-     * @brief Get boundary condition type
+     * @brief 获取边界条件类型
      */
     BoundaryConditionType type() const { return type_; }
     
     /**
-     * @brief Get boundary condition name
+     * @brief 获取边界条件名称
      */
     const std::string& name() const { return name_; }
     
     /**
-     * @brief Get nodes affected by this boundary condition
+     * @brief 获取受此边界条件影响的节点
      */
     virtual const std::vector<int>& getNodeIndices() const = 0;
     
     /**
-     * @brief Get boundary condition values
+     * @brief 获取边界条件值
      */
     virtual const std::vector<double>& getValues() const = 0;
     
     /**
-     * @brief Apply boundary condition to system matrix and right-hand side
+     * @brief 将边界条件应用到系统矩阵和右端向量
      */
-    virtual void apply(std::shared_ptr<Matrix> matrix, 
+    virtual void apply(std::shared_ptr<elmer::Matrix> matrix, 
                       std::vector<double>& rhs,
                       const std::vector<int>& dofMap) const = 0;
     
     /**
-     * @brief Apply boundary condition with priority handling
+     * @brief 应用带优先级处理的边界条件
      */
-    virtual void applyWithPriority(std::shared_ptr<Matrix> matrix, 
+    virtual void applyWithPriority(std::shared_ptr<elmer::Matrix> matrix, 
                                   std::vector<double>& rhs,
                                   const std::vector<int>& dofMap,
                                   std::vector<bool>& constrainedDOFs) const = 0;
     
     /**
-     * @brief Check if boundary condition is active for given element
+     * @brief 检查边界条件是否对给定元素有效
      */
-    virtual bool isActiveForElement(const Element& element) const = 0;
+    virtual bool isActiveForElement(const elmer::Element& element) const = 0;
     
     /**
-     * @brief Check if boundary condition is relevant for specific physics type
+     * @brief 检查边界条件是否与特定物理类型相关
      */
     virtual bool isRelevantForPhysics(const std::string& physicsType) const {
-        // Default implementation: check if physics type is in the name or parameters
+        // 默认实现：检查物理类型是否在名称或参数中
         std::string physicsLower = physicsType;
         std::transform(physicsLower.begin(), physicsLower.end(), physicsLower.begin(), ::tolower);
         
@@ -114,10 +112,10 @@ public:
     }
     
     /**
-     * @brief Check if boundary condition couples multiple physics types
+     * @brief 检查边界条件是否耦合多个物理类型
      */
     virtual bool isCoupledForPhysics(const std::vector<std::string>& physicsTypes) const {
-        // Default implementation: check if boundary condition is relevant for all physics types
+        // 默认实现：检查边界条件是否与所有物理类型相关
         for (const auto& physicsType : physicsTypes) {
             if (!isRelevantForPhysics(physicsType)) {
                 return false;
@@ -127,17 +125,17 @@ public:
     }
     
     /**
-     * @brief Get parameter value by name
+     * @brief 按名称获取参数值
      */
     virtual double getParameter(const std::string& name, double defaultValue = 0.0) const = 0;
     
     /**
-     * @brief Get boolean parameter value by name
+     * @brief 按名称获取布尔参数值
      */
     virtual bool getBooleanParameter(const std::string& name, bool defaultValue = false) const = 0;
     
     /**
-     * @brief Get string parameter value by name
+     * @brief 按名称获取字符串参数值
      */
     virtual std::string getStringParameter(const std::string& name, 
                                           const std::string& defaultValue = "") const = 0;
@@ -174,11 +172,11 @@ public:
     const std::vector<int>& getNodeIndices() const override { return nodeIndices_; }
     const std::vector<double>& getValues() const override { return values_; }
     
-    void apply(std::shared_ptr<Matrix> matrix, 
+    void apply(std::shared_ptr<elmer::Matrix> matrix, 
                std::vector<double>& rhs,
                const std::vector<int>& dofMap) const override;
     
-    void applyWithPriority(std::shared_ptr<Matrix> matrix, 
+    void applyWithPriority(std::shared_ptr<elmer::Matrix> matrix, 
                           std::vector<double>& rhs,
                           const std::vector<int>& dofMap,
                           std::vector<bool>& constrainedDOFs) const override;
@@ -214,7 +212,7 @@ public:
     const std::vector<int>& getNodeIndices() const override { return nodeIndices_; }
     const std::vector<double>& getValues() const override { return fluxValues_; }
     
-    void apply(std::shared_ptr<Matrix> matrix, 
+    void apply(std::shared_ptr<elmer::Matrix> matrix, 
                std::vector<double>& rhs,
                const std::vector<int>& dofMap) const override;
     
@@ -811,7 +809,7 @@ namespace elmerBoundaryConditionUtils {
      * @brief Apply Dirichlet boundary condition to system matrix and RHS
      */
     void applyDirichletBC(int dofIndex, double value, 
-                         std::shared_ptr<Matrix> matrix, 
+                         std::shared_ptr<elmer::Matrix> matrix, 
                          std::vector<double>& rhs);
     
     /**
@@ -819,27 +817,27 @@ namespace elmerBoundaryConditionUtils {
      */
     void applyDirichletBCs(const std::vector<int>& dofIndices,
                           const std::vector<double>& values,
-                          std::shared_ptr<Matrix> matrix,
+                          std::shared_ptr<elmer::Matrix> matrix,
                           std::vector<double>& rhs);
     
     /**
      * @brief Check if element has boundary condition
      */
-    bool hasBoundaryCondition(const Element& element, 
-                             const std::vector<std::shared_ptr<BoundaryCondition>>& bcs);
+    bool hasBoundaryCondition(const elmer::Element& element, 
+                             const std::vector<std::shared_ptr<elmer::BoundaryCondition>>& bcs);
     
     /**
      * @brief Get boundary conditions for specific element
      */
-    std::vector<std::shared_ptr<BoundaryCondition>> getBoundaryConditionsForElement(
-        const Element& element, 
-        const std::vector<std::shared_ptr<BoundaryCondition>>& bcs);
+    std::vector<std::shared_ptr<elmer::BoundaryCondition>> getBoundaryConditionsForElement(
+        const elmer::Element& element, 
+        const std::vector<std::shared_ptr<elmer::BoundaryCondition>>& bcs);
     
     /**
      * @brief Create boundary condition from parameters
      */
-    std::shared_ptr<BoundaryCondition> createBoundaryCondition(
-        BoundaryConditionType type, 
+    std::shared_ptr<elmer::BoundaryCondition> createBoundaryCondition(
+        elmer::BoundaryConditionType type, 
         const std::string& name,
         const std::vector<int>& nodeIndices,
         const std::vector<double>& values);
@@ -853,7 +851,7 @@ namespace elmerBoundaryConditionUtils {
      * @param edgeDirection 边方向向量
      * @param edgeMaxDegree 最大边度数
      */
-    void GetElementMeshEdgeInfo(const Mesh& mesh, const Element& element,
+    void GetElementMeshEdgeInfo(const elmer::Mesh& mesh, const elmer::Element& element,
                                std::vector<int>& edgeDegree,
                                std::vector<std::vector<int>>& edgeDirection,
                                int& edgeMaxDegree);
@@ -867,7 +865,7 @@ namespace elmerBoundaryConditionUtils {
      * @param faceDirection 面方向向量
      * @param faceMaxDegree 最大面度数
      */
-    void GetElementMeshFaceInfo(const Mesh& mesh, const Element& element,
+    void GetElementMeshFaceInfo(const elmer::Mesh& mesh, const elmer::Element& element,
                                std::vector<int>& faceDegree,
                                std::vector<std::vector<int>>& faceDirection,
                                int& faceMaxDegree);
@@ -880,7 +878,7 @@ namespace elmerBoundaryConditionUtils {
      * @param faceNumber 面编号
      * @param reverseSign 反向符号标志
      */
-    void FaceElementBasisOrdering(const Element& element,
+    void FaceElementBasisOrdering(const elmer::Element& element,
                                  std::vector<std::vector<int>>& fDofMap,
                                  int faceNumber,
                                  std::vector<bool>* reverseSign = nullptr);
@@ -894,7 +892,7 @@ namespace elmerBoundaryConditionUtils {
      * @param basis 基函数值
      * @param dBasisdx 基函数导数
      */
-    void GetEdgeBasis(const Element& element,
+    void GetEdgeBasis(const elmer::Element& element,
                      std::vector<double>& wBasis,
                      std::vector<double>& rotWBasis,
                      std::vector<double>& basis,

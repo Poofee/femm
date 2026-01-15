@@ -62,17 +62,17 @@ enum class BoundaryConditionType {
 };
 
 /**
- * @brief 边界条件结构
+ * @brief 简单边界条件结构
  * 
- * 描述边界条件的信息。
+ * 描述边界条件的简化信息，用于元素描述模块。
  */
-struct BoundaryCondition {
+struct SimpleBoundaryCondition {
     int boundaryIndex;          ///< 边界索引
     BoundaryConditionType type; ///< 边界条件类型
     double value;               ///< 边界值
     
-    BoundaryCondition() : boundaryIndex(0), type(BoundaryConditionType::DIRICHLET), value(0.0) {}
-    BoundaryCondition(int idx, BoundaryConditionType t, double v) : 
+    SimpleBoundaryCondition() : boundaryIndex(0), type(BoundaryConditionType::DIRICHLET), value(0.0) {}
+    SimpleBoundaryCondition(int idx, BoundaryConditionType t, double v) : 
         boundaryIndex(idx), type(t), value(v) {}
 };
 

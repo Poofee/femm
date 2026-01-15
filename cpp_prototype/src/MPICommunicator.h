@@ -13,6 +13,21 @@
 
 #ifdef USE_MPI
 #include <mpi.h>
+#else
+// MPI模拟类型定义（当MPI不可用时）
+typedef int MPI_Datatype;
+typedef int MPI_Op;
+#define MPI_INT 1
+#define MPI_FLOAT 2
+#define MPI_DOUBLE 3
+#define MPI_LONG 4
+#define MPI_UNSIGNED 5
+#define MPI_BYTE 6
+#define MPI_SUM 0
+#define MPI_MAX 1
+#define MPI_MIN 2
+#define MPI_PROD 3
+#define MPI_OP_NULL -1
 #endif
 
 namespace elmer {

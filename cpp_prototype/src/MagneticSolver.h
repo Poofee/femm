@@ -191,6 +191,35 @@ private:
     bool assembleGeneral();
     
     /**
+     * @brief 计算单元矩阵和右端向量
+     */
+    bool computeElementMatrices(int elementId, 
+                                std::vector<std::vector<double>>& elementStiffness,
+                                std::vector<double>& elementRHS);
+    
+    /**
+     * @brief 将单元矩阵组装到全局系统
+     */
+    bool assembleToGlobalSystem(int elementId,
+                                const std::vector<std::vector<double>>& elementStiffness,
+                                const std::vector<double>& elementRHS);
+    
+    /**
+     * @brief 应用磁力边界条件
+     */
+    bool applyMagneticForceBoundaryCondition(int bcId, const Element& boundaryElement);
+    
+    /**
+     * @brief 应用狄利克雷边界条件
+     */
+    bool applyDirichletBoundaryCondition(int bcId, const Element& boundaryElement);
+    
+    /**
+     * @brief 应用诺伊曼边界条件
+     */
+    bool applyNeumannBoundaryCondition(int bcId, const Element& boundaryElement);
+    
+    /**
      * @brief 计算旋度（用于电流计算）
      */
     bool computeCurl(const std::vector<double>& fieldX,

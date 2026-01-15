@@ -9,6 +9,8 @@
 
 #include <vector>
 #include <string>
+#include <memory>
+#include <cmath>
 
 namespace elmer {
 
@@ -38,33 +40,61 @@ struct Node {
     
     Node() : x(0.0), y(0.0), z(0.0) {}
     Node(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
+    
+    // 计算两点之间的距离
+    double distance(const Node& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        double dz = z - other.z;
+        return std::sqrt(dx*dx + dy*dy + dz*dz);
+    }
+};
+
+// 前向声明，解决循环依赖问题
+class Vector;
+
+/**
+ * @brief 矩阵接口类，用于线性代数操作
+ */
+class Matrix {
+public:
+    virtual ~Matrix() = default;
+    
+    virtual void Zero() = 0;
+    virtual void SetElement(Integer i, Integer j, Real value) = 0;
+    virtual Real GetElement(Integer i, Integer j) const = 0;
+    virtual void AddToElement(Integer i, Integer j, Real value) = 0;
+    
+    // 矩阵大小信息
+    virtual Integer GetNumRows() const = 0;
+    virtual Integer GetNumCols() const = 0;
+    
+    // 矩阵-向量乘法
+    virtual void Multiply(const Vector& x, Vector& y) const = 0;
+    
+    // 矩阵-向量乘法（带缩放）：y = alpha * A * x + beta * y
+    virtual void Multiply(Real alpha, const Vector& x, Real beta, Vector& y) const = 0;
+    
+    // 工厂方法：创建不同类型的矩阵
+    static std::unique_ptr<Matrix> CreateCRS(Integer nrows, Integer ncols);
+    static std::unique_ptr<Matrix> CreateBand(Integer nrows, Integer bandwidth);
+    static std::unique_ptr<Matrix> CreateDense(Integer nrows, Integer ncols);
 };
 
 /**
- * @brief 矩阵结构
- * 
- * 描述矩阵的基本信息。
+ * @brief 向量接口类，用于线性代数操作
  */
-struct Matrix {
-    int rows; ///< 行数
-    int cols; ///< 列数
-    std::vector<double> values; ///< 矩阵值数组
+class Vector {
+public:
+    virtual ~Vector() = default;
     
-    Matrix() : rows(0), cols(0) {}
-    Matrix(int r, int c) : rows(r), cols(c), values(r * c, 0.0) {}
-};
-
-/**
- * @brief 向量结构
- * 
- * 描述向量的基本信息。
- */
-struct Vector {
-    int size; ///< 向量大小
-    std::vector<double> values; ///< 向量值数组
+    virtual Integer Size() const = 0;
+    virtual Real& operator[](Integer i) = 0;
+    virtual const Real& operator[](Integer i) const = 0;
+    virtual void Zero() = 0;
     
-    Vector() : size(0) {}
-    Vector(int s) : size(s), values(s, 0.0) {}
+    // 工厂方法：创建向量
+    static std::unique_ptr<Vector> Create(Integer size);
 };
 
 /**
@@ -104,5 +134,10 @@ struct Variable {
     
     Variable() : dimension(0) {}
 };
+
+/**
+ * @brief 创建CRS矩阵的工厂函数
+ */
+std::unique_ptr<Matrix> CreateCRSMatrix(Integer nrows, Integer ncols);
 
 } // namespace elmer

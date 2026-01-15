@@ -1,7 +1,7 @@
 // test_matrix_assembly.cpp - Matrix Assembly Module Test Program
 
 #include "../src/MatrixAssembly.h"
-#include "../src/ElmerCpp.h"
+#include "../src/Types.h"
 #include <iostream>
 #include <vector>
 #include <cmath>

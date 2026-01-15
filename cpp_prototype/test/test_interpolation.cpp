@@ -5,8 +5,8 @@
 #include "ElementDescription.h"
 #include "ElementUtils.h"
 
-using namespace ElmerCpp;
-using namespace Interpolation;
+using namespace elmer;
+using namespace std;
 
 /**
  * @brief 断言宏（简化版）
@@ -48,7 +48,7 @@ bool Test1DInterpolation() {
     std::cout << "测试1D插值功能..." << std::endl;
     
     // 创建1D元素
-    ElementType elementType1D;
+    ElementTypeStruct elementType1D;
     elementType1D.numberOfNodes = 2;
     elementType1D.dimension = 1;
     elementType1D.elementCode = 101; // 线单元
@@ -76,7 +76,7 @@ bool Test1DInterpolation() {
     std::vector<double> nodalValues = {1.0, 2.0}; // 节点1=1.0, 节点2=2.0
     
     // 在中间点插值
-    double result = InterpolateInElement1D(element1D, nodalValues, 0.5);
+    double result = Interpolation::InterpolateInElement1D(element1D, nodalValues, 0.5);
     
     // 线性插值：1.0 * (1-0.5) + 2.0 * 0.5 = 1.5
     ASSERT_NEAR(result, 1.5, 1e-12);
@@ -92,7 +92,7 @@ bool Test2DInterpolation() {
     std::cout << "测试2D插值功能..." << std::endl;
     
     // 创建测试元素类型
-    ElementType testElementType;
+    ElementTypeStruct testElementType;
     testElementType.numberOfNodes = 4;
     testElementType.dimension = 2;
     testElementType.elementCode = 404; // 四边形单元
@@ -137,7 +137,7 @@ bool Test2DInterpolation() {
     std::vector<double> nodalValues = {1.0, 2.0, 3.0, 4.0}; // 四个角点的值
     
     // 在中心点插值
-    double result = InterpolateInElement2D(testElement, nodalValues, 0.5, 0.5);
+    double result = Interpolation::InterpolateInElement2D(testElement, nodalValues, 0.5, 0.5);
     
     // 双线性插值：平均值应为2.5
     ASSERT_NEAR(result, 2.5, 1e-12);
@@ -153,7 +153,7 @@ bool TestGeneralInterpolation() {
     std::cout << "测试通用插值接口..." << std::endl;
     
     // 创建测试元素类型
-    ElementType testElementType;
+    ElementTypeStruct testElementType;
     testElementType.numberOfNodes = 4;
     testElementType.dimension = 2;
     testElementType.elementCode = 404; // 四边形单元
@@ -197,7 +197,7 @@ bool TestGeneralInterpolation() {
     std::vector<double> nodalValues = {1.0, 2.0, 3.0, 4.0};
     
     // 使用通用接口进行2D插值
-    double result = InterpolateInElement(testElement, nodalValues, 0.5, 0.5, 0.0);
+    double result = Interpolation::InterpolateInElement(testElement, nodalValues, 0.5, 0.5, 0.0);
     
     ASSERT_NEAR(result, 2.5, 1e-12);
     
@@ -212,7 +212,7 @@ bool TestPointInElement() {
     std::cout << "测试点元素检测功能..." << std::endl;
     
     // 创建测试元素类型
-    ElementType testElementType;
+    ElementTypeStruct testElementType;
     testElementType.numberOfNodes = 4;
     testElementType.dimension = 2;
     testElementType.elementCode = 404; // 四边形单元
@@ -262,14 +262,14 @@ bool TestPointInElement() {
     std::vector<double> point = {0.5, 0.5, 0.0}; // 元素内部的点
     std::vector<double> localCoords;
     
-    bool isInElement = PointInElement(testElement, testNodes, point, localCoords);
+    bool isInElement = Interpolation::PointInElement(testElement, testNodes, point, localCoords);
     
     ASSERT_TRUE(isInElement);
     ASSERT_EQ(localCoords.size(), 3);
     
     // 测试元素外部的点
     std::vector<double> outsidePoint = {2.0, 2.0, 0.0};
-    bool isOutside = PointInElement(testElement, testNodes, outsidePoint, localCoords);
+    bool isOutside = Interpolation::PointInElement(testElement, testNodes, outsidePoint, localCoords);
     
     ASSERT_FALSE(isOutside);
     
@@ -284,7 +284,7 @@ bool TestEdgeCases() {
     std::cout << "测试边界情况..." << std::endl;
     
     // 创建测试元素类型
-    ElementType testElementType;
+    ElementTypeStruct testElementType;
     testElementType.numberOfNodes = 4;
     testElementType.dimension = 2;
     testElementType.elementCode = 404; // 四边形单元
@@ -327,12 +327,12 @@ bool TestEdgeCases() {
     
     // 测试空节点值
     std::vector<double> emptyValues;
-    double result = InterpolateInElement2D(testElement, emptyValues, 0.5, 0.5);
+    double result = Interpolation::InterpolateInElement2D(testElement, emptyValues, 0.5, 0.5);
     ASSERT_NEAR(result, 0.0, 1e-12);
     
     // 测试不匹配的节点值数量
     std::vector<double> wrongSizeValues = {1.0, 2.0}; // 只有2个值，需要4个
-    result = InterpolateInElement2D(testElement, wrongSizeValues, 0.5, 0.5);
+    result = Interpolation::InterpolateInElement2D(testElement, wrongSizeValues, 0.5, 0.5);
     ASSERT_NEAR(result, 0.0, 1e-12);
     
     std::cout << "边界情况测试通过" << std::endl;

@@ -1,7 +1,7 @@
 // Matrix.cpp - Linear algebra matrix implementation
 // Corresponds to Elmer FEM's CRSMatrix.F90 functionality
 
-#include "ElmerCpp.h"
+#include "Types.h"
 #include "CRSMatrix.h"
 #include "../eigen-5.0.1/Eigen/Sparse"
 #include <vector>

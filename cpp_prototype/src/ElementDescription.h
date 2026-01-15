@@ -97,14 +97,14 @@ struct BasisFunction {
  * 
  * 描述有限元元素的类型信息，包括节点数、维度、基函数等。
  */
-struct ElementType {
+struct ElementTypeStruct {
     int numberOfNodes; ///< 节点数量
     int dimension; ///< 维度
     int elementCode; ///< 元素代码
     int numberOfBoundaries; ///< 边界数量
     std::vector<BasisFunction> basisFunctions; ///< 基函数数组
     
-    ElementType() : numberOfNodes(0), dimension(0), elementCode(0), numberOfBoundaries(0) {}
+    ElementTypeStruct() : numberOfNodes(0), dimension(0), elementCode(0), numberOfBoundaries(0) {}
 };
 
 
@@ -115,7 +115,7 @@ struct ElementType {
  * 描述有限元元素的基本信息。
  */
 struct Element {
-    ElementType type; ///< 元素类型
+    ElementTypeStruct type; ///< 元素类型
     int index; ///< 元素索引
     std::vector<int> nodeIndexes; ///< 元素节点索引
     std::vector<int> edgeIndexes; ///< 元素边索引
@@ -382,7 +382,7 @@ bool isActivePElement(const Element& element, void* solver = nullptr);
  * @param v 输出：v坐标数组
  * @param w 输出：w坐标数组
  */
-void GetRefPElementNodes(const ElementType& element, std::vector<double>& u_coords, 
+void GetRefPElementNodes(const ElementTypeStruct& element, std::vector<double>& u_coords, 
                         std::vector<double>& v_coords, std::vector<double>& w_coords);
 
 /**
@@ -618,6 +618,27 @@ bool CheckFaceGeometricContinuity(const Element& element1,
                                  const Mesh& mesh,
                                  const Nodes& nodes,
                                  double tolerance = 1e-12);
+
+/**
+ * @brief 获取元素边界连续性信息
+ * 
+ * 获取元素边界连续性信息，包括边界类型和连续性条件。
+ * 
+ * @param element 元素类型结构
+ * @param continuity 输出：边界连续性信息数组
+ */
+void GetElementBoundaryContinuity(const ElementTypeStruct& element, std::vector<BoundaryContinuity>& continuity);
+
+/**
+ * @brief 获取边界节点
+ * 
+ * 获取元素边界上的节点索引。
+ * 
+ * @param element 元素类型结构
+ * @param boundaryIndex 边界索引
+ * @param boundaryNodes 输出：边界节点索引数组
+ */
+void GetBoundaryNodes(const ElementTypeStruct& element, int boundaryIndex, std::vector<int>& boundaryNodes);
 
 /**
  * @brief 检查面函数连续性

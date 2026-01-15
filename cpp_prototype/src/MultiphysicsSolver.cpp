@@ -1,6 +1,6 @@
 #include "MultiphysicsSolver.h"
 #include "Material.h"
-#include "ElmerCpp.h"
+#include "Types.h"
 
 namespace elmer {
 

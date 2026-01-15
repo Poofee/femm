@@ -12,7 +12,7 @@ namespace elmer {
  * 获取P型元素的参考节点坐标。
  * 简化实现：根据元素类型返回相应的参考节点坐标。
  */
-void GetRefPElementNodes(const ElementType& element, std::vector<double>& u_coords, 
+void GetRefPElementNodes(const ElementTypeStruct& element, std::vector<double>& u_coords, 
                         std::vector<double>& v_coords, std::vector<double>& w_coords) {
     int n = element.numberOfNodes;
     
@@ -584,7 +584,7 @@ void dPrismNodalPBasisAll(double u, double v, double w, std::vector<double>& dph
  * 
  * 获取元素边界连续性信息，包括边界类型和连续性条件。
  */
-void GetElementBoundaryContinuity(const ElementType& element, std::vector<BoundaryContinuity>& continuity) {
+void GetElementBoundaryContinuity(const ElementTypeStruct& element, std::vector<BoundaryContinuity>& continuity) {
     int nBoundaries = element.numberOfBoundaries;
     
     // 确保输出数组大小正确
@@ -681,7 +681,7 @@ bool CheckBoundaryContinuity(const BoundaryContinuity& bc1, const BoundaryContin
  * 
  * 处理边界条件，包括设置边界值和边界类型。
  */
-void ProcessBoundaryConditions(const ElementType& element, const std::vector<double>& boundaryValues, 
+void ProcessBoundaryConditions(const ElementTypeStruct& element, const std::vector<double>& boundaryValues, 
                               std::vector<SimpleBoundaryCondition>& boundaryConditions) {
     int nBoundaries = element.numberOfBoundaries;
     
@@ -709,7 +709,7 @@ void ProcessBoundaryConditions(const ElementType& element, const std::vector<dou
  * 
  * 获取元素边界上的节点索引。
  */
-void GetBoundaryNodes(const ElementType& element, int boundaryIndex, std::vector<int>& boundaryNodes) {
+void GetBoundaryNodes(const ElementTypeStruct& element, int boundaryIndex, std::vector<int>& boundaryNodes) {
     int nBoundaries = element.numberOfBoundaries;
     
     if (boundaryIndex < 0 || boundaryIndex >= nBoundaries) {

@@ -6,26 +6,9 @@
 #include <cstddef>
 #include <cmath>
 #include <iostream>
+#include "Types.h"
 
 namespace elmer {
-
-/**
- * @brief Node data structure containing 3D coordinates
- */
-struct Node {
-    double x, y, z;
-    
-    Node() : x(0.0), y(0.0), z(0.0) {}
-    Node(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
-    
-    // Calculate distance between two points
-    double distance(const Node& other) const {
-        double dx = x - other.x;
-        double dy = y - other.y;
-        double dz = z - other.z;
-        return std::sqrt(dx*dx + dy*dy + dz*dz);
-    }
-};
 
 /**
  * @brief Node collection management class

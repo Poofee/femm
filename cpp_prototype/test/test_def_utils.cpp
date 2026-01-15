@@ -2,7 +2,7 @@
 
 #include "DefUtils.h"
 #include "CRSMatrix.h"
-#include "ElmerCpp.h"
+#include "Types.h"
 #include <iostream>
 #include <cassert>
 

@@ -1,7 +1,7 @@
 // test_crs_matrix.cpp - CRSMatrix模块测试
 // 验证CRSMatrix类的核心功能
 
-#include "../src/ElmerCpp.h"
+#include "../src/Types.h"
 #include "../src/CRSMatrix.h"
 #include <iostream>
 #include <cmath>

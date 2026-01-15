@@ -5,7 +5,7 @@
 #include "LinearAlgebra.h"
 #include "Mesh.h"
 #include "MeshUtils.h"
-#include "ElmerCpp.h"
+#include "Types.h"
 
 using namespace elmer;
 using namespace ElmerCpp;

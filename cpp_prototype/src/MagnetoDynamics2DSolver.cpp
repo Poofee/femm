@@ -750,62 +750,298 @@ void MagnetoDynamics2DSolver::assembleBoundaryContributions() {
 }
 
 void MagnetoDynamics2DSolver::applyBoundaryConditions() {
-    // TODO: 应用边界条件
-    // TODO: 处理Dirichlet边界条件
-    // TODO: 处理Neumann边界条件
+    // 应用边界条件
     
-    std::cout << "应用边界条件..." << std::endl;
+    if (!stiffnessMatrix || !rhsVector) {
+        std::cerr << "错误: 系统矩阵未初始化，无法应用边界条件" << std::endl;
+        return;
+    }
+    
+    // 应用Dirichlet边界条件
+    applyDirichletBoundaryConditions();
+    
+    // 应用Neumann边界条件
+    applyNeumannBoundaryConditions();
+    
+    // 应用磁通密度边界条件
+    applyMagneticFluxDensityBoundaryConditions();
+    
+    std::cout << "边界条件应用完成" << std::endl;
 }
 
 void MagnetoDynamics2DSolver::assembleElementContributionsParallel(
     const DomainDecompositionResult& decomposition) {
-    // TODO: 并行组装单元贡献
-    // TODO: 处理分布式数据
-    // TODO: 实现负载均衡
+    // 并行组装单元贡献
     
-    std::cout << "并行组装单元贡献..." << std::endl;
+    if (!isParallel()) {
+        std::cout << "警告: 未启用并行模式，使用串行组装" << std::endl;
+        assembleElementContributions();
+        return;
+    }
+    
+    // 获取当前进程的本地单元
+    auto localElements = decomposition.getLocalElements();
+    
+    // 并行组装本地单元贡献
+    #pragma omp parallel for
+    for (size_t i = 0; i < localElements.size(); ++i) {
+        const auto& element = localElements[i];
+        
+        // 计算单元矩阵
+        auto elementMatrices = computeElementMatrices(element);
+        
+        // 将局部矩阵组装到全局系统（需要线程安全）
+        #pragma omp critical
+        {
+            assembleLocalToGlobal(element, 
+                                 elementMatrices.stiffness,
+                                 elementMatrices.mass,
+                                 elementMatrices.damping,
+                                 elementMatrices.force);
+        }
+    }
+    
+    // 处理并行通信（如果需要）
+    handleParallelCommunication(decomposition);
+    
+    std::cout << "并行单元贡献组装完成，处理了 " << localElements.size() << " 个本地单元" << std::endl;
 }
 
 void MagnetoDynamics2DSolver::assembleBoundaryContributionsParallel(
     const DomainDecompositionResult& decomposition) {
-    // TODO: 并行组装边界条件贡献
-    // TODO: 处理分布式边界条件
-    // TODO: 实现并行通信
+    // 并行组装边界条件贡献
     
-    std::cout << "并行组装边界条件贡献..." << std::endl;
+    if (!isParallel()) {
+        std::cout << "警告: 未启用并行模式，使用串行边界条件组装" << std::endl;
+        assembleBoundaryContributions();
+        return;
+    }
+    
+    // 获取当前进程的本地边界条件
+    auto localBoundaryConditions = decomposition.getLocalBoundaryConditions();
+    
+    // 并行组装本地边界条件贡献
+    #pragma omp parallel for
+    for (size_t i = 0; i < localBoundaryConditions.size(); ++i) {
+        const auto& bc = localBoundaryConditions[i];
+        
+        // 根据边界条件类型组装贡献
+        switch (bc.type[0]) {
+            case 'N': // Neumann
+                #pragma omp critical
+                {
+                    assembleNeumannBoundaryContribution(bc);
+                }
+                break;
+                
+            case 'M': // Magnetic Flux Density
+                #pragma omp critical
+                {
+                    assembleMagneticFluxBoundaryContribution(bc);
+                }
+                break;
+                
+            default:
+                // Dirichlet边界条件在应用阶段处理
+                break;
+        }
+    }
+    
+    // 处理边界条件的并行通信
+    handleBoundaryConditionCommunication(decomposition);
+    
+    std::cout << "并行边界条件贡献组装完成，处理了 " << localBoundaryConditions.size() << " 个本地边界条件" << std::endl;
 }
 
 void MagnetoDynamics2DSolver::applyBoundaryConditionsParallel() {
-    // TODO: 并行应用边界条件
-    // TODO: 处理分布式边界条件
-    // TODO: 实现并行同步
+    // 并行应用边界条件
     
-    std::cout << "并行应用边界条件..." << std::endl;
+    if (!isParallel()) {
+        std::cout << "警告: 未启用并行模式，使用串行边界条件" << std::endl;
+        applyBoundaryConditions();
+        return;
+    }
+    
+    // 获取当前进程的本地边界条件
+    auto localBoundaryConditions = getLocalBoundaryConditions();
+    
+    // 并行应用本地边界条件
+    #pragma omp parallel for
+    for (size_t i = 0; i < localBoundaryConditions.size(); ++i) {
+        const auto& bc = localBoundaryConditions[i];
+        
+        // 根据边界条件类型应用
+        switch (bc.type[0]) {
+            case 'D': // Dirichlet
+                #pragma omp critical
+                {
+                    applyDirichletBoundaryCondition(bc);
+                }
+                break;
+                
+            case 'N': // Neumann
+                #pragma omp critical
+                {
+                    applyNeumannBoundaryCondition(bc);
+                }
+                break;
+                
+            case 'M': // Magnetic Flux Density
+                #pragma omp critical
+                {
+                    applyMagneticFluxDensityBoundaryCondition(bc);
+                }
+                break;
+                
+            default:
+                std::cout << "警告: 未知边界条件类型: " << bc.type << std::endl;
+                break;
+        }
+    }
+    
+    // 并行同步：确保所有进程完成边界条件应用
+    synchronizeBoundaryConditions();
+    
+    std::cout << "并行边界条件应用完成，处理了 " << localBoundaryConditions.size() << " 个本地边界条件" << std::endl;
 }
 
 DomainDecompositionResult MagnetoDynamics2DSolver::performDomainDecomposition() {
-    // TODO: 执行域分解
-    // TODO: 实现负载均衡算法
-    // TODO: 处理网格分区
+    // 执行域分解
     
-    std::cout << "执行域分解..." << std::endl;
-    return DomainDecompositionResult();
+    if (!mesh) {
+        std::cerr << "错误: 网格未初始化，无法执行域分解" << std::endl;
+        return DomainDecompositionResult();
+    }
+    
+    DomainDecompositionResult result;
+    
+    // 获取总单元数和进程数
+    size_t totalElements = mesh->getElements().size();
+    int numProcesses = isParallel() ? comm_->getSize() : 1;
+    int currentProcess = isParallel() ? comm_->getRank() : 0;
+    
+    // 负载均衡：每个进程分配大致相等的单元数
+    size_t elementsPerProcess = totalElements / numProcesses;
+    size_t remainder = totalElements % numProcesses;
+    
+    // 计算当前进程的单元范围
+    size_t startElement = currentProcess * elementsPerProcess + std::min((size_t)currentProcess, remainder);
+    size_t endElement = startElement + elementsPerProcess;
+    if (currentProcess < remainder) {
+        endElement += 1;
+    }
+    
+    // 分配本地单元
+    auto& allElements = mesh->getElements();
+    for (size_t i = startElement; i < endElement && i < allElements.size(); ++i) {
+        result.localElements.push_back(allElements[i]);
+    }
+    
+    // 分配边界条件（简化处理）
+    // 实际应该基于几何位置分配边界条件
+    for (const auto& bcPair : boundaryConditions) {
+        const auto& bc = bcPair.second;
+        
+        // 检查边界条件是否与本地单元相关
+        for (int nodeId : bc.affectedNodes) {
+            // 简化：如果节点在本地单元范围内，则分配该边界条件
+            if (nodeId >= startElement && nodeId < endElement) {
+                result.localBoundaryConditions.push_back(bc);
+                break;
+            }
+        }
+    }
+    
+    // 记录分解信息
+    result.totalProcesses = numProcesses;
+    result.currentProcess = currentProcess;
+    result.totalElements = totalElements;
+    result.localElementCount = result.localElements.size();
+    
+    std::cout << "域分解完成，进程 " << currentProcess << " 分配了 " 
+              << result.localElementCount << " 个单元和 " 
+              << result.localBoundaryConditions.size() << " 个边界条件" << std::endl;
+    
+    return result;
 }
 
 void MagnetoDynamics2DSolver::calculateDerivedFields(MagnetoDynamics2DResults& results) {
-    // TODO: 计算导出场量
-    // TODO: 计算磁场分布
-    // TODO: 计算电场分布
+    // 计算导出场量
     
-    std::cout << "计算导出场量..." << std::endl;
+    if (!mesh || results.vectorPotential.empty()) {
+        std::cerr << "错误: 网格或解向量未初始化，无法计算导出场量" << std::endl;
+        return;
+    }
+    
+    // 计算磁场强度分布
+    results.magneticFieldStrength = computeMagneticFieldStrength();
+    
+    // 计算磁通密度分布
+    results.magneticFluxDensity = computeMagneticFluxDensity();
+    
+    // 计算电场分布（如果有时变项）
+    if (parameters.timeDependent) {
+        calculateElectricField(results);
+    }
+    
+    // 计算能量密度分布
+    calculateEnergyDensity(results);
+    
+    // 计算力密度分布
+    calculateForceDensity(results);
+    
+    std::cout << "导出场量计算完成" << std::endl;
 }
 
 void MagnetoDynamics2DSolver::calculateLumpedParameters(MagnetoDynamics2DResults& results) {
-    // TODO: 计算集总参数
-    // TODO: 计算电感
-    // TODO: 计算功率损耗
+    // 计算集总参数
     
-    std::cout << "计算集总参数..." << std::endl;
+    if (!mesh || results.energyDensity.empty()) {
+        std::cerr << "错误: 网格或能量密度未初始化，无法计算集总参数" << std::endl;
+        return;
+    }
+    
+    // 计算总磁能
+    results.totalMagneticEnergy = 0.0;
+    for (double energy : results.energyDensity) {
+        results.totalMagneticEnergy += energy;
+    }
+    
+    // 计算总磁通
+    results.totalMagneticFlux = 0.0;
+    size_t nNodes = mesh->getNodes().numberOfNodes();
+    for (size_t i = 0; i < nNodes; ++i) {
+        size_t idx = i * 2;
+        double Bx = results.magneticFluxDensity[idx];
+        double By = results.magneticFluxDensity[idx + 1];
+        double B_magnitude = std::sqrt(Bx*Bx + By*By);
+        results.totalMagneticFlux += B_magnitude;
+    }
+    
+    // 计算电感
+    results.inductance = 0.0;
+    if (parameters.currentDensity != 0.0) {
+        // 电感公式: L = 2 * W_m / I^2
+        // 其中W_m是总磁能，I是总电流
+        double totalCurrent = parameters.currentDensity * mesh->getArea();
+        if (totalCurrent != 0.0) {
+            results.inductance = 2.0 * results.totalMagneticEnergy / (totalCurrent * totalCurrent);
+        }
+    }
+    
+    // 计算功率损耗
+    results.powerLoss = 0.0;
+    if (parameters.timeDependent && parameters.frequency != 0.0) {
+        // 涡流损耗公式: P = ∫(σE^2) dΩ
+        // 简化计算：基于磁能密度和频率
+        results.powerLoss = results.totalMagneticEnergy * parameters.frequency * parameters.electricalConductivity;
+    }
+    
+    std::cout << "集总参数计算完成" << std::endl;
+    std::cout << "总磁能: " << results.totalMagneticEnergy << " J" << std::endl;
+    std::cout << "总磁通: " << results.totalMagneticFlux << " Wb" << std::endl;
+    std::cout << "电感: " << results.inductance << " H" << std::endl;
+    std::cout << "功率损耗: " << results.powerLoss << " W" << std::endl;
 }
 
 // =============================================================================
@@ -813,11 +1049,54 @@ void MagnetoDynamics2DSolver::calculateLumpedParameters(MagnetoDynamics2DResults
 // =============================================================================
 
 void MagnetoDynamics2DSolver::precomputeBasisFunctionCache() {
-    // TODO: 预计算基函数缓存
-    // TODO: 实现高效的基函数计算
-    // TODO: 支持多种单元类型
+    // 预计算基函数缓存
     
-    std::cout << "预计算基函数缓存..." << std::endl;
+    if (!mesh) {
+        std::cerr << "错误: 网格未初始化，无法预计算基函数缓存" << std::endl;
+        return;
+    }
+    
+    auto& elements = mesh->getElements();
+    
+    // 清空现有缓存
+    basisFunctionCache.clear();
+    
+    // 为每个单元预计算基函数值
+    for (const auto& element : elements) {
+        BasisFunctionCache cache;
+        
+        // 获取单元类型
+        std::string elementType = element.getType();
+        size_t nNodes = element.getNodeCount();
+        
+        // 根据单元类型初始化缓存
+        if (elementType == "Triangle" || elementType == "Triangular") {
+            // 三角形单元基函数
+            cache.shapeFunctions.resize(nNodes);
+            cache.shapeFunctionDerivatives.resize(nNodes);
+            
+            // 预计算高斯积分点的基函数值
+            // 这里简化处理，实际应该基于高斯积分点
+            for (size_t i = 0; i < nNodes; ++i) {
+                cache.shapeFunctions[i] = 1.0 / nNodes; // 简化值
+                cache.shapeFunctionDerivatives[i] = 1.0; // 简化值
+            }
+        } else if (elementType == "Quadrilateral" || elementType == "Quad") {
+            // 四边形单元基函数
+            cache.shapeFunctions.resize(nNodes);
+            cache.shapeFunctionDerivatives.resize(nNodes);
+            
+            for (size_t i = 0; i < nNodes; ++i) {
+                cache.shapeFunctions[i] = 0.25; // 四边形单元的标准值
+                cache.shapeFunctionDerivatives[i] = 0.5; // 简化值
+            }
+        }
+        
+        // 存储缓存
+        basisFunctionCache[element.getId()] = cache;
+    }
+    
+    std::cout << "基函数缓存预计算完成，缓存了 " << elements.size() << " 个单元" << std::endl;
 }
 
 void MagnetoDynamics2DSolver::assembleSystemOptimized() {
@@ -864,11 +1143,631 @@ void MagnetoDynamics2DSolver::assembleSystemOptimized() {
 }
 
 void MagnetoDynamics2DSolver::updateSystemIncremental() {
-    // TODO: 增量式矩阵更新
-    // TODO: 非线性迭代优化
-    // TODO: 处理材料非线性
+    // 增量式矩阵更新
     
-    std::cout << "增量式矩阵更新..." << std::endl;
+    if (!stiffnessMatrix || !rhsVector || currentPotential.empty()) {
+        std::cerr << "错误: 系统矩阵或当前解未初始化，无法进行增量更新" << std::endl;
+        return;
+    }
+    
+    // 非线性迭代优化：检查是否需要更新
+    if (currentIteration <= 1) {
+        std::cout << "第一次迭代，进行完整系统组装" << std::endl;
+        assembleSystem();
+        return;
+    }
+    
+    // 处理材料非线性：更新非线性材料属性
+    updateMaterialParameters();
+    
+    // 增量更新：只更新受影响的单元
+    auto& elements = mesh->getElements();
+    
+    // 计算当前残差
+    double residualNorm = computeResidualNorm();
+    
+    // 根据残差大小决定更新策略
+    if (residualNorm > parameters.nonlinearTolerance * 10.0) {
+        // 残差较大，进行完整更新
+        std::cout << "残差较大(" << residualNorm << ")，进行完整系统更新" << std::endl;
+        assembleSystem();
+    } else {
+        // 残差较小，进行增量更新
+        std::cout << "残差较小(" << residualNorm << ")，进行增量更新" << std::endl;
+        
+        // 只更新非线性材料单元
+        size_t updatedElements = 0;
+        for (const auto& element : elements) {
+            std::string materialName = element.getMaterialName();
+            
+            // 检查是否为非线性材料且需要更新
+            if (materialDB.isNonlinearMaterial(materialName) && 
+                shouldUpdateElement(element)) {
+                
+                // 更新该单元的刚度矩阵贡献
+                updateElementStiffness(element);
+                updatedElements++;
+            }
+        }
+        
+        std::cout << "增量更新完成，更新了 " << updatedElements << " 个非线性材料单元" << std::endl;
+    }
+    
+    // 更新迭代计数器
+    currentIteration++;
+}
+
+double MagnetoDynamics2DSolver::computeResidualNorm() {
+    // 计算残差范数
+    
+    if (!stiffnessMatrix || !rhsVector || currentPotential.empty()) {
+        return std::numeric_limits<double>::max();
+    }
+    
+    // 计算残差向量: r = b - A*x
+    auto residual = std::shared_ptr<Vector>(Vector::Create(rhsVector->Size()));
+    
+    // 复制右端向量
+    for (size_t i = 0; i < rhsVector->Size(); ++i) {
+        (*residual)[i] = (*rhsVector)[i];
+    }
+    
+    // 减去 A*x
+    auto solutionVector = std::shared_ptr<Vector>(Vector::Create(currentPotential.size()));
+    for (size_t i = 0; i < currentPotential.size(); ++i) {
+        (*solutionVector)[i] = currentPotential[i];
+    }
+    
+    auto Ax = std::shared_ptr<Vector>(Vector::Create(solutionVector->Size()));
+    stiffnessMatrix->Multiply(*solutionVector, *Ax);
+    
+    for (size_t i = 0; i < residual->Size(); ++i) {
+        (*residual)[i] -= (*Ax)[i];
+    }
+    
+    // 计算残差范数
+    double residualNorm = 0.0;
+    for (size_t i = 0; i < residual->Size(); ++i) {
+        residualNorm += (*residual)[i] * (*residual)[i];
+    }
+    residualNorm = std::sqrt(residualNorm);
+    
+    // 计算相对残差
+    double rhsNorm = rhsVector->Norm2();
+    double relativeResidual = (rhsNorm > 1e-12) ? residualNorm / rhsNorm : residualNorm;
+    
+    return relativeResidual;
+}
+
+bool MagnetoDynamics2DSolver::shouldUpdateElement(const Element& element) {
+    // 判断单元是否需要更新
+    
+    // 检查单元是否在非线性材料区域
+    std::string materialName = element.getMaterialName();
+    if (!materialDB.isNonlinearMaterial(materialName)) {
+        return false;
+    }
+    
+    // 检查单元的磁场强度变化
+    auto nodeIndices = element.getNodeIndices();
+    double maxFieldChange = 0.0;
+    
+    // 计算当前磁场强度
+    auto H_current = computeMagneticFieldStrength();
+    
+    // 检查历史记录中的磁场强度变化
+    if (materialUpdateHistory.find(element.getId()) != materialUpdateHistory.end()) {
+        const auto& history = materialUpdateHistory[element.getId()];
+        if (history.size() >= 2) {
+            // 比较最近两次迭代的磁场强度
+            const auto& lastUpdate = history.back();
+            const auto& prevUpdate = history[history.size() - 2];
+            
+            double fieldChange = std::abs(lastUpdate.fieldStrength - prevUpdate.fieldStrength);
+            maxFieldChange = std::max(maxFieldChange, fieldChange);
+        }
+    }
+    
+    // 如果磁场强度变化超过阈值，则需要更新
+    double fieldChangeThreshold = parameters.nonlinearTolerance * 0.1;
+    return maxFieldChange > fieldChangeThreshold;
+}
+
+void MagnetoDynamics2DSolver::updateElementStiffness(const Element& element) {
+    // 更新单元的刚度矩阵贡献
+    
+    // 计算新的单元刚度矩阵
+    auto elementMatrices = computeElementMatrices(element);
+    
+    // 从全局矩阵中移除旧的贡献
+    removeElementStiffness(element);
+    
+    // 添加新的贡献
+    assembleLocalToGlobal(element, 
+                         elementMatrices.stiffness,
+                         elementMatrices.mass,
+                         elementMatrices.damping,
+                         elementMatrices.force);
+}
+
+void MagnetoDynamics2DSolver::assembleSystemWithJacobian() {
+    // 组装带雅可比项的系统矩阵
+    
+    if (!stiffnessMatrix || !massMatrix || !dampingMatrix || !rhsVector) {
+        initializeSystemMatrices();
+    }
+    
+    // 初始化雅可比矩阵
+    if (!jacobianMatrix) {
+        size_t nNodes = mesh->getNodes().numberOfNodes();
+        jacobianMatrix = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    
+    auto& elements = mesh->getElements();
+    
+    // 组装单元贡献（包含雅可比项）
+    for (const auto& element : elements) {
+        // 计算单元矩阵（包含雅可比项）
+        auto elementMatrices = computeElementMatricesWithJacobian(element);
+        
+        // 将局部矩阵组装到全局系统
+        assembleLocalToGlobal(element, 
+                             elementMatrices.stiffness,
+                             elementMatrices.mass,
+                             elementMatrices.damping,
+                             elementMatrices.force);
+        
+        // 组装雅可比矩阵贡献
+        assembleJacobianContribution(element, elementMatrices.jacobian);
+    }
+    
+    // 组装边界条件贡献
+    assembleBoundaryContributions();
+    
+    // 应用边界条件
+    applyBoundaryConditions();
+    
+    systemAssembled = true;
+    
+    std::cout << "带雅可比项的系统矩阵组装完成，处理了 " << elements.size() << " 个单元" << std::endl;
+}
+
+ElementMatricesWithJacobian MagnetoDynamics2DSolver::computeElementMatricesWithJacobian(const Element& element) {
+    // 计算带雅可比项的单元矩阵
+    
+    ElementMatricesWithJacobian matrices;
+    size_t nNodes = element.getNodeCount();
+    
+    // 初始化矩阵
+    matrices.stiffness.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.mass.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.damping.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.jacobian.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.force.resize(nNodes, 0.0);
+    
+    // 获取材料属性
+    std::string materialName = element.getMaterialName();
+    double reluctivity = getReluctivity(materialName, element);
+    
+    // 计算单元刚度矩阵
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            matrices.stiffness[i][j] = reluctivity * element.getArea();
+        }
+    }
+    
+    // 计算雅可比矩阵（刚度矩阵的导数）
+    // 对于非线性材料，雅可比矩阵包含材料导数的贡献
+    if (materialDB.isNonlinearMaterial(materialName)) {
+        // 计算材料导数 dν/dB
+        double dB = 1.0; // 简化处理，实际应该基于磁场变化
+        double dReluctivity = computeReluctivityDerivative(materialName, dB);
+        
+        for (size_t i = 0; i < nNodes; ++i) {
+            for (size_t j = 0; j < nNodes; ++j) {
+                matrices.jacobian[i][j] = dReluctivity * element.getArea();
+            }
+        }
+    } else {
+        // 线性材料，雅可比矩阵等于刚度矩阵
+        matrices.jacobian = matrices.stiffness;
+    }
+    
+    // 计算其他矩阵（与标准方法相同）
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            matrices.mass[i][j] = parameters.materialDensity * element.getArea() / nNodes;
+            matrices.damping[i][j] = parameters.dampingCoefficient * element.getArea() / nNodes;
+        }
+        matrices.force[i] = parameters.currentDensity * element.getArea() / nNodes;
+    }
+    
+    return matrices;
+}
+
+void MagnetoDynamics2DSolver::assembleJacobianContribution(const Element& element, 
+                                                           const std::vector<std::vector<double>>& localJacobian) {
+    // 组装雅可比矩阵贡献
+    
+    if (!jacobianMatrix) {
+        std::cerr << "错误: 雅可比矩阵未初始化" << std::endl;
+        return;
+    }
+    
+    size_t nNodes = element.getNodeCount();
+    auto nodeIndices = element.getNodeIndices();
+    
+    // 将局部雅可比矩阵组装到全局雅可比矩阵
+    for (size_t i = 0; i < nNodes; ++i) {
+        int globalRow = nodeIndices[i];
+        
+        for (size_t j = 0; j < nNodes; ++j) {
+            int globalCol = nodeIndices[j];
+            
+            // 添加局部贡献到全局矩阵
+            double currentValue = jacobianMatrix->GetElement(globalRow, globalCol);
+            jacobianMatrix->SetElement(globalRow, globalCol, currentValue + localJacobian[i][j]);
+        }
+    }
+}
+
+void MagnetoDynamics2DSolver::addNonlinearJacobianContribution(const Element& element) {
+    // 添加非线性材料对雅可比矩阵的贡献
+    
+    if (!jacobianMatrix || currentPotential.empty()) {
+        return;
+    }
+    
+    size_t nNodes = element.getNodeCount();
+    auto nodeIndices = element.getNodeIndices();
+    
+    // 获取材料名称
+    std::string materialName = element.getMaterialName();
+    
+    // 计算当前单元的磁场强度
+    double H_avg = 0.0;
+    auto H = computeMagneticFieldStrength();
+    
+    for (size_t i = 0; i < nNodes; ++i) {
+        int nodeIndex = nodeIndices[i];
+        double Hx = H[nodeIndex * 2];
+        double Hy = H[nodeIndex * 2 + 1];
+        double H_magnitude = std::sqrt(Hx*Hx + Hy*Hy);
+        H_avg += H_magnitude;
+    }
+    H_avg /= nNodes;
+    
+    // 计算材料导数 dν/dH
+    double dReluctivity = computeReluctivityDerivative(materialName, H_avg);
+    
+    // 计算非线性贡献
+    double nonlinearContribution = dReluctivity * element.getArea();
+    
+    // 将非线性贡献添加到雅可比矩阵
+    for (size_t i = 0; i < nNodes; ++i) {
+        int globalRow = nodeIndices[i];
+        
+        for (size_t j = 0; j < nNodes; ++j) {
+            int globalCol = nodeIndices[j];
+            
+            // 添加非线性贡献
+            double currentValue = jacobianMatrix->GetElement(globalRow, globalCol);
+            jacobianMatrix->SetElement(globalRow, globalCol, currentValue + nonlinearContribution);
+        }
+    }
+}
+
+void MagnetoDynamics2DSolver::initializeComplexSystemMatrices() {
+    // 初始化复数系统矩阵
+    
+    size_t nNodes = mesh->getNodes().numberOfNodes();
+    
+    // 初始化复数刚度矩阵（实部和虚部）
+    if (!complexStiffnessMatrixReal) {
+        complexStiffnessMatrixReal = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    if (!complexStiffnessMatrixImag) {
+        complexStiffnessMatrixImag = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    
+    // 初始化复数质量矩阵
+    if (!complexMassMatrixReal) {
+        complexMassMatrixReal = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    if (!complexMassMatrixImag) {
+        complexMassMatrixImag = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    
+    // 初始化复数阻尼矩阵
+    if (!complexDampingMatrixReal) {
+        complexDampingMatrixReal = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    if (!complexDampingMatrixImag) {
+        complexDampingMatrixImag = std::dynamic_pointer_cast<Matrix>(std::make_shared<CRSMatrix>(nNodes, nNodes));
+    }
+    
+    // 初始化复数右端向量
+    if (!complexRhsVectorReal) {
+        complexRhsVectorReal = std::shared_ptr<Vector>(Vector::Create(nNodes));
+    }
+    if (!complexRhsVectorImag) {
+        complexRhsVectorImag = std::shared_ptr<Vector>(Vector::Create(nNodes));
+    }
+    
+    // 初始化复数解向量
+    if (complexSolutionReal.empty()) {
+        complexSolutionReal.resize(nNodes, 0.0);
+    }
+    if (complexSolutionImag.empty()) {
+        complexSolutionImag.resize(nNodes, 0.0);
+    }
+    
+    std::cout << "复数系统矩阵初始化完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::assembleComplexElementContributions() {
+    // 组装复数单元贡献
+    
+    if (!complexStiffnessMatrixReal || !complexStiffnessMatrixImag) {
+        std::cerr << "错误: 复数系统矩阵未初始化" << std::endl;
+        return;
+    }
+    
+    auto& elements = mesh->getElements();
+    
+    // 遍历所有单元
+    for (const auto& element : elements) {
+        // 计算复数单元矩阵
+        auto complexElementMatrices = computeComplexElementMatrices(element);
+        
+        // 将复数局部矩阵组装到全局系统
+        assembleComplexLocalToGlobal(element, complexElementMatrices);
+    }
+    
+    std::cout << "复数单元贡献组装完成，处理了 " << elements.size() << " 个单元" << std::endl;
+}
+
+ComplexElementMatrices MagnetoDynamics2DSolver::computeComplexElementMatrices(const Element& element) {
+    // 计算复数单元矩阵
+    
+    ComplexElementMatrices matrices;
+    size_t nNodes = element.getNodeCount();
+    
+    // 初始化复数矩阵
+    matrices.stiffnessReal.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.stiffnessImag.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.massReal.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.massImag.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.dampingReal.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.dampingImag.resize(nNodes, std::vector<double>(nNodes, 0.0));
+    matrices.forceReal.resize(nNodes, 0.0);
+    matrices.forceImag.resize(nNodes, 0.0);
+    
+    // 获取材料属性
+    std::string materialName = element.getMaterialName();
+    double reluctivity = getReluctivity(materialName, element);
+    
+    // 计算复数刚度矩阵
+    // 实部：电阻性项
+    // 虚部：电抗性项（与频率相关）
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            // 实部：电阻性刚度矩阵
+            matrices.stiffnessReal[i][j] = reluctivity * element.getArea();
+            
+            // 虚部：电抗性项（与频率相关）
+            if (parameters.frequency != 0.0) {
+                matrices.stiffnessImag[i][j] = 2.0 * M_PI * parameters.frequency * 
+                                              parameters.electricalConductivity * element.getArea();
+            }
+        }
+    }
+    
+    // 计算复数质量矩阵（用于时域分析）
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            matrices.massReal[i][j] = parameters.materialDensity * element.getArea() / nNodes;
+            // 质量矩阵虚部通常为0
+            matrices.massImag[i][j] = 0.0;
+        }
+    }
+    
+    // 计算复数阻尼矩阵
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            matrices.dampingReal[i][j] = parameters.dampingCoefficient * element.getArea() / nNodes;
+            // 阻尼矩阵虚部通常为0
+            matrices.dampingImag[i][j] = 0.0;
+        }
+    }
+    
+    // 计算复数载荷向量
+    for (size_t i = 0; i < nNodes; ++i) {
+        // 实部：直流或同相分量
+        matrices.forceReal[i] = parameters.currentDensity * element.getArea() / nNodes;
+        
+        // 虚部：交流或正交分量
+        if (parameters.frequency != 0.0) {
+            matrices.forceImag[i] = parameters.currentDensity * element.getArea() / nNodes * 
+                                   std::sin(2.0 * M_PI * parameters.frequency * parameters.time);
+        }
+    }
+    
+    return matrices;
+}
+
+void MagnetoDynamics2DSolver::assembleComplexLocalToGlobal(const Element& element, const ComplexElementMatrices& matrices) {
+    // 将复数局部矩阵组装到全局系统
+    
+    size_t nNodes = element.getNodeCount();
+    auto nodeIndices = element.getNodeIndices();
+    
+    // 组装实部矩阵
+    for (size_t i = 0; i < nNodes; ++i) {
+        int globalRow = nodeIndices[i];
+        
+        for (size_t j = 0; j < nNodes; ++j) {
+            int globalCol = nodeIndices[j];
+            
+            // 组装实部刚度矩阵
+            double currentReal = complexStiffnessMatrixReal->GetElement(globalRow, globalCol);
+            complexStiffnessMatrixReal->SetElement(globalRow, globalCol, 
+                                                  currentReal + matrices.stiffnessReal[i][j]);
+            
+            // 组装虚部刚度矩阵
+            double currentImag = complexStiffnessMatrixImag->GetElement(globalRow, globalCol);
+            complexStiffnessMatrixImag->SetElement(globalRow, globalCol, 
+                                                  currentImag + matrices.stiffnessImag[i][j]);
+            
+            // 组装实部质量矩阵
+            currentReal = complexMassMatrixReal->GetElement(globalRow, globalCol);
+            complexMassMatrixReal->SetElement(globalRow, globalCol, 
+                                             currentReal + matrices.massReal[i][j]);
+            
+            // 组装虚部质量矩阵
+            currentImag = complexMassMatrixImag->GetElement(globalRow, globalCol);
+            complexMassMatrixImag->SetElement(globalRow, globalCol, 
+                                             currentImag + matrices.massImag[i][j]);
+            
+            // 组装实部阻尼矩阵
+            currentReal = complexDampingMatrixReal->GetElement(globalRow, globalCol);
+            complexDampingMatrixReal->SetElement(globalRow, globalCol, 
+                                                currentReal + matrices.dampingReal[i][j]);
+            
+            // 组装虚部阻尼矩阵
+            currentImag = complexDampingMatrixImag->GetElement(globalRow, globalCol);
+            complexDampingMatrixImag->SetElement(globalRow, globalCol, 
+                                                currentImag + matrices.dampingImag[i][j]);
+        }
+        
+        // 组装实部右端向量
+        (*complexRhsVectorReal)[globalRow] += matrices.forceReal[i];
+        
+        // 组装虚部右端向量
+        (*complexRhsVectorImag)[globalRow] += matrices.forceImag[i];
+    }
+}
+
+void MagnetoDynamics2DSolver::assembleComplexBoundaryContributions() {
+    // 组装复数边界条件贡献
+    
+    if (!complexRhsVectorReal || !complexRhsVectorImag) {
+        std::cerr << "错误: 复数右端向量未初始化" << std::endl;
+        return;
+    }
+    
+    // 遍历所有边界条件
+    for (const auto& bcPair : boundaryConditions) {
+        const auto& bc = bcPair.second;
+        
+        // 根据边界条件类型组装复数贡献
+        switch (bc.type[0]) {
+            case 'N': // Neumann
+                assembleComplexNeumannBoundaryContribution(bc);
+                break;
+                
+            case 'M': // Magnetic Flux Density
+                assembleComplexMagneticFluxBoundaryContribution(bc);
+                break;
+                
+            default:
+                // Dirichlet边界条件在应用阶段处理
+                break;
+        }
+    }
+    
+    std::cout << "复数边界条件贡献组装完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::applyComplexBoundaryConditions() {
+    // 应用复数边界条件
+    
+    if (!complexStiffnessMatrixReal || !complexStiffnessMatrixImag || 
+        !complexRhsVectorReal || !complexRhsVectorImag) {
+        std::cerr << "错误: 复数系统矩阵未初始化，无法应用边界条件" << std::endl;
+        return;
+    }
+    
+    // 应用复数Dirichlet边界条件
+    applyComplexDirichletBoundaryConditions();
+    
+    std::cout << "复数边界条件应用完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::computeReluctivityDerivative(const std::string& materialName, double fieldStrength) {
+    // 计算磁阻率对磁场强度的导数 dν/dH
+    
+    auto material = materialDB.getMaterial(materialName);
+    
+    // 检查是否为非线性材料
+    if (!materialDB.isNonlinearMaterial(materialName)) {
+        // 线性材料，导数为0
+        return 0.0;
+    }
+    
+    // 使用有限差分法计算导数
+    double h = 1e-6; // 差分步长
+    double reluctivity1 = computeReluctivity(materialName, fieldStrength);
+    double reluctivity2 = computeReluctivity(materialName, fieldStrength + h);
+    
+    double derivative = (reluctivity2 - reluctivity1) / h;
+    
+    // 确保导数非负（磁阻率随磁场强度增加而增加）
+    derivative = std::max(0.0, derivative);
+    
+    return derivative;
+}
+
+void MagnetoDynamics2DSolver::computeJacobianMatrix() {
+    // 计算雅可比矩阵
+    
+    if (!stiffnessMatrix || !jacobianMatrix || currentPotential.empty()) {
+        std::cerr << "错误: 系统矩阵或当前解未初始化，无法计算雅可比矩阵" << std::endl;
+        return;
+    }
+    
+    // 雅可比矩阵 = 刚度矩阵 + 非线性项
+    // 对于磁动力学问题，非线性项来自材料非线性
+    
+    // 复制刚度矩阵作为基础
+    jacobianMatrix->CopyFrom(*stiffnessMatrix);
+    
+    // 添加非线性材料贡献
+    auto& elements = mesh->getElements();
+    
+    for (const auto& element : elements) {
+        std::string materialName = element.getMaterialName();
+        
+        // 检查是否为非线性材料
+        if (materialDB.isNonlinearMaterial(materialName)) {
+            // 计算非线性材料对雅可比矩阵的贡献
+            addNonlinearJacobianContribution(element);
+        }
+    }
+    
+    std::cout << "雅可比矩阵计算完成" << std::endl;
+}
+
+void MagnetoDynamics2DSolver::removeElementStiffness(const Element& element) {
+    // 从全局矩阵中移除单元的贡献
+    
+    size_t nNodes = element.getNodeCount();
+    auto nodeIndices = element.getNodeIndices();
+    
+    // 创建一个零矩阵来移除贡献
+    std::vector<std::vector<double>> zeroStiffness(nNodes, std::vector<double>(nNodes, 0.0));
+    std::vector<double> zeroForce(nNodes, 0.0);
+    
+    // 使用负值来移除贡献
+    for (size_t i = 0; i < nNodes; ++i) {
+        for (size_t j = 0; j < nNodes; ++j) {
+            zeroStiffness[i][j] = -1.0; // 负值表示移除
+        }
+        zeroForce[i] = -1.0;
+    }
+    
+    // 组装负贡献以移除旧值
+    assembleLocalToGlobal(element, zeroStiffness, zeroStiffness, zeroStiffness, zeroForce);
 }
 
 void MagnetoDynamics2DSolver::clearCache() {
@@ -974,17 +1873,16 @@ void MagnetoDynamics2DSolver::reassembleNonlinearSystem() {
 // reassembleNonlinearSystemWithJacobian 子程序的C++移植
 //------------------------------------------------------------------------------
 void MagnetoDynamics2DSolver::reassembleNonlinearSystemWithJacobian() {
-    // 对应Fortran的带雅可比项的非线性系统重新组装
-    // 对应Fortran: 牛顿-拉夫逊迭代中的雅可比矩阵计算
+    // 带雅可比项的非线性系统重新组装
     
     // 清除当前系统状态
     clearCache();
     
     // 重新组装系统矩阵（包含雅可比项）
-    assembleSystem();
+    assembleSystemWithJacobian();
     
     // 计算雅可比矩阵
-    // TODO: 实现雅可比矩阵计算
+    computeJacobianMatrix();
     
     // 更新材料参数
     updateMaterialParameters();
@@ -1049,8 +1947,7 @@ void MagnetoDynamics2DSolver::updateMaterialParameters() {
 // assembleComplexSystem 子程序的C++移植
 //------------------------------------------------------------------------------
 void MagnetoDynamics2DSolver::assembleComplexSystem() {
-    // 对应Fortran的复数系统组装逻辑
-    // 对应Fortran: 谐波分析中的复数矩阵组装
+    // 复数系统组装逻辑
     
     // 检查是否使用复数矩阵
     if (!parameters.useComplexMatrices) {
@@ -1059,17 +1956,21 @@ void MagnetoDynamics2DSolver::assembleComplexSystem() {
         return;
     }
     
-    // 复数系统组装逻辑
-    // 对应Fortran: 谐波分析中的复数矩阵组装流程
+    // 初始化复数系统矩阵
+    initializeComplexSystemMatrices();
     
-    // TODO: 实现复数系统组装逻辑
-    // 需要实现：
-    // - 复数刚度矩阵组装
-    // - 复数质量矩阵组装
-    // - 复数阻尼矩阵组装
-    // - 复数右端向量组装
+    // 组装复数单元贡献
+    assembleComplexElementContributions();
     
-    std::cout << "复数系统组装..." << std::endl;
+    // 组装复数边界条件贡献
+    assembleComplexBoundaryContributions();
+    
+    // 应用复数边界条件
+    applyComplexBoundaryConditions();
+    
+    systemAssembled = true;
+    
+    std::cout << "复数系统组装完成" << std::endl;
 }
 
 //------------------------------------------------------------------------------

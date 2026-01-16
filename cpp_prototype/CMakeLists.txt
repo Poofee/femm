@@ -47,21 +47,20 @@ add_library(ElmerCppMatrixAssembly
     src/core/mesh/ElementDescription.cpp
     
     # Utility classes
-    # TODO: 重新移植工具类
     src/core/utils/DefUtils.h
     src/core/utils/DefUtils.cpp
     src/core/utils/Lists.h
     src/core/utils/Lists.cpp
-    # src/core/utils/Integration.h
-    # src/core/utils/Integration.cpp
-    # src/core/utils/Interpolation.h
-    # src/core/utils/Interpolation.cpp
-    # src/core/utils/ShapeFunctions.h
-    # src/core/utils/ShapeFunctions.cpp
-    # src/core/utils/ElementUtils.h
-    # src/core/utils/ElementUtils.cpp
-    # src/core/utils/GaussIntegration.h
-    # src/core/utils/GaussIntegration.cpp
+    src/core/utils/Integration.h
+    src/core/utils/Integration.cpp
+    src/core/utils/Interpolation.h
+    src/core/utils/Interpolation.cpp
+    src/core/utils/ShapeFunctions.h
+    src/core/utils/ShapeFunctions.cpp
+    src/core/utils/ElementUtils.h
+    src/core/utils/ElementUtils.cpp
+    src/core/utils/GaussIntegration.h
+    src/core/utils/GaussIntegration.cpp
     
     # Logging system
     src/core/logging/LoggerInterface.h
@@ -70,24 +69,21 @@ add_library(ElmerCppMatrixAssembly
     src/core/logging/LoggerFactory.cpp
     
     # Solver modules
-    # TODO: 重新移植求解器模块
-    # src/solvers/ElmerSolver.h
-    # src/solvers/ElmerSolver.cpp
+    src/solvers/ElmerSolver.h
+    src/solvers/ElmerSolver.cpp
     src/solvers/base/NonlinearSolver.h
     
     # Electromagnetic solvers
-    # TODO: 重新移植电磁求解器
-    # src/solvers/electromagnetic/MagneticSolver.h
-    # src/solvers/electromagnetic/MagneticSolver.cpp
+    src/solvers/electromagnetic/MagneticSolver.h
+    src/solvers/electromagnetic/MagneticSolver.cpp
     src/solvers/electromagnetic/ElectromagneticMaterial.h
     # TODO: 重新移植WhitneyAVSolver
     # src/solvers/electromagnetic/MagnetoDynamics2DSolver.h
-    # src/solvers/electromagnetic/MagnetodynamicsSolver.h
+    src/solvers/electromagnetic/MagnetodynamicsSolver.h
     
     # Thermal solvers
-    # TODO: 重新移植热求解器
-    # src/solvers/thermal/HeatSolver.h
-    # src/solvers/thermal/HeatSolver.cpp
+    src/solvers/thermal/HeatSolver.h
+    src/solvers/thermal/HeatSolver.cpp
     
     # I/O modules
     src/io/input/InputFileParser.h

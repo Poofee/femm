@@ -39,9 +39,8 @@ add_library(ElmerCppMatrixAssembly
     
     # Mesh processing
     src/core/mesh/Mesh.h
-    # TODO: 修复MeshIO.cpp编译错误
-    # src/core/mesh/MeshIO.h
-    # src/core/mesh/MeshIO.cpp
+    src/core/mesh/MeshIO.h
+    src/core/mesh/MeshIO.cpp
     src/core/mesh/MeshUtils.h
     src/core/mesh/MeshUtils.cpp
     src/core/mesh/ElementDescription.h

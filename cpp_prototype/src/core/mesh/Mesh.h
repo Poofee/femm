@@ -58,13 +58,16 @@ public:
  * @brief Element type definition
  */
 enum class ElementType {
-    LINEAR,     // Linear element
-    QUADRATIC,  // Quadratic element
-    CUBIC,      // Cubic element
-    TETRAHEDRON, // Tetrahedron
-    HEXAHEDRON,  // Hexahedron
-    PRISM,       // Prism
-    PYRAMID      // Pyramid
+    UNKNOWN,        // Unknown element type
+    LINEAR,         // 2-node line element
+    TRIANGLE,       // 3-node triangle element
+    QUADRILATERAL,  // 4-node quadrilateral element
+    TETRAHEDRON,    // 4-node tetrahedron element
+    HEXAHEDRON,     // 8-node hexahedron element
+    PRISM,          // 6-node prism element
+    PYRAMID,        // 5-node pyramid element
+    QUADRATIC,      // Quadratic element
+    CUBIC           // Cubic element
 };
 
 /**

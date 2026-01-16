@@ -464,24 +464,52 @@ private:
         // 写入单元类型
         file << "CELL_TYPES " << totalCells << "\n";
         for (const auto& element : elements) {
-            int vtkType = convertToVTKType(element.getType());
+            int vtkType = elmerToVTKElementType(element.getType());
             file << vtkType << "\n";
         }
         file << "\n";
     }
     
     /**
+     * @brief 判断是否为体单元
+     */
+    static bool isBulkElement(ElementType type);
+    
+    /**
+     * @brief 将Gmsh单元类型转换为Elmer单元类型
+     */
+    static ElementType gmshToElmerElementType(int gmshType);
+    
+    /**
      * @brief 将Elmer单元类型转换为VTK单元类型
      */
-    static int convertToVTKType(ElementType elmerType) {
-        switch (elmerType) {
-            case ElementType::TETRAHEDRON: return 10; // VTK_TETRA
-            case ElementType::HEXAHEDRON: return 12;  // VTK_HEXAHEDRON
-            case ElementType::PRISM:      return 13;  // VTK_WEDGE
-            case ElementType::PYRAMID:    return 14;  // VTK_PYRAMID
-            default: return 5; // VTK_TRIANGLE (默认)
-        }
-    }
+    static int elmerToVTKElementType(ElementType elmerType);
+    
+    /**
+     * @brief 读取节点数据
+     */
+    static void readNodes(std::ifstream& file, std::shared_ptr<Mesh> mesh, size_t numberOfNodes);
+    
+    /**
+     * @brief 读取体单元数据
+     */
+    static void readBulkElements(std::ifstream& file, std::shared_ptr<Mesh> mesh, size_t numberOfBulkElements);
+    
+    /**
+     * @brief 读取边界单元数据
+     */
+    static void readBoundaryElements(std::ifstream& file, std::shared_ptr<Mesh> mesh, size_t numberOfBoundaryElements);
+    
+
+    /**
+     * @brief 写入VTK节点数据
+     */
+    static void writeVTKNodes(std::ofstream& file, const std::shared_ptr<Mesh>& mesh);
+    
+    /**
+     * @brief 写入VTK单元数据
+     */
+    static void writeVTKElements(std::ofstream& file, const std::shared_ptr<Mesh>& mesh);
 };
 
 } // namespace elmer

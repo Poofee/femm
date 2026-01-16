@@ -50,6 +50,9 @@ public:
     void SetElement(Integer i, Integer j, Real value) override;
     void AddToElement(Integer i, Integer j, Real value) override;
     
+    // Clone method for creating a copy of the matrix
+    std::unique_ptr<Matrix> Clone() const;
+    
     // CRS-specific methods
     /**
      * @brief Get the number of non-zero elements

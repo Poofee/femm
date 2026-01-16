@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "core/base/SolverBase.h"
-#include "core/base/Types.h"
+#include "SolverBase.h"
+#include "Types.h"
 #include <memory>
 #include <vector>
 

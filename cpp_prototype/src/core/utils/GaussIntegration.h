@@ -83,13 +83,13 @@ public:
     
 private:
     // 1D Gaussian quadrature data
-    static const std::array<std::array<double, 2>, 6> gauss1DData;
+    static const std::array<std::vector<double>, 6> gauss1DData;
     
     // Triangular integration data
-    static const std::array<std::array<double, 4>, 7> gaussTriangularData;
+    static const std::array<std::vector<double>, 7> gaussTriangularData;
     
     // Tetrahedral integration data  
-    static const std::array<std::array<double, 5>, 5> gaussTetrahedralData;
+    static const std::array<std::vector<double>, 5> gaussTetrahedralData;
 };
 
 } // namespace elmer

@@ -1,14 +1,14 @@
 #pragma once
 
-#include "solvers/electromagnetic/ElectromagneticMaterial.h"
-#include "core/utils/ShapeFunctions.h"
-#include "core/utils/GaussIntegration.h"
+#include "ElectromagneticMaterial.h"
+#include "ShapeFunctions.h"
+#include "GaussIntegration.h"
 #include "ElementMatrix.h"
-#include "core/math/LinearAlgebra.h"
-#include "core/mesh/Mesh.h"
-#include "boundary/BoundaryConditions.h"
+#include "LinearAlgebra.h"
+#include "Mesh.h"
+#include "BoundaryConditions.h"
 #include "MaterialDatabase.h"
-#include "core/math/IterativeSolver.h"
+#include "IterativeSolver.h"
 #include "NonlinearSolver.h"
 // 并行计算头文件（暂时注释掉，因为相关文件不存在）
 // #include "DistributedLinearAlgebra.h"

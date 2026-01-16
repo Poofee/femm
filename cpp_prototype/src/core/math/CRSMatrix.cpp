@@ -308,4 +308,17 @@ std::unique_ptr<Matrix> elmer::CreateCRSMatrix(Integer nrows, Integer ncols) {
     return std::make_unique<CRSMatrix>(nrows, ncols);
 }
 
+std::unique_ptr<Matrix> CRSMatrix::Clone() const {
+    auto clone = std::make_unique<CRSMatrix>(nrows_, ncols_);
+    
+    // Copy all internal data
+    clone->values_ = values_;
+    clone->col_indices_ = col_indices_;
+    clone->row_pointers_ = row_pointers_;
+    clone->diagonal_ = diagonal_;
+    clone->diagonal_computed_ = diagonal_computed_;
+    
+    return clone;
+}
+
 } // namespace elmer

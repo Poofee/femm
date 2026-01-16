@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ElmerCppMatrixAssembly)
+project(Elmer)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -22,7 +22,7 @@ else()
 endif()
 
 # Create library with simplified structure (no MPI modules)
-add_library(ElmerCppMatrixAssembly
+add_library(Elmer
     # Core infrastructure modules
     src/core/base/SolverBase.h
     src/core/base/SolverRegistry.h
@@ -107,7 +107,7 @@ add_library(ElmerCppMatrixAssembly
 )
 
 # 设置头文件搜索路径 - 这是关键修复
-target_include_directories(ElmerCppMatrixAssembly PUBLIC
+target_include_directories(Elmer PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/core/base
     ${CMAKE_SOURCE_DIR}/src/core/math
@@ -120,6 +120,7 @@ target_include_directories(ElmerCppMatrixAssembly PUBLIC
     ${CMAKE_SOURCE_DIR}/src/solvers/thermal
     ${CMAKE_SOURCE_DIR}/src/io/input
     ${CMAKE_SOURCE_DIR}/src/boundary
+    ${CMAKE_SOURCE_DIR}/src/parallel/mpi
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )
 
@@ -131,7 +132,7 @@ add_executable(test_simple
     test/test_simple.cpp
 )
 
-target_link_libraries(test_simple ElmerCppMatrixAssembly)
+target_link_libraries(test_simple Elmer)
 
 # 设置测试程序的头文件搜索路径
 target_include_directories(test_simple PUBLIC

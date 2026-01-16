@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../core/math/LinearAlgebra.h"
-#include "../core/math/CRSMatrix.h"
-#include "../core/mesh/Mesh.h"
-#include "../core/base/SolverBase.h"
-#include "../core/base/Types.h"
+#include "LinearAlgebra.h"
+#include "CRSMatrix.h"
+#include "Mesh.h"
+#include "SolverBase.h"
+#include "Types.h"
 #include <algorithm>
 #include <cmath>
 #include <complex>
@@ -48,14 +48,21 @@ public:
     std::vector<double> getElectricCurrent() const;
     std::vector<double> getLorentzForce() const;
     std::vector<double> getElectricField() const;
+    
+    // 坐标系检测
+    std::string detectCoordinateSystem();
 
 private:
     // ===== 内部数据结构 =====
     
+    // 基础数据结构
+    std::shared_ptr<Mesh> mesh_;              // 网格数据
+    std::shared_ptr<BoundaryConditionManager> bc_; // 边界条件管理器
+    
     // 场变量（基于Fortran数据结构）
     std::vector<double> magneticField_;      // MagneticField
     std::vector<double> electricCurrent_;    // ElectricCurrent
-    std::vector<double> elecField_;          // ElecField
+    std::vector<double> electricField_;      // ElectricField
     std::vector<double> lorentzForce_;       // LrF
     
     // 速度场
@@ -70,6 +77,9 @@ private:
     std::vector<double> divB_;               // divB
     std::vector<double> B1_, B2_, B3_;       // B场分量
     std::vector<double> ExBx_, ExBy_, ExBz_; // E × B项
+    std::vector<double> appliedMagneticFieldX_; // 施加的磁场X分量
+    std::vector<double> appliedMagneticFieldY_; // 施加的磁场Y分量
+    std::vector<double> appliedMagneticFieldZ_; // 施加的磁场Z分量
     
     // 求解器参数
     bool transientSimulation_ = false;       // TransientSimulation
@@ -84,9 +94,11 @@ private:
     bool calculateMagneticForce_ = false;    // CalculateMagneticForce
 
     // 全局矩阵
+    std::shared_ptr<CRSMatrix> stiffnessMatrix_;        // 刚度矩阵
     std::shared_ptr<CRSMatrix> globalStiffnessMatrix_;  // 全局刚度矩阵
     std::shared_ptr<CRSMatrix> globalMassMatrix_;       // 全局质量矩阵
-    std::shared_ptr<Vector> solutionVector_;            // 解向量
+    std::shared_ptr<Vector> rhsVector_;                  // 右端向量
+    std::shared_ptr<Vector> solutionVector_;             // 解向量
     std::shared_ptr<Vector> residualVector_;            // 残差向量
 
     // ===== 私有辅助函数 =====
@@ -109,11 +121,21 @@ private:
     // 非线性迭代求解
     bool solveNonlinearIteration(int maxIterations, double tolerance);
     std::shared_ptr<Vector> computeResidualVector();
-    double computeVectorNorm(const Vector& vec) const;
-    bool checkConvergence(double prevNorm, double currentNorm) const;
     bool updateJacobianMatrix();
     std::shared_ptr<Vector> solveLinearSystem(const Vector& residual);
     void updateSolutionVector(const Vector& deltaX);
+    
+    // 非线性求解器
+    bool solveNonlinearSystem(int maxIterations, double tolerance);
+    
+    // 收敛性检查
+    bool checkConvergence(double prevNorm, double currentNorm) const;
+    
+    // 向量范数计算
+    double computeVectorNorm(const Vector& vec);
+    
+    // 节点场计算
+    bool computeNodalField();
     
     // 物理量更新
     void updateMagneticFieldFromSolution();
@@ -128,6 +150,8 @@ private:
     bool applyDirichletBoundaryConditions();
     bool applyNeumannBoundaryConditions();
     bool applyMagneticBoundaryConditions();
+    bool applyPeriodicBoundaryCondition(int bcId, const Element& boundaryElement);
+    std::string detectBoundaryConditionType(int bcId, const Element& boundaryElement);
     
     // 工具函数
     double getElementConductivity(const Element& element) const;
@@ -175,6 +199,13 @@ private:
                                        std::vector<double>& elementRHS);
     
     // 旋度计算辅助函数
+    bool computeCurl(const std::vector<double>& fieldX,
+                     const std::vector<double>& fieldY,
+                     const std::vector<double>& fieldZ,
+                     std::vector<double>& curlX,
+                     std::vector<double>& curlY,
+                     std::vector<double>& curlZ);
+    
     bool computeElementCurl(int elementId,
                            const std::vector<double>& nodeCoordsX,
                            const std::vector<double>& nodeCoordsY,

@@ -13,6 +13,7 @@
 #include <functional>
 #include <vector>
 #include "SolverBase.h"
+#include "MPICommunicator.h"
 
 namespace elmer {
 

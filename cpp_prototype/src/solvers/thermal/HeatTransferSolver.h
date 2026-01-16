@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ShapeFunctions.h"
-#include "GaussIntegration.h"
+#include "core/utils/ShapeFunctions.h"
+#include "core/utils/GaussIntegration.h"
 #include "ElementMatrix.h"
-#include "LinearAlgebra.h"
-#include "IterativeSolver.h"
-#include "Mesh.h"
+#include "core/math/LinearAlgebra.h"
+#include "core/math/IterativeSolver.h"
+#include "core/mesh/Mesh.h"
 #include "Material.h"
 #include <memory>
 #include <vector>

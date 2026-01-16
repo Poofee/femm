@@ -1,5 +1,5 @@
-#include "HeatTransferSolver.h"
-#include "IterativeSolver.h"
+#include "solvers/thermal/HeatTransferSolver.h"
+#include "core/math/IterativeSolver.h"
 #include "Material.h"
 #include <iostream>
 #include <cmath>

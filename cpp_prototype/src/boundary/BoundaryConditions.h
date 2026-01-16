@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../core/math/LinearAlgebra.h"
-#include "../core/mesh/Mesh.h"
-#include "../core/base/Types.h"
+#include "core/math/LinearAlgebra.h"
+#include "core/mesh/Mesh.h"
+#include "core/base/Types.h"
 #include <algorithm>
 #include <complex>
 #include <functional>

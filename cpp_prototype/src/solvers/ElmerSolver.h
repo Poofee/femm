@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../core/math/LinearAlgebra.h"
-#include "Mesh.h"
-#include "../core/base/Types.h"
-#include "../boundary/BoundaryConditions.h"
+#include "core/math/LinearAlgebra.h"
+#include "core/mesh/Mesh.h"
+#include "core/base/Types.h"
+#include "boundary/BoundaryConditions.h"
 #include <algorithm>
 #include <complex>
 #include <functional>

@@ -10,16 +10,18 @@
 #include "MaterialDatabase.h"
 #include "IterativeSolver.h"
 #include "NonlinearSolver.h"
-#include "DistributedLinearAlgebra.h"
-#include "ParallelMatrixAssembly.h"
-#include "ParallelLinearSolver.h"
-#include "DomainDecomposition.h"
+// 并行计算头文件（暂时注释掉，因为相关文件不存在）
+// #include "DistributedLinearAlgebra.h"
+// #include "ParallelMatrixAssembly.h"
+// #include "ParallelLinearSolver.h"
+// #include "DomainDecomposition.h"
 #include <memory>
 #include <vector>
 #include <array>
 #include <complex>
 #include <unordered_map>
-#include <omp.h>
+#include <iostream>
+#include <string>
 
 namespace elmer {
 
@@ -121,11 +123,11 @@ private:
     elmer::MaterialDatabase materialDB;
     MagnetoDynamics2DParameters parameters;
     
-    // MPI并行组件
-    std::shared_ptr<MPICommunicator> comm_;                           ///< MPI通信器
-    std::shared_ptr<DomainDecompositionManager> decompositionManager_; ///< 域分解管理器
-    std::shared_ptr<ParallelMatrixAssembler> parallelAssembler_;       ///< 并行矩阵组装器
-    std::shared_ptr<ParallelLinearSolver> parallelSolver_;             ///< 并行线性求解器
+    // MPI并行组件（暂时注释掉，因为相关组件不存在）
+    // std::shared_ptr<MPICommunicator> comm_;                           ///< MPI通信器
+    // std::shared_ptr<DomainDecompositionManager> decompositionManager_; ///< 域分解管理器
+    // std::shared_ptr<ParallelMatrixAssembler> parallelAssembler_;       ///< 并行矩阵组装器
+    // std::shared_ptr<ParallelLinearSolver> parallelSolver_;             ///< 并行线性求解器
     
     // 系统矩阵（串行版本）
     std::shared_ptr<Matrix> stiffnessMatrix;      ///< 刚度矩阵
@@ -133,11 +135,11 @@ private:
     std::shared_ptr<Matrix> dampingMatrix;        ///< 阻尼矩阵
     std::shared_ptr<Vector> rhsVector;            ///< 右端向量
     
-    // 分布式系统矩阵（并行版本）
-    std::shared_ptr<DistributedMatrix> distributedStiffnessMatrix_;    ///< 分布式刚度矩阵
-    std::shared_ptr<DistributedMatrix> distributedMassMatrix_;         ///< 分布式质量矩阵
-    std::shared_ptr<DistributedMatrix> distributedDampingMatrix_;      ///< 分布式阻尼矩阵
-    std::shared_ptr<DistributedVector> distributedRhsVector_;          ///< 分布式右端向量
+    // 分布式系统矩阵（并行版本）- 暂时注释掉
+    // std::shared_ptr<DistributedMatrix> distributedStiffnessMatrix_;    ///< 分布式刚度矩阵
+    // std::shared_ptr<DistributedMatrix> distributedMassMatrix_;         ///< 分布式质量矩阵
+    // std::shared_ptr<DistributedMatrix> distributedDampingMatrix_;      ///< 分布式阻尼矩阵
+    // std::shared_ptr<DistributedVector> distributedRhsVector_;          ///< 分布式右端向量
     
     // 复数系统矩阵（谐波分析）
     std::shared_ptr<Matrix> complexStiffnessMatrix;      ///< 复数刚度矩阵
@@ -151,6 +153,15 @@ private:
     // 内部状态
     bool systemAssembled = false;
     bool useBasisFunctionsCache = false;
+    
+    // 求解器参数
+    int variableDofs = 1;                    ///< 变量自由度数量
+    std::string variableName = "Potential";  ///< 变量名称
+    bool applyMortarBCs = true;              ///< 是否应用Mortar边界条件
+    bool useGlobalMassMatrix = true;         ///< 是否使用全局质量矩阵
+    
+    // 基函数缓存
+    std::unordered_map<int, BasisFunctionCache> basisFunctionCache; ///< 基函数缓存
     
     // 非线性求解器
     std::unique_ptr<NonlinearSolver> nonlinearSolver;
@@ -196,17 +207,9 @@ public:
     /**
      * @brief 构造函数
      */
-    MagnetoDynamics2DSolver(std::shared_ptr<Mesh> m = nullptr, 
-                           std::shared_ptr<MPICommunicator> comm = nullptr)
-        : mesh(m), comm_(comm ? comm : MPIUtils::getDefaultComm()) {
+    MagnetoDynamics2DSolver(std::shared_ptr<Mesh> m = nullptr)
+        : mesh(m) {
         materialDB.createPredefinedMaterials();
-        
-        // 初始化MPI并行组件
-        if (comm_->getSize() > 1) {
-            decompositionManager_ = std::make_shared<DomainDecompositionManager>(comm_);
-            parallelAssembler_ = std::make_shared<ParallelMatrixAssembler>(comm_, decompositionManager_);
-            parallelSolver_ = std::make_shared<ParallelConjugateGradientSolver>(comm_);
-        }
         
         // 创建默认的非线性求解器
         nonlinearSolver = std::make_unique<NewtonRaphsonSolver>();
@@ -743,6 +746,34 @@ private:
     void applyAirGapBoundaryCondition(const Element& element, 
                                      std::vector<std::vector<double>>& stiffness,
                                      std::vector<double>& force);
+    
+    /**
+     * @brief 将无限远边界条件应用到全局系统
+     */
+    void applyInfinityBoundaryConditionToGlobal(const Element& boundaryElement);
+    
+    /**
+     * @brief 将气隙边界条件应用到全局系统
+     */
+    void applyAirGapBoundaryConditionToGlobal(const Element& boundaryElement, 
+                                             const std::shared_ptr<BoundaryCondition>& boundaryCondition);
+    
+    /**
+     * @brief 将边界局部矩阵组装到全局系统
+     */
+    void assembleBoundaryLocalToGlobal(const Element& boundaryElement,
+                                      const std::vector<std::vector<double>>& localStiffness,
+                                      const std::vector<double>& localForce);
+    
+    /**
+     * @brief 获取气隙长度
+     */
+    double getAirGapLength(const Element& element);
+    
+    /**
+     * @brief 获取气隙磁导率
+     */
+    double getAirGapPermeability(const Element& element);
     
     // 并行化相关方法
     /**

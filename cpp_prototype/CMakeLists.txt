@@ -76,16 +76,15 @@ add_library(ElmerCppMatrixAssembly
     # Electromagnetic solvers
     src/solvers/electromagnetic/MagneticSolver.h
     src/solvers/electromagnetic/MagneticSolver.cpp
+    src/solvers/electromagnetic/ElectromagneticMaterial.h
+    # 已修复编译问题的文件
     src/solvers/electromagnetic/MagnetoDynamics2DSolver.h
     src/solvers/electromagnetic/MagnetoDynamics2DSolver.cpp
     src/solvers/electromagnetic/MagnetodynamicsSolver.h
-    src/solvers/electromagnetic/ElectromagneticMaterial.h
     
     # Thermal solvers
     src/solvers/thermal/HeatSolver.h
     src/solvers/thermal/HeatSolver.cpp
-    src/solvers/thermal/HeatTransferSolver.h
-    src/solvers/thermal/HeatTransferSolver.cpp
     
     # I/O modules
     src/io/input/InputFileParser.h
@@ -125,6 +124,9 @@ target_include_directories(ElmerCppMatrixAssembly PUBLIC
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )
 
+# 添加googletest子目录
+add_subdirectory(googletest)
+
 # Create simple test executable
 add_executable(test_simple
     test/test_simple.cpp
@@ -134,6 +136,39 @@ target_link_libraries(test_simple ElmerCppMatrixAssembly)
 
 # 设置测试程序的头文件搜索路径
 target_include_directories(test_simple PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# Create comprehensive MagneticSolver test executable
+add_executable(test_magnetic_solver_comprehensive
+    test/test_magnetic_solver_comprehensive.cpp
+)
+
+target_link_libraries(test_magnetic_solver_comprehensive 
+    ElmerCppMatrixAssembly
+    gtest
+    gtest_main
+)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_magnetic_solver_comprehensive PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+    ${CMAKE_SOURCE_DIR}/googletest/googletest/include
+)
+
+# 创建简单的MagneticSolver接口测试程序
+add_executable(test_magnetic_solver_simple
+    test/test_magnetic_solver_simple.cpp
+)
+
+target_link_libraries(test_magnetic_solver_simple 
+    ElmerCppMatrixAssembly
+)
+
+# 设置简单测试程序的头文件搜索路径
+target_include_directories(test_magnetic_solver_simple PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )

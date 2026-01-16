@@ -77,15 +77,19 @@ private:
     int bodyId_;                       // Body ID
     int boundaryId_;                   // Boundary ID (used for boundary elements)
     std::string materialName_;         // Material name
+    int id_;                           // Element ID
     
 public:
-    Element() : type_(ElementType::LINEAR), bodyId_(0), boundaryId_(0), materialName_("") {}
+    Element() : type_(ElementType::LINEAR), bodyId_(0), boundaryId_(0), materialName_(""), id_(0) {}
     
     Element(ElementType type, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_("") {}
+        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(0) {}
     
     Element(ElementType type, const std::string& materialName, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(materialName) {}
+        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(materialName), id_(0) {}
+    
+    Element(ElementType type, int id, int bodyId = 0) 
+        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(id) {}
     
     // Add node index
     void addNodeIndex(size_t nodeIndex) {
@@ -145,6 +149,21 @@ public:
     // Get number of nodes
     size_t numberOfNodes() const {
         return nodeIndices_.size();
+    }
+    
+    // Get node count (alias for numberOfNodes)
+    size_t getNodeCount() const {
+        return nodeIndices_.size();
+    }
+    
+    // Get element ID
+    int getId() const {
+        return id_;
+    }
+    
+    // Set element ID
+    void setId(int id) {
+        id_ = id;
     }
     
     // Check if it's a boundary element

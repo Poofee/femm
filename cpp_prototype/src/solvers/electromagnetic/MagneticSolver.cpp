@@ -17,6 +17,7 @@
 
 #include "MagneticSolver.h"
 #include "Types.h"
+#include "../core/logging/LoggerFactory.h"
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -103,14 +104,14 @@ bool MagneticSolver::assemble() {
         return false;
     }
     
-    if (!stiffnessMatrix_ || !rhsVector_) {
+    if (!globalStiffnessMatrix_ || !solutionVector_) {
         ELMER_ERROR("刚度矩阵或右端向量未初始化");
         return false;
     }
     
     // 清零刚度矩阵和右端向量
-    stiffnessMatrix_->Zero();
-    rhsVector_->Zero();
+    globalStiffnessMatrix_->Zero();
+    solutionVector_->Zero();
     
     // 根据坐标系类型选择组装方法
     bool success = false;
@@ -156,14 +157,14 @@ bool MagneticSolver::solve() {
         return false;
     }
     
-    if (!stiffnessMatrix_ || !rhsVector_) {
+    if (!globalStiffnessMatrix_ || !solutionVector_) {
         ELMER_ERROR("系统矩阵或右端向量未初始化");
         return false;
     }
     
     // 初始化解向量
     if (!solution_) {
-        solution_ = Vector::Create(stiffnessMatrix_->GetNumRows());
+        solution_ = Vector::Create(globalStiffnessMatrix_->GetNumRows());
         solution_->Zero();
     }
     
@@ -709,7 +710,7 @@ bool MagneticSolver::applyPeriodicBoundaryCondition(int bcId, const Element& bou
     // 实现周期性边界条件
     // 基于Fortran版本的周期性边界条件处理
     
-    if (!bc_ || !stiffnessMatrix_ || !rhsVector_) {
+    if (!bc_ || !globalStiffnessMatrix_ || !solutionVector_) {
         ELMER_ERROR("必要的组件未初始化");
         return false;
     }
@@ -774,7 +775,7 @@ bool MagneticSolver::applyPeriodicBoundaryCondition(int bcId, const Element& bou
     return true;
 }
 
-bool MagneticSolver::checkConvergence(double prevNorm, double currentNorm) {
+bool MagneticSolver::checkConvergence(double prevNorm, double currentNorm) const {
     // 基于Fortran版本的收敛性检查实现
     // 实现多种收敛准则：相对残差、绝对残差、增量范数
     

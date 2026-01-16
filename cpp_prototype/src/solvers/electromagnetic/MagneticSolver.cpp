@@ -1007,7 +1007,7 @@ bool MagneticSolver::computeAxisymmetricElementMatrices(int elementId,
     // 基于Fortran版本的MagneticSolve.F90实现柱对称坐标系单元矩阵计算
     
     if (!mesh_ || elementId < 0 || elementId >= mesh_->getBulkElements().size()) {
-        std::cerr << "错误: 无效的单元索引" << std::endl;
+        ELMER_ERROR("无效的单元索引: {}", elementId);
         return false;
     }
     
@@ -1032,26 +1032,129 @@ bool MagneticSolver::computeAxisymmetricElementMatrices(int elementId,
         }
     }
     
-    // 计算单元几何信息（柱对称坐标系）
-    // TODO: 实现完整的柱对称坐标系形状函数和积分计算
+    // 获取单元节点坐标
+    std::vector<double> nodeCoordsX(numElementNodes);
+    std::vector<double> nodeCoordsY(numElementNodes);
+    std::vector<double> nodeCoordsZ(numElementNodes);
     
-    // 简化实现：创建对角矩阵，考虑柱对称特性
-    for (int i = 0; i < numElementNodes * 3; ++i) {
-        elementStiffness[i][i] = 1.0; // 单位矩阵
-        
-        // 柱对称坐标系下的特殊处理
-        if (i % 3 == 0) { // X分量（径向）
-            elementStiffness[i][i] *= 1.5; // 径向权重
-        } else if (i % 3 == 1) { // Y分量（轴向）
-            elementStiffness[i][i] *= 1.0; // 轴向权重
-        } else { // Z分量（周向）
-            elementStiffness[i][i] *= 2.0; // 周向权重（柱对称）
-        }
+    for (int i = 0; i < numElementNodes; ++i) {
+        int nodeId = static_cast<int>(elementNodes[i]);
+        auto node = mesh_->getNode(nodeId);
+        nodeCoordsX[i] = node.x;
+        nodeCoordsY[i] = node.y;
+        nodeCoordsZ[i] = node.z;
     }
     
-    // 设置右端向量（简化实现）
-    for (int i = 0; i < numElementNodes * 3; ++i) {
-        elementRHS[i] = 0.0;
+    // 柱对称坐标系下的特殊处理：径向坐标r = x，轴向坐标z = y
+    // 使用2D高斯积分，考虑轴对称特性
+    int numGaussPoints = 4; // 对于2D单元使用4个高斯点
+    
+    for (int gaussPoint = 0; gaussPoint < numGaussPoints; ++gaussPoint) {
+        // 计算高斯点坐标和权重
+        double xi, eta, weight;
+        getGaussPoint2D(gaussPoint, xi, eta, weight);
+        
+        // 计算形状函数和导数
+        std::vector<double> shapeFunctions(numElementNodes);
+        std::vector<double> dShapeDXi(numElementNodes);
+        std::vector<double> dShapeDEta(numElementNodes);
+        
+        computeShapeFunctions2D(xi, eta, shapeFunctions, dShapeDXi, dShapeDEta);
+        
+        // 计算雅可比矩阵（柱对称坐标系）
+        double jacobian[2][2] = {{0}};
+        double r = 0.0; // 径向坐标
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            jacobian[0][0] += dShapeDXi[i] * nodeCoordsX[i]; // dr/dξ
+            jacobian[0][1] += dShapeDXi[i] * nodeCoordsY[i]; // dz/dξ
+            jacobian[1][0] += dShapeDEta[i] * nodeCoordsX[i]; // dr/dη
+            jacobian[1][1] += dShapeDEta[i] * nodeCoordsY[i]; // dz/dη
+            r += shapeFunctions[i] * nodeCoordsX[i]; // 径向坐标
+        }
+        
+        // 计算雅可比行列式
+        double detJ = jacobian[0][0] * jacobian[1][1] - jacobian[0][1] * jacobian[1][0];
+        
+        if (detJ <= 0.0 || r <= 0.0) {
+            ELMER_ERROR("单元 {} 的雅可比行列式为负或零，或径向坐标无效", elementId);
+            return false;
+        }
+        
+        // 计算形状函数在全局坐标系中的导数
+        std::vector<double> dShapeDR(numElementNodes);
+        std::vector<double> dShapeDZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            dShapeDR[i] = (1.0/detJ) * (jacobian[1][1] * dShapeDXi[i] - jacobian[0][1] * dShapeDEta[i]);
+            dShapeDZ[i] = (1.0/detJ) * (-jacobian[1][0] * dShapeDXi[i] + jacobian[0][0] * dShapeDEta[i]);
+        }
+        
+        // 柱对称坐标系下的积分权重因子
+        double integrationFactor = weight * detJ * 2.0 * M_PI * r;
+        
+        // 计算单元刚度矩阵（考虑轴对称特性）
+        for (int i = 0; i < numElementNodes; ++i) {
+            for (int j = 0; j < numElementNodes; ++j) {
+                // 计算材料参数在高斯点的平均值
+                double avgConductivity = 0.5 * (elemConductivity[i] + elemConductivity[j]);
+                double avgPermeability = 0.5 * (elemPermeability[i] + elemPermeability[j]);
+                
+                // 柱对称坐标系下的刚度矩阵项
+                double stiffnessTerm = integrationFactor * (
+                    avgConductivity * (dShapeDR[i] * dShapeDR[j] + dShapeDZ[i] * dShapeDZ[j]) +
+                    (1.0 / avgPermeability) * (dShapeDR[i] * dShapeDR[j] + dShapeDZ[i] * dShapeDZ[j])
+                );
+                
+                // 组装到3x3子矩阵（柱对称坐标系只有2个自由度）
+                for (int dofI = 0; dofI < 2; ++dofI) { // r和z方向
+                    for (int dofJ = 0; dofJ < 2; ++dofJ) {
+                        int row = i * 3 + dofI;
+                        int col = j * 3 + dofJ;
+                        
+                        // 对角线项
+                        if (dofI == dofJ) {
+                            elementStiffness[row][col] += stiffnessTerm;
+                        }
+                    }
+                }
+                
+                // 周向分量的特殊处理（轴对称）
+                double phiStiffnessTerm = integrationFactor * (
+                    avgConductivity * (shapeFunctions[i] * shapeFunctions[j]) / (r * r) +
+                    (1.0 / avgPermeability) * (shapeFunctions[i] * shapeFunctions[j]) / (r * r)
+                );
+                
+                int phiRow = i * 3 + 2; // 周向分量索引
+                int phiCol = j * 3 + 2;
+                elementStiffness[phiRow][phiCol] += phiStiffnessTerm;
+            }
+        }
+        
+        // 计算右端向量
+        for (int i = 0; i < numElementNodes; ++i) {
+            double shapeFunction = shapeFunctions[i];
+            
+            // 考虑瞬态项
+            if (transientSimulation_ && timeStep_ > 0.0) {
+                for (int j = 0; j < numElementNodes; ++j) {
+                    double massTerm = integrationFactor * shapeFunctions[i] * shapeFunctions[j] * 
+                                    elemConductivity[j] / timeStep_;
+                    
+                    for (int dof = 0; dof < 3; ++dof) {
+                        int row = i * 3 + dof;
+                        int col = j * 3 + dof;
+                        elementStiffness[row][col] += massTerm;
+                    }
+                }
+            }
+            
+            // 添加源项
+            for (int dof = 0; dof < 3; ++dof) {
+                int index = i * 3 + dof;
+                elementRHS[index] += integrationFactor * shapeFunction * 0.0; // 零源项
+            }
+        }
     }
     
     return true;
@@ -1063,7 +1166,7 @@ bool MagneticSolver::computeGeneralElementMatrices(int elementId,
     // 基于Fortran版本的MagneticSolve.F90实现一般坐标系单元矩阵计算
     
     if (!mesh_ || elementId < 0 || elementId >= mesh_->getBulkElements().size()) {
-        std::cerr << "错误: 无效的单元索引" << std::endl;
+        ELMER_ERROR("无效的单元索引: {}", elementId);
         return false;
     }
     
@@ -1088,20 +1191,140 @@ bool MagneticSolver::computeGeneralElementMatrices(int elementId,
         }
     }
     
-    // 计算单元几何信息（一般坐标系）
-    // TODO: 实现完整的一般坐标系形状函数和积分计算
+    // 获取单元节点坐标
+    std::vector<double> nodeCoordsX(numElementNodes);
+    std::vector<double> nodeCoordsY(numElementNodes);
+    std::vector<double> nodeCoordsZ(numElementNodes);
     
-    // 简化实现：创建对角矩阵，考虑一般坐标系特性
-    for (int i = 0; i < numElementNodes * 3; ++i) {
-        elementStiffness[i][i] = 1.0; // 单位矩阵
-        
-        // 一般坐标系下的均匀处理
-        elementStiffness[i][i] *= 1.0; // 均匀权重
+    for (int i = 0; i < numElementNodes; ++i) {
+        int nodeId = static_cast<int>(elementNodes[i]);
+        auto node = mesh_->getNode(nodeId);
+        nodeCoordsX[i] = node.x;
+        nodeCoordsY[i] = node.y;
+        nodeCoordsZ[i] = node.z;
     }
     
-    // 设置右端向量（简化实现）
-    for (int i = 0; i < numElementNodes * 3; ++i) {
-        elementRHS[i] = 0.0;
+    // 一般坐标系下的3D高斯积分
+    int numGaussPoints = 8; // 对于3D单元使用8个高斯点
+    
+    for (int gaussPoint = 0; gaussPoint < numGaussPoints; ++gaussPoint) {
+        // 计算高斯点坐标和权重
+        double xi, eta, zeta, weight;
+        getGaussPoint3D(gaussPoint, xi, eta, zeta, weight);
+        
+        // 计算形状函数和导数
+        std::vector<double> shapeFunctions(numElementNodes);
+        std::vector<double> dShapeDXi(numElementNodes);
+        std::vector<double> dShapeDEta(numElementNodes);
+        std::vector<double> dShapeDZeta(numElementNodes);
+        
+        computeShapeFunctions3D(xi, eta, zeta, shapeFunctions, dShapeDXi, dShapeDEta, dShapeDZeta);
+        
+        // 计算雅可比矩阵
+        double jacobian[3][3] = {{0}};
+        for (int i = 0; i < numElementNodes; ++i) {
+            jacobian[0][0] += dShapeDXi[i] * nodeCoordsX[i];
+            jacobian[0][1] += dShapeDXi[i] * nodeCoordsY[i];
+            jacobian[0][2] += dShapeDXi[i] * nodeCoordsZ[i];
+            jacobian[1][0] += dShapeDEta[i] * nodeCoordsX[i];
+            jacobian[1][1] += dShapeDEta[i] * nodeCoordsY[i];
+            jacobian[1][2] += dShapeDEta[i] * nodeCoordsZ[i];
+            jacobian[2][0] += dShapeDZeta[i] * nodeCoordsX[i];
+            jacobian[2][1] += dShapeDZeta[i] * nodeCoordsY[i];
+            jacobian[2][2] += dShapeDZeta[i] * nodeCoordsZ[i];
+        }
+        
+        // 计算雅可比行列式
+        double detJ = jacobian[0][0] * (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1])
+                    - jacobian[0][1] * (jacobian[1][0] * jacobian[2][2] - jacobian[1][2] * jacobian[2][0])
+                    + jacobian[0][2] * (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]);
+        
+        if (detJ <= 0.0) {
+            ELMER_ERROR("单元 {} 的雅可比行列式为负或零", elementId);
+            return false;
+        }
+        
+        // 计算形状函数在全局坐标系中的导数
+        std::vector<double> dShapeDX(numElementNodes);
+        std::vector<double> dShapeDY(numElementNodes);
+        std::vector<double> dShapeDZ(numElementNodes);
+        
+        for (int i = 0; i < numElementNodes; ++i) {
+            // 使用雅可比矩阵的逆计算全局导数
+            dShapeDX[i] = (1.0/detJ) * (
+                (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1]) * dShapeDXi[i] +
+                (jacobian[0][2] * jacobian[2][1] - jacobian[0][1] * jacobian[2][2]) * dShapeDEta[i] +
+                (jacobian[0][1] * jacobian[1][2] - jacobian[0][2] * jacobian[1][1]) * dShapeDZeta[i]
+            );
+            
+            dShapeDY[i] = (1.0/detJ) * (
+                (jacobian[1][2] * jacobian[2][0] - jacobian[1][0] * jacobian[2][2]) * dShapeDXi[i] +
+                (jacobian[0][0] * jacobian[2][2] - jacobian[0][2] * jacobian[2][0]) * dShapeDEta[i] +
+                (jacobian[0][2] * jacobian[1][0] - jacobian[0][0] * jacobian[1][2]) * dShapeDZeta[i]
+            );
+            
+            dShapeDZ[i] = (1.0/detJ) * (
+                (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]) * dShapeDXi[i] +
+                (jacobian[0][1] * jacobian[2][0] - jacobian[0][0] * jacobian[2][1]) * dShapeDEta[i] +
+                (jacobian[0][0] * jacobian[1][1] - jacobian[0][1] * jacobian[1][0]) * dShapeDZeta[i]
+            );
+        }
+        
+        // 积分权重因子
+        double integrationFactor = weight * detJ;
+        
+        // 计算单元刚度矩阵（一般坐标系）
+        for (int i = 0; i < numElementNodes; ++i) {
+            for (int j = 0; j < numElementNodes; ++j) {
+                // 计算材料参数在高斯点的平均值
+                double avgConductivity = 0.5 * (elemConductivity[i] + elemConductivity[j]);
+                double avgPermeability = 0.5 * (elemPermeability[i] + elemPermeability[j]);
+                
+                // 一般坐标系下的刚度矩阵项
+                double stiffnessTerm = integrationFactor * (
+                    avgConductivity * (dShapeDX[i] * dShapeDX[j] + dShapeDY[i] * dShapeDY[j] + dShapeDZ[i] * dShapeDZ[j]) +
+                    (1.0 / avgPermeability) * (dShapeDX[i] * dShapeDX[j] + dShapeDY[i] * dShapeDY[j] + dShapeDZ[i] * dShapeDZ[j])
+                );
+                
+                // 组装到3x3子矩阵
+                for (int dofI = 0; dofI < 3; ++dofI) {
+                    for (int dofJ = 0; dofJ < 3; ++dofJ) {
+                        int row = i * 3 + dofI;
+                        int col = j * 3 + dofJ;
+                        
+                        // 对角线项
+                        if (dofI == dofJ) {
+                            elementStiffness[row][col] += stiffnessTerm;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 计算右端向量
+        for (int i = 0; i < numElementNodes; ++i) {
+            double shapeFunction = shapeFunctions[i];
+            
+            // 考虑瞬态项
+            if (transientSimulation_ && timeStep_ > 0.0) {
+                for (int j = 0; j < numElementNodes; ++j) {
+                    double massTerm = integrationFactor * shapeFunctions[i] * shapeFunctions[j] * 
+                                    elemConductivity[j] / timeStep_;
+                    
+                    for (int dof = 0; dof < 3; ++dof) {
+                        int row = i * 3 + dof;
+                        int col = j * 3 + dof;
+                        elementStiffness[row][col] += massTerm;
+                    }
+                }
+            }
+            
+            // 添加源项
+            for (int dof = 0; dof < 3; ++dof) {
+                int index = i * 3 + dof;
+                elementRHS[index] += integrationFactor * shapeFunction * 0.0; // 零源项
+            }
+        }
     }
     
     return true;
@@ -2181,6 +2404,62 @@ void MagneticSolver::computeShapeFunctions3D(double xi, double eta, double zeta,
     dShapeDZeta[5] =  0.125 * (1.0 + xi) * (1.0 - eta);
     dShapeDZeta[6] =  0.125 * (1.0 + xi) * (1.0 + eta);
     dShapeDZeta[7] =  0.125 * (1.0 - xi) * (1.0 + eta);
+}
+
+// ===== 2D高斯积分和形状函数计算 =====
+
+void MagneticSolver::getGaussPoint2D(int gaussPoint, double& xi, double& eta, double& weight) {
+    // 2D高斯积分点坐标和权重（4点积分）
+    // 基于标准高斯积分表
+    
+    static const double gaussPoints[4][3] = {
+        {-0.577350269189626, -0.577350269189626, 1.0},
+        { 0.577350269189626, -0.577350269189626, 1.0},
+        {-0.577350269189626,  0.577350269189626, 1.0},
+        { 0.577350269189626,  0.577350269189626, 1.0}
+    };
+    
+    if (gaussPoint >= 0 && gaussPoint < 4) {
+        xi = gaussPoints[gaussPoint][0];
+        eta = gaussPoints[gaussPoint][1];
+        weight = gaussPoints[gaussPoint][2];
+    } else {
+        // 默认值
+        xi = 0.0;
+        eta = 0.0;
+        weight = 1.0;
+    }
+}
+
+void MagneticSolver::computeShapeFunctions2D(double xi, double eta,
+                                            std::vector<double>& shapeFunctions,
+                                            std::vector<double>& dShapeDXi,
+                                            std::vector<double>& dShapeDEta) {
+    // 计算2D线性四边形单元的形函数和导数
+    // 假设单元有4个节点
+    
+    int numNodes = 4; // 四边形单元有4个节点
+    shapeFunctions.resize(numNodes);
+    dShapeDXi.resize(numNodes);
+    dShapeDEta.resize(numNodes);
+    
+    // 标准四边形单元形函数
+    shapeFunctions[0] = 0.25 * (1.0 - xi) * (1.0 - eta);
+    shapeFunctions[1] = 0.25 * (1.0 + xi) * (1.0 - eta);
+    shapeFunctions[2] = 0.25 * (1.0 + xi) * (1.0 + eta);
+    shapeFunctions[3] = 0.25 * (1.0 - xi) * (1.0 + eta);
+    
+    // 形函数对ξ的导数
+    dShapeDXi[0] = -0.25 * (1.0 - eta);
+    dShapeDXi[1] =  0.25 * (1.0 - eta);
+    dShapeDXi[2] =  0.25 * (1.0 + eta);
+    dShapeDXi[3] = -0.25 * (1.0 + eta);
+    
+    // 形函数对η的导数
+    dShapeDEta[0] = -0.25 * (1.0 - xi);
+    dShapeDEta[1] = -0.25 * (1.0 + xi);
+    dShapeDEta[2] =  0.25 * (1.0 + xi);
+    dShapeDEta[3] =  0.25 * (1.0 - xi);
 }
 
 void MagneticSolver::deallocateMemory() {

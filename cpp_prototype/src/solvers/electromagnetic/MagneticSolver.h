@@ -185,6 +185,13 @@ private:
                            std::vector<double>& curlX,
                            std::vector<double>& curlY,
                            std::vector<double>& curlZ);
+    
+    // 2D高斯积分和形状函数计算（用于轴对称坐标系）
+    void getGaussPoint2D(int gaussPoint, double& xi, double& eta, double& weight);
+    void computeShapeFunctions2D(double xi, double eta,
+                                std::vector<double>& shapeFunctions,
+                                std::vector<double>& dShapeDXi,
+                                std::vector<double>& dShapeDEta);
 };
 
 } // namespace elmer

@@ -95,6 +95,7 @@ protected:
     bool calculateWhitneyShapeFunctions(int elementId, std::vector<std::array<double, 3>>& shapeFuncs) const;
     bool calculateWhitneyCurlShapeFunctions(int elementId, std::vector<std::array<double, 3>>& curlShapeFuncs) const;
     std::vector<std::array<double, 3>> calculateWhitneyShapeFunctions(int elementId) const;
+    std::vector<std::array<double, 3>> calculateWhitneyCurlShapeFunctions(int elementId) const;
     
     // Lagrange单元特定方法
     std::vector<double> calculateLagrangeShapeFunctions(int elementId) const;
@@ -235,6 +236,21 @@ private:
     std::vector<std::vector<double>> calculateLagrangeElementMassMatrix(int elementId, double conductivity) const;
     std::vector<double> calculateLagrangeElementLoadVector(int elementId) const;
     int getNumberOfElementNodes(int elementId) const;
+    
+    // 数值积分辅助函数
+    struct GaussPoint {
+        std::array<double, 3> coords;  // 参考坐标
+        double weight;                 // 权重
+        
+        GaussPoint(const std::array<double, 3>& c, double w) : coords(c), weight(w) {}
+    };
+    
+    std::vector<GaussPoint> getGaussIntegrationPoints(int elementId) const;
+    std::vector<std::array<double, 3>> evaluateShapeFunctionsAtPoint(int elementId, const std::array<double, 3>& point) const;
+    std::vector<std::array<double, 3>> evaluateCurlShapeFunctionsAtPoint(int elementId, const std::array<double, 3>& point) const;
+    std::array<double, 3> getCurrentDensityAtPoint(int elementId, const std::array<double, 3>& point) const;
+    std::array<double, 3> getMagnetizationAtPoint(int elementId, const std::array<double, 3>& point) const;
+    std::array<double, 3> calculateCurlMagnetization(int elementId, const std::array<double, 3>& point) const;
 };
 
 } // namespace elmer

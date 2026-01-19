@@ -7,14 +7,11 @@
  */
 
 #include "Integration.h"
+#include "CommonConstants.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
 #include <string>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace elmer {
 

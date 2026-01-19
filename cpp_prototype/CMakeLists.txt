@@ -77,8 +77,15 @@ add_library(Elmer
     src/solvers/electromagnetic/MagneticSolver.h
     src/solvers/electromagnetic/MagneticSolver.cpp
     src/solvers/electromagnetic/ElectromagneticMaterial.h
-    # TODO: 重新移植WhitneyAVSolver
-    # src/solvers/electromagnetic/MagnetoDynamics2DSolver.h
+    # 低频电磁求解器（整合2D和3D）
+    src/solvers/electromagnetic/MagnetoDynamicsSolverBase.h
+    src/solvers/electromagnetic/MagnetoDynamicsSolverBase.cpp
+    src/solvers/electromagnetic/MagnetoDynamics2DSolver.h
+    src/solvers/electromagnetic/MagnetoDynamics2DSolver.cpp
+    src/solvers/electromagnetic/MagnetoDynamics3DSolver.h
+    src/solvers/electromagnetic/MagnetoDynamics3DSolver.cpp
+    src/solvers/electromagnetic/MagnetoDynamicsSolverFactory.h
+    src/solvers/electromagnetic/MagnetoDynamicsSolverFactory.cpp
     src/solvers/electromagnetic/MagnetodynamicsSolver.h
     
     # Thermal solvers

@@ -84,6 +84,7 @@ protected:
     std::array<double, 3> calculateElementMagneticFluxDensity(int elementId) const;
     std::array<double, 3> calculateElementMagneticFieldStrength(int elementId) const;
     std::array<double, 3> calculateElementCurrentDensity(int elementId) const;
+    std::array<double, 3> getElementCurrentDensity3D(int elementId) const;
     
     // 复数场量计算（谐波分析）
     std::array<std::complex<double>, 3> calculateElementComplexMagneticFluxDensity(int elementId) const;
@@ -93,6 +94,10 @@ protected:
     // Whitney边元特定方法
     bool calculateWhitneyShapeFunctions(int elementId, std::vector<std::array<double, 3>>& shapeFuncs) const;
     bool calculateWhitneyCurlShapeFunctions(int elementId, std::vector<std::array<double, 3>>& curlShapeFuncs) const;
+    std::vector<std::array<double, 3>> calculateWhitneyShapeFunctions(int elementId) const;
+    
+    // Lagrange单元特定方法
+    std::vector<double> calculateLagrangeShapeFunctions(int elementId) const;
     
 private:
     // 辅助函数声明
@@ -100,6 +105,11 @@ private:
     bool getElementVectorPotential(int elementId, std::vector<double>& vectorPotential) const;
     bool hasExternalCurrentSource(int elementId) const;
     std::array<double, 3> getExternalCurrentDensity(int elementId) const;
+    
+    // 几何计算辅助函数
+    std::array<double, 3> calculateEdgeVector(const std::array<double, 3>& node1, 
+                                             const std::array<double, 3>& node2) const;
+    std::vector<std::array<double, 3>> getElementNodeCoordinates(int elementId) const;
     
     // 3D特定参数
     bool useWhitneyElements_ = true;          ///< 使用Whitney边元
@@ -190,6 +200,15 @@ private:
     bool assembleLagrangeElementContributions(int elementId);
     size_t calculateTotalDegreesOfFreedom() const;
     size_t applyDOFConstraints(size_t totalDOFs) const;
+    
+    // 全局组装辅助方法
+    std::vector<int> getElementDOFMapping(int elementId) const;
+    bool assembleMatrixToGlobal(const std::vector<std::vector<double>>& elementMatrix,
+                               const std::vector<int>& dofMapping,
+                               std::shared_ptr<elmer::Matrix>& globalMatrix);
+    bool assembleVectorToGlobal(const std::vector<double>& elementVector,
+                               const std::vector<int>& dofMapping,
+                               std::vector<double>& globalVector);
     
     // 求解器方法
     bool solveLinearSystem();

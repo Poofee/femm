@@ -8,13 +8,6 @@
 
 #pragma once
 
-// Windows头文件保护，避免ERROR宏冲突
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#undef ERROR
-#endif
-
 #include <memory>
 #include <string>
 
@@ -28,7 +21,7 @@ enum class LogLevel {
     DEBUG,    ///< 调试级别，用于调试信息
     INFO,     ///< 信息级别，常规信息
     WARN,     ///< 警告级别，潜在问题
-    ERROR,    ///< 错误级别，错误信息
+    ERR,    ///< 错误级别，错误信息
     CRITICAL  ///< 严重级别，严重错误
 };
 

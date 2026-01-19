@@ -224,7 +224,7 @@ double RobinBoundaryCondition::getParameter(const std::string& name, double defa
     return defaultValue;
 }
 
-bool RobinBoundaryCondition::getBooleanParameter(const std::string& name, bool defaultValue) const {
+bool RobinBoundaryCondition::getBooleanParameter([[maybe_unused]] const std::string& name, bool defaultValue) const {
     return defaultValue;
 }
 
@@ -289,11 +289,11 @@ bool MagneticSymmetryBoundaryCondition::isActiveForElement(const Element& elemen
     return false;
 }
 
-double MagneticSymmetryBoundaryCondition::getParameter(const std::string& name, double defaultValue) const {
+double MagneticSymmetryBoundaryCondition::getParameter([[maybe_unused]] const std::string& name, double defaultValue) const {
     return defaultValue;
 }
 
-bool MagneticSymmetryBoundaryCondition::getBooleanParameter(const std::string& name, bool defaultValue) const {
+bool MagneticSymmetryBoundaryCondition::getBooleanParameter([[maybe_unused]] const std::string& name, bool defaultValue) const {
     return defaultValue;
 }
 
@@ -356,11 +356,11 @@ bool MagneticAntisymmetryBoundaryCondition::isActiveForElement(const Element& el
     return false;
 }
 
-double MagneticAntisymmetryBoundaryCondition::getParameter(const std::string& name, double defaultValue) const {
+double MagneticAntisymmetryBoundaryCondition::getParameter([[maybe_unused]] const std::string& name, double defaultValue) const {
     return defaultValue;
 }
 
-bool MagneticAntisymmetryBoundaryCondition::getBooleanParameter(const std::string& name, bool defaultValue) const {
+bool MagneticAntisymmetryBoundaryCondition::getBooleanParameter([[maybe_unused]] const std::string& name, bool defaultValue) const {
     return defaultValue;
 }
 
@@ -402,7 +402,7 @@ void ConvectionBoundaryCondition::apply(std::shared_ptr<Matrix> matrix,
 void ConvectionBoundaryCondition::applyWithPriority(std::shared_ptr<Matrix> matrix, 
                                                     std::vector<double>& rhs,
                                                     const std::vector<int>& dofMap,
-                                                    std::vector<bool>& constrainedDOFs) const {
+                                                    [[maybe_unused]] std::vector<bool>& constrainedDOFs) const {
     // Convection boundary condition is a Robin-like condition
     // It can be applied even if DOFs are already constrained by Dirichlet BCs
     apply(matrix, rhs, dofMap);
@@ -429,7 +429,7 @@ double ConvectionBoundaryCondition::getParameter(const std::string& name, double
     return defaultValue;
 }
 
-bool ConvectionBoundaryCondition::getBooleanParameter(const std::string& name, bool defaultValue) const {
+bool ConvectionBoundaryCondition::getBooleanParameter([[maybe_unused]] const std::string& name, bool defaultValue) const {
     return defaultValue;
 }
 
@@ -481,7 +481,7 @@ double PressureBoundaryCondition::getParameter(const std::string& name, double d
     return defaultValue;
 }
 
-bool PressureBoundaryCondition::getBooleanParameter(const std::string& name, bool defaultValue) const {
+bool PressureBoundaryCondition::getBooleanParameter([[maybe_unused]] const std::string& name, bool defaultValue) const {
     return defaultValue;
 }
 
@@ -614,7 +614,7 @@ std::shared_ptr<BoundaryCondition> elmerBoundaryConditionUtils::createBoundaryCo
     }
 }
 
-void elmerBoundaryConditionUtils::GetElementMeshEdgeInfo(const Mesh& mesh, const Element& element,
+void elmerBoundaryConditionUtils::GetElementMeshEdgeInfo([[maybe_unused]] const Mesh& mesh, const Element& element,
                                                         std::vector<int>& edgeDegree,
                                                         std::vector<std::vector<int>>& edgeDirection,
                                                         int& edgeMaxDegree) {
@@ -625,7 +625,7 @@ void elmerBoundaryConditionUtils::GetElementMeshEdgeInfo(const Mesh& mesh, const
     edgeMaxDegree = 0;
     
     // 简化实现：假设所有边的度数为1
-    for (const auto& edgeIndex : elementEdges) {
+    for ([[maybe_unused]] const auto& edgeIndex : elementEdges) {
         // 简化实现：固定度数
         int degree = 1;
         edgeDegree.push_back(degree);
@@ -646,7 +646,7 @@ void elmerBoundaryConditionUtils::GetElementMeshEdgeInfo(const Mesh& mesh, const
     }
 }
 
-void elmerBoundaryConditionUtils::GetElementMeshFaceInfo(const Mesh& mesh, const Element& element,
+void elmerBoundaryConditionUtils::GetElementMeshFaceInfo([[maybe_unused]] const Mesh& mesh, const Element& element,
                                                         std::vector<int>& faceDegree,
                                                         std::vector<std::vector<int>>& faceDirection,
                                                         int& faceMaxDegree) {
@@ -657,7 +657,7 @@ void elmerBoundaryConditionUtils::GetElementMeshFaceInfo(const Mesh& mesh, const
     faceMaxDegree = 0;
     
     // 简化实现：假设所有面的度数为1
-    for (const auto& faceIndex : elementFaces) {
+    for ([[maybe_unused]] const auto& faceIndex : elementFaces) {
         // 简化实现：固定度数
         int degree = 1;
         faceDegree.push_back(degree);
@@ -694,7 +694,7 @@ void elmerBoundaryConditionUtils::FaceElementBasisOrdering(const Element& elemen
     // 根据面编号处理
     if (faceNumber >= 0 && faceNumber < static_cast<int>(elementFaces.size())) {
         // 处理特定面
-        auto faceIndex = elementFaces[faceNumber];
+        [[maybe_unused]] auto faceIndex = elementFaces[faceNumber];
         
         // 简化的自由度映射
         // 简化实现：固定2个自由度
@@ -710,7 +710,7 @@ void elmerBoundaryConditionUtils::FaceElementBasisOrdering(const Element& elemen
         }
     } else {
         // 处理所有面
-        for (const auto& face : elementFaces) {
+        for ([[maybe_unused]] const auto& face : elementFaces) {
             std::vector<int> faceDofs(2);
             for (int i = 0; i < 2; ++i) {
                 faceDofs[i] = i;
@@ -740,7 +740,7 @@ void elmerBoundaryConditionUtils::GetEdgeBasis(const Element& element,
     
     // 简化的边基函数计算
     // 简化实现：假设每个边有2个自由度
-    for (const auto& edgeIndex : elementEdges) {
+    for ([[maybe_unused]] const auto& edgeIndex : elementEdges) {
         // 边基函数值（简化实现）
         for (int i = 0; i < 2; ++i) { // 固定2个自由度
             wBasis.push_back(1.0); // 常数基函数

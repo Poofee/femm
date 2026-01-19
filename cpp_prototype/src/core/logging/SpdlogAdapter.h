@@ -7,13 +7,6 @@
 
 #pragma once
 
-// Windows头文件保护，避免ERROR宏冲突
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#undef ERROR
-#endif
-
 #include "LoggerInterface.h"
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -76,7 +69,7 @@ public:
             case LogLevel::WARN:
                 spdlog_level = spdlog::level::warn;
                 break;
-            case LogLevel::ERROR:
+            case LogLevel::ERR:
                 spdlog_level = spdlog::level::err;
                 break;
             case LogLevel::CRITICAL:
@@ -107,7 +100,7 @@ public:
             case spdlog::level::warn:
                 return LogLevel::WARN;
             case spdlog::level::err:
-                return LogLevel::ERROR;
+                return LogLevel::ERR;
             case spdlog::level::critical:
                 return LogLevel::CRITICAL;
             default:

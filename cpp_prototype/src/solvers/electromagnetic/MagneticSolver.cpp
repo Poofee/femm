@@ -770,6 +770,7 @@ bool MagneticSolver::applyPeriodicBoundaryCondition(int bcId, const Element& bou
             }
         }
     }
+    return true;
 }
 
 bool MagneticSolver::checkConvergence(double prevNorm, double currentNorm) const {
@@ -1153,6 +1154,7 @@ bool MagneticSolver::computeAxisymmetricElementMatrices(int elementId,
             }
         }
     }
+    return true;
 }
 
 bool MagneticSolver::computeGeneralElementMatrices(int elementId, 

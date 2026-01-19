@@ -256,14 +256,14 @@ public:
     }
     
     // Complex permeability for harmonic analysis
-    std::complex<double> getComplexPermeability(double frequency = 0.0) const {
+    std::complex<double> getComplexPermeability(double inputFrequency = 0.0) const {
         double mu_real = permeability();
         double mu_imag = 0.0; // For now, assume no imaginary part
         
         // Frequency-dependent effects could be added here
-        if (frequency > 0.0) {
+        if (inputFrequency > 0.0) {
             // Simple model: imaginary part proportional to conductivity
-            mu_imag = conductivity / (2.0 * 3.141592653589793 * frequency);
+            mu_imag = conductivity / (2.0 * 3.141592653589793 * inputFrequency);
         }
         
         return std::complex<double>(mu_real, mu_imag);
@@ -280,18 +280,18 @@ public:
     }
     
     // Wave number calculation
-    double waveNumber(double frequency = 0.0) const {
-        if (frequency <= 0.0) return 0.0;
-        double omega = 2.0 * 3.141592653589793 * frequency;
+    double waveNumber(double inputFrequency = 0.0) const {
+        if (inputFrequency <= 0.0) return 0.0;
+        double omega = 2.0 * 3.141592653589793 * inputFrequency;
         return omega * sqrt(permittivity() * permeability());
     }
     
     // Skin depth calculation
-    double skinDepth(double frequency = 0.0) const {
-        if (conductivity <= 0.0 || frequency <= 0.0) {
+    double skinDepth(double inputFrequency = 0.0) const {
+        if (conductivity <= 0.0 || inputFrequency <= 0.0) {
             return std::numeric_limits<double>::infinity();
         }
-        return 1.0 / sqrt(3.141592653589793 * frequency * permeability() * conductivity);
+        return 1.0 / sqrt(3.141592653589793 * inputFrequency * permeability() * conductivity);
     }
     
     // Characteristic impedance

@@ -32,7 +32,7 @@ static double calculateTetrahedronVolume(const Node& a, const Node& b, const Nod
 }
 
 // Helper function for hexahedron volume calculation
-static double calculateHexahedronVolume(const std::vector<Node>& nodes, const std::vector<size_t>& indices) {
+[[maybe_unused]] static double calculateHexahedronVolume(const std::vector<Node>& nodes, const std::vector<size_t>& indices) {
     if (indices.size() != 8) {
         return 0.0;
     }

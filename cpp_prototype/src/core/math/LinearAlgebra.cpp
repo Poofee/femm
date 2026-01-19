@@ -305,16 +305,16 @@ public:
     }
     
     void applyDirichletBC(int dof_index, double value,
-                          std::shared_ptr<elmer::Matrix> matrix,
+                          std::shared_ptr<elmer::Matrix> inputMatrix,
                           std::vector<double>& rhs) override {
-        if (dof_index < 0 || dof_index >= matrix->GetNumRows()) return;
+        if (dof_index < 0 || dof_index >= inputMatrix->GetNumRows()) return;
         
         // 修改矩阵：将对应行清零，对角线设为1
-        for (int j = 0; j < matrix->GetNumCols(); ++j) {
+        for (int j = 0; j < inputMatrix->GetNumCols(); ++j) {
             if (j == dof_index) {
-                matrix->SetElement(dof_index, j, 1.0);
+                inputMatrix->SetElement(dof_index, j, 1.0);
             } else {
-                matrix->SetElement(dof_index, j, 0.0);
+                inputMatrix->SetElement(dof_index, j, 0.0);
             }
         }
         
@@ -325,7 +325,7 @@ public:
     // 应用多个边界条件
     void applyDirichletBCs(const std::vector<int>& dof_indices,
                           const std::vector<double>& values,
-                          std::shared_ptr<elmer::Matrix> matrix,
+                          std::shared_ptr<elmer::Matrix> inputMatrix,
                           std::vector<double>& rhs) override {
         if (dof_indices.size() != values.size()) {
             throw std::invalid_argument("Number of DOF indices and values must match");

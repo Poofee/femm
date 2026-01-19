@@ -7,7 +7,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set compiler flags
 if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8")
+    # /W4: 启用所有警告
+    # /utf-8: 使用UTF-8编码
+    # 禁用常见无害警告:
+    # /wd4100: 未引用形参警告 (C4100)
+    # /wd4244: 类型转换警告 (C4244)
+    # /wd4267: size_t转换警告 (C4267)
+    # /wd4101: 未引用局部变量警告 (C4101)
+    # /wd4189: 局部变量已初始化但不引用警告 (C4189)
+    # 添加宏定义:
+    # _CRT_SECURE_NO_WARNINGS: 禁用CRT安全警告
+    # _SCL_SECURE_NO_WARNINGS: 禁用STL安全警告
+    # NOMINMAX: 禁用min/max宏定义冲突
+    # WIN32_LEAN_AND_MEAN: 减少Windows头文件包含
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8 /wd4100 /wd4244 /wd4267 /wd4101 /wd4189")
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS -DNOMINMAX -DWIN32_LEAN_AND_MEAN)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 endif()

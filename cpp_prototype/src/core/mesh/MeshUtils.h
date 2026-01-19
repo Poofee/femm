@@ -85,8 +85,8 @@ public:
         }
         
         size_t numberOfNodes = mesh->numberOfNodes();
-        size_t numberOfBulkElements = mesh->numberOfBulkElements();
-        size_t numberOfBoundaryElements = mesh->numberOfBoundaryElements();
+        [[maybe_unused]] size_t numberOfBulkElements = mesh->numberOfBulkElements();
+        [[maybe_unused]] size_t numberOfBoundaryElements = mesh->numberOfBoundaryElements();
         
         // Validate mesh integrity
         if (numberOfNodes == 0) {
@@ -172,7 +172,7 @@ public:
      */
     static std::shared_ptr<Mesh> createTetrahedronMesh(
         double size = 1.0,
-        int divisions = 1,
+        [[maybe_unused]] int divisions = 1,
         const std::string& name = "TetrahedronMesh"
     ) {
         auto mesh = allocateMesh(name);
@@ -210,7 +210,7 @@ public:
         
         // Calculate bulk element quality
         const auto& bulkElements = mesh->getBulkElements();
-        for (const auto& element : bulkElements) {
+        for ([[maybe_unused]] const auto& element : bulkElements) {
             double quality = 1.0; // Simplified version, returns fixed quality value
             totalQuality += quality;
             elementCount++;
@@ -218,7 +218,7 @@ public:
         
         // Calculate boundary element quality
         const auto& boundaryElements = mesh->getBoundaryElements();
-        for (const auto& element : boundaryElements) {
+        for ([[maybe_unused]] const auto& element : boundaryElements) {
             double quality = 1.0; // Simplified version, returns fixed quality value
             totalQuality += quality;
             elementCount++;

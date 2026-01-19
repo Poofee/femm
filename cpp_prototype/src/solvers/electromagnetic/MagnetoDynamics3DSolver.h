@@ -94,6 +94,12 @@ protected:
     bool calculateWhitneyCurlShapeFunctions(int elementId, std::vector<std::array<double, 3>>& curlShapeFuncs) const;
     
 private:
+    // 辅助函数声明
+    bool isTransientAnalysis() const;
+    bool getElementVectorPotential(int elementId, std::vector<double>& vectorPotential) const;
+    bool hasExternalCurrentSource(int elementId) const;
+    std::array<double, 3> getExternalCurrentDensity(int elementId) const;
+    
     // 3D特定参数
     bool useWhitneyElements_ = true;          ///< 使用Whitney边元
     bool usePiolaTransformation_ = false;     ///< 使用Piola变换

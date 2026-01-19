@@ -67,8 +67,8 @@ cpp_prototype/
 **正确示例**:
 ```cpp
 #include "ElmerSolver.h"
-#include "core/logging/LoggerFactory.h"
-#include "core/mesh/Mesh.h"
+#include "LoggerFactory.h"
+#include "Mesh.h"
 ```
 
 **错误示例**:

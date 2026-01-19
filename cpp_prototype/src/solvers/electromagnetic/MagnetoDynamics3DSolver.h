@@ -76,6 +76,7 @@ protected:
     bool assembleLagrangeElementMatrix(int elementId, ElementMatrix& elementMatrix);
     
     double calculateElementVolume3D(int elementId) const;
+    std::array<double, 3> calculateElementCentroid3D(int elementId) const;
     double calculateElementConductivity3D(int elementId) const;
     double calculateElementPermeability3D(int elementId) const;
     
@@ -123,12 +124,98 @@ private:
     
     // 复数集总参数（谐波分析）
     std::complex<double> complexTorque3D_ = {0.0, 0.0};
+    
+    // 系统矩阵
+    std::shared_ptr<elmer::Matrix> systemMatrix_;          ///< 系统刚度矩阵
+    std::shared_ptr<elmer::Matrix> massMatrix_;            ///< 质量矩阵
+    std::shared_ptr<elmer::Matrix> dampingMatrix_;         ///< 阻尼矩阵
+    std::vector<double> rhsVector_;                        ///< 右端向量
+    
+    // 复数系统矩阵（谐波分析）
+    std::shared_ptr<elmer::Matrix> complexSystemMatrix_;   ///< 复数系统矩阵
+    std::shared_ptr<elmer::Matrix> complexMassMatrix_;     ///< 复数质量矩阵
+    std::vector<std::complex<double>> complexRhsVector_;   ///< 复数右端向量
     std::complex<double> complexMagneticEnergy3D_ = {0.0, 0.0};
     std::complex<double> complexInductance3D_ = {0.0, 0.0};
     
     // Whitney边元相关数据
     std::vector<int> edgeDegreesOfFreedom_;   ///< 边自由度映射
     std::vector<std::array<int, 2>> edgeConnectivity_; ///< 边连接关系
+    
+    // 非线性材料模型支持
+    bool useNonlinearMaterialModel_ = false;  ///< 使用非线性材料模型
+    std::vector<double> nonlinearPermeability_; ///< 非线性磁导率存储
+    
+    // 谐波分析支持
+    bool useHarmonicAnalysis_ = false;        ///< 使用谐波分析
+    double frequency_ = 0.0;                  ///< 频率 (Hz)
+    
+private:
+    // 非线性材料模型支持方法
+    bool updateNonlinearMaterialProperties();
+    double calculateNonlinearPermeability(double H_magnitude, int elementId) const;
+    
+    // 谐波分析方法
+    bool solveHarmonic();
+    bool solveSteadyState();
+    bool solveTransient();
+    bool assembleComplexSystem();
+    bool solveComplexLinearSystem();
+    bool calculateComplexFields();
+    
+    // 边界条件处理方法
+    bool applyDirichletBoundaryConditions();
+    bool applyNeumannBoundaryConditions();
+    bool applyPeriodicBoundaryConditions();
+    bool applyCircuitCouplingBoundaryConditions();
+    
+    // 边界条件辅助方法
+    std::vector<int> getBoundaryConditions() const;
+    bool isDirichletBoundary(const elmer::Element& element) const;
+    bool isNeumannBoundary(const elmer::Element& element) const;
+    double getDirichletBoundaryValue(const elmer::Element& element) const;
+    double getNeumannBoundaryValue(const elmer::Element& element) const;
+    bool applyDirichletToSystem(const elmer::Element& element, double value);
+    bool applyNeumannToRHS(const elmer::Element& element, double fluxValue);
+    std::vector<std::pair<int, int>> getPeriodicBoundaryPairs() const;
+    bool applyPeriodicConstraint(int masterDOF, int slaveDOF);
+    std::vector<double> getCircuitCouplingData() const;
+    bool applyCircuitCouplingToSystem(const std::vector<double>& data);
+    bool applyCircuitCouplingToRHS(const std::vector<double>& data);
+    
+    // 系统组装辅助方法
+    bool initializeSystemMatrices();
+    bool assembleElementContributions(int elementId);
+    bool assembleWhitneyElementContributions(int elementId);
+    bool assembleLagrangeElementContributions(int elementId);
+    size_t calculateTotalDegreesOfFreedom() const;
+    size_t applyDOFConstraints(size_t totalDOFs) const;
+    
+    // 求解器方法
+    bool solveLinearSystem();
+    bool assembleTransientSystem(double currentTime);
+    bool solveTransientSystem();
+    double getTimeStep() const;
+    double getEndTime() const;
+    int getMaxTimeSteps() const;
+    bool shouldOutputTimeStep(int step) const;
+    void outputTimeStepResults(int step, double currentTime);
+    
+    // Whitney边元组装方法
+    std::vector<std::vector<double>> calculateWhitneyElementStiffnessMatrix(int elementId, double conductivity, double permeability) const;
+    std::vector<std::vector<double>> calculateWhitneyElementMassMatrix(int elementId, double conductivity) const;
+    std::vector<double> calculateWhitneyElementLoadVector(int elementId) const;
+    bool assembleToGlobalSystem(int elementId, 
+                               const std::vector<std::vector<double>>& stiffnessMatrix,
+                               const std::vector<std::vector<double>>& massMatrix,
+                               const std::vector<double>& loadVector);
+    int getNumberOfElementEdges(int elementId) const;
+    
+    // Lagrange单元组装方法
+    std::vector<std::vector<double>> calculateLagrangeElementStiffnessMatrix(int elementId, double conductivity, double permeability) const;
+    std::vector<std::vector<double>> calculateLagrangeElementMassMatrix(int elementId, double conductivity) const;
+    std::vector<double> calculateLagrangeElementLoadVector(int elementId) const;
+    int getNumberOfElementNodes(int elementId) const;
 };
 
 } // namespace elmer

@@ -22,6 +22,16 @@ if(MSVC)
     # WIN32_LEAN_AND_MEAN: 减少Windows头文件包含
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8 /wd4100 /wd4244 /wd4267 /wd4101 /wd4189")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS -DNOMINMAX -DWIN32_LEAN_AND_MEAN)
+    
+    # 设置运行时库为静态链接 (/MT) - 确保所有库使用相同的运行时库
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    
+    # 强制使用静态运行时库
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+    else()
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    endif()
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 endif()
@@ -160,6 +170,19 @@ target_link_libraries(test_simple Elmer)
 
 # 设置测试程序的头文件搜索路径
 target_include_directories(test_simple PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# Create element description test executable
+add_executable(test_element_description
+    test/test_element_description.cpp
+)
+
+target_link_libraries(test_element_description Elmer gtest gtest_main)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_element_description PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )

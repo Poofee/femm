@@ -110,6 +110,19 @@ struct ElementTypeStruct {
 
 
 /**
+ * @brief P型元素定义结构
+ * 
+ * 描述P型元素的附加信息。
+ */
+struct PElementDefs {
+    bool isEdge; ///< 是否为边界元素
+    bool serendipity; ///< 是否为Serendipity型元素
+    int tetraType; ///< 四面体类型
+    
+    PElementDefs() : isEdge(false), serendipity(false), tetraType(0) {}
+};
+
+/**
  * @brief 元素结构
  * 
  * 描述有限元元素的基本信息。
@@ -117,11 +130,16 @@ struct ElementTypeStruct {
 struct Element {
     ElementTypeStruct type; ///< 元素类型
     int index; ///< 元素索引
+    int elementIndex; ///< 元素全局索引
+    int bodyId; ///< 体ID
+    int status; ///< 元素状态
     std::vector<int> nodeIndexes; ///< 元素节点索引
     std::vector<int> edgeIndexes; ///< 元素边索引
     std::vector<int> faceIndexes; ///< 元素面索引
+    std::vector<int> bubbleIndexes; ///< 气泡索引
+    PElementDefs* pDefs; ///< P型元素定义（可选）
     
-    Element() : index(0) {}
+    Element() : index(0), elementIndex(0), bodyId(0), status(0), pDefs(nullptr) {}
     
     /**
      * @brief 获取元素的边信息
@@ -762,5 +780,302 @@ void ApplyNeumannBoundaryConditions(const Element& element,
                                    int faceIndex,
                                    double boundaryValue,
                                    std::vector<double>& forceVector);
+
+/**
+ * @brief 3D节点基函数计算
+ * 
+ * 对应Fortran函数：NodalBasisFunctions3D
+ * 计算给定局部坐标点(u,v,w)处所有节点的基函数值。
+ * 
+ * @param element 元素结构
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param y 输出：基函数值数组
+ */
+void NodalBasisFunctions3D(const Element& element, double u, double v, double w, 
+                          std::vector<double>& y);
+
+/**
+ * @brief 计算3D节点基函数导数
+ * 
+ * 计算给定局部坐标点(u,v,w)处所有节点的基函数导数。
+ * 
+ * @param element 元素结构
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param dphi_du 输出：基函数对u的导数
+ * @param dphi_dv 输出：基函数对v的导数
+ * @param dphi_dw 输出：基函数对w的导数
+ */
+void NodalBasisFunctions3DDerivatives(const Element& element, double u, double v, double w,
+                                     std::vector<double>& dphi_du, std::vector<double>& dphi_dv, 
+                                     std::vector<double>& dphi_dw);
+
+/**
+ * @brief 元素信息计算接口
+ * 
+ * 对应Fortran函数：ElementInfo
+ * 计算给定局部坐标点(u,v,w)处的元素信息，包括基函数值、导数、雅可比矩阵等。
+ * 
+ * @param element 元素结构
+ * @param nodes 节点坐标
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param detJ 输出：雅可比矩阵行列式的平方根
+ * @param basis 输出：基函数值数组
+ * @param dBasisdx 输出：基函数全局导数（可选）
+ * @param ddBasisddx 输出：基函数全局二阶导数（可选）
+ * @param secondDerivatives 输入：是否需要计算二阶导数（可选）
+ * @param bubbles 输入：是否需要计算气泡基函数（可选）
+ * @param basisDegree 输出：基函数度数（可选）
+ * @param edgeBasis 输出：H(curl)相容边基函数（可选）
+ * @param rotBasis 输出：边基函数的旋度（可选）
+ * @param solver 输入：求解器指针（可选）
+ * @return 是否成功计算
+ */
+bool ElementInfo(const Element& element, const Nodes& nodes, 
+                double u, double v, double w,
+                double& detJ, std::vector<double>& basis,
+                std::vector<std::vector<double>>* dBasisdx = nullptr,
+                std::vector<std::vector<std::vector<double>>>* ddBasisddx = nullptr,
+                bool* secondDerivatives = nullptr,
+                bool* bubbles = nullptr,
+                std::vector<int>* basisDegree = nullptr,
+                std::vector<std::vector<double>>* edgeBasis = nullptr,
+                std::vector<std::vector<double>>* rotBasis = nullptr,
+                void* solver = nullptr);
+
+/**
+ * @brief 处理线形P型元素
+ */
+bool processLinePElement(const Element& element, const Nodes& nodes,
+                        double u, double v, double w, int bodyId,
+                        std::vector<double>& basis, 
+                        std::vector<std::vector<double>>& dLBasisdx,
+                        std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                        bool compute2ndDerivatives,
+                        std::vector<int>* basisDegree,
+                        void* solver);
+
+/**
+ * @brief 处理三角形P型元素
+ */
+bool processTrianglePElement(const Element& element, const Nodes& nodes,
+                           double u, double v, double w, int bodyId,
+                           std::vector<double>& basis, 
+                           std::vector<std::vector<double>>& dLBasisdx,
+                           std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                           bool compute2ndDerivatives,
+                           std::vector<int>* basisDegree,
+                           void* solver);
+
+/**
+ * @brief 处理四边形P型元素
+ */
+bool processQuadPElement(const Element& element, const Nodes& nodes,
+                        double u, double v, double w, int bodyId,
+                        std::vector<double>& basis, 
+                        std::vector<std::vector<double>>& dLBasisdx,
+                        std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                        bool compute2ndDerivatives,
+                        std::vector<int>* basisDegree,
+                        void* solver);
+
+/**
+ * @brief 处理四面体P型元素
+ */
+bool processTetraPElement(const Element& element, const Nodes& nodes,
+                         double u, double v, double w, int bodyId,
+                         std::vector<double>& basis, 
+                         std::vector<std::vector<double>>& dLBasisdx,
+                         std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                         bool compute2ndDerivatives,
+                         std::vector<int>* basisDegree,
+                         void* solver);
+
+/**
+ * @brief 处理金字塔P型元素
+ */
+bool processPyramidPElement(const Element& element, const Nodes& nodes,
+                           double u, double v, double w, int bodyId,
+                           std::vector<double>& basis, 
+                           std::vector<std::vector<double>>& dLBasisdx,
+                           std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                           bool compute2ndDerivatives,
+                           std::vector<int>* basisDegree,
+                           void* solver);
+
+/**
+ * @brief 处理楔形P型元素
+ */
+bool processWedgePElement(const Element& element, const Nodes& nodes,
+                         double u, double v, double w, int bodyId,
+                         std::vector<double>& basis, 
+                         std::vector<std::vector<double>>& dLBasisdx,
+                         std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                         bool compute2ndDerivatives,
+                         std::vector<int>* basisDegree,
+                         void* solver);
+
+/**
+ * @brief 处理六面体P型元素
+ */
+bool processBrickPElement(const Element& element, const Nodes& nodes,
+                         double u, double v, double w, int bodyId,
+                         std::vector<double>& basis, 
+                         std::vector<std::vector<double>>& dLBasisdx,
+                         std::vector<std::vector<std::vector<double>>>& ddLBasisddx,
+                         bool compute2ndDerivatives,
+                         std::vector<int>* basisDegree,
+                         void* solver);
+
+/**
+ * @brief 计算元素度量张量
+ */
+bool ElementMetric(int nBasis, const Element& element, const Nodes& nodes,
+                  std::vector<std::vector<double>>& elmMetric, double& detJ,
+                  const std::vector<std::vector<double>>& dLBasisdx,
+                  std::vector<std::vector<double>>& ltoGMap);
+
+
+
+/**
+ * @brief 获取元素P值
+ */
+int getElementP(const Element& element, int bodyId, void* solver = nullptr);
+
+/**
+ * @brief 获取边自由度数量
+ */
+int getEdgeDOFs(const Element& element, int p);
+
+/**
+ * @brief 获取气泡自由度数量
+ */
+int getBubbleDOFs(const Element& element, int p);
+
+/**
+ * @brief 获取有效的气泡P值
+ */
+int getEffectiveBubbleP(const Element& element, int p, int bDofs);
+
+/**
+ * @brief 获取三角形边映射
+ */
+std::vector<int> getTriangleEdgeMap(int edgeIndex);
+
+/**
+ * @brief 线形气泡P型基函数
+ */
+double LineBubblePBasis(int i, double u, bool invert);
+
+/**
+ * @brief 线形气泡P型基函数导数
+ */
+double dLineBubblePBasis(int i, double u, bool invert);
+
+/**
+ * @brief 线形气泡P型基函数二阶导数
+ */
+double ddLineBubblePBasis(int i, double u, bool invert);
+
+/**
+ * @brief 三角形边P型基函数
+ */
+double TriangleEdgePBasis(int edge, int k, double u, double v, bool invert);
+
+/**
+ * @brief 三角形边P型基函数导数
+ */
+std::vector<double> dTriangleEdgePBasis(int edge, int k, double u, double v, bool invert);
+
+/**
+ * @brief 三角形边P型基函数二阶导数
+ */
+std::vector<std::vector<double>> ddTriangleEdgePBasis(int edge, int k, double u, double v, bool invert);
+
+/**
+ * @brief 三角形边界气泡P型基函数
+ */
+double TriangleEBubblePBasis(int i, int j, double u, double v, const std::vector<int>& direction);
+
+/**
+ * @brief 三角形边界气泡P型基函数导数
+ */
+std::vector<double> dTriangleEBubblePBasis(int i, int j, double u, double v, const std::vector<int>& direction);
+
+/**
+ * @brief 三角形边界气泡P型基函数二阶导数
+ */
+std::vector<std::vector<double>> ddTriangleEBubblePBasis(int i, int j, double u, double v, const std::vector<int>& direction);
+
+/**
+ * @brief 三角形气泡P型基函数
+ */
+double TriangleBubblePBasis(int i, int j, double u, double v);
+
+/**
+ * @brief 三角形气泡P型基函数导数
+ */
+std::vector<double> dTriangleBubblePBasis(int i, int j, double u, double v);
+
+/**
+ * @brief 三角形气泡P型基函数二阶导数
+ */
+std::vector<std::vector<double>> ddTriangleBubblePBasis(int i, int j, double u, double v);
+
+/**
+ * @brief 处理气泡基函数
+ */
+bool processBubbleBasis(const Element& element, const Nodes& nodes,
+                       double u, double v, double w, double detJ,
+                       std::vector<double>& basis, 
+                       std::vector<std::vector<double>>& dBasisdx,
+                       int cdim);
+
+/**
+ * @brief 边元素信息计算接口
+ * 
+ * 对应Fortran函数：EdgeElementInfo
+ * 计算给定局部坐标点(u,v,w)处的边元素信息，包括H(curl)相容边基函数、旋度等。
+ * 
+ * @param element 元素结构
+ * @param nodes 节点坐标
+ * @param u 局部坐标u
+ * @param v 局部坐标v
+ * @param w 局部坐标w
+ * @param F 输出：梯度矩阵F=Grad f（可选）
+ * @param G 输出：梯度矩阵逆的转置（可选）
+ * @param detF 输出：梯度矩阵行列式
+ * @param basis 输出：H1相容基函数值
+ * @param edgeBasis 输出：H(curl)相容边基函数
+ * @param rotBasis 输出：边基函数的旋度（可选）
+ * @param dBasisdx 输出：H1基函数的全局导数（可选）
+ * @param secondFamily 输入：是否使用第二类Nedelec基函数（可选）
+ * @param basisDegree 输入：近似度数（可选）
+ * @param applyPiolaTransform 输入：是否应用Piola变换（可选）
+ * @param readyEdgeBasis 输入：预计算的边基函数（可选）
+ * @param readyRotBasis 输入：预计算的旋度基函数（可选）
+ * @param tangentialTrMapping 输入：是否应用切向迹映射（可选）
+ * @return 是否成功计算
+ */
+bool EdgeElementInfo(const Element& element, const Nodes& nodes,
+                    double u, double v, double w,
+                    std::vector<std::vector<double>>* F,
+                    std::vector<std::vector<double>>* G,
+                    double& detF,
+                    std::vector<double>& basis,
+                    std::vector<std::vector<double>>& edgeBasis,
+                    std::vector<std::vector<double>>* rotBasis,
+                    std::vector<std::vector<double>>* dBasisdx,
+                    bool* secondFamily,
+                    int* basisDegree,
+                    bool* applyPiolaTransform,
+                    std::vector<std::vector<double>>* readyEdgeBasis,
+                    std::vector<std::vector<double>>* readyRotBasis,
+                    bool* tangentialTrMapping);
 
 } // namespace elmer

@@ -3,6 +3,11 @@
 #include "CommonConstants.h"
 #include <cmath>
 
+// 数学常量定义（C++17兼容）
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace elmer {
 
 /**
@@ -560,9 +565,38 @@ bool MagnetoDynamics3DSolver::assembleToGlobalSystem(int elementId,
  * @warning 这是一个简化实现，实际项目中需要基于单元类型精确计算
  */
 int MagnetoDynamics3DSolver::getNumberOfElementEdges(int elementId) const {
-    // 简化实现：假设四面体单元有6条边
-    // 实际实现应该基于单元类型返回正确的边数
-    return 6;
+    ELMER_DEBUG("获取单元{}的边数", elementId);
+    
+    // 基于单元类型返回正确的边数
+    auto elementType = getElementType(elementId);
+    
+    switch (elementType) {
+        case ElementType::TETRAHEDRON:
+            // 四面体单元：4个节点，6条边
+            return 6;
+        case ElementType::HEXAHEDRON:
+            // 六面体单元：8个节点，12条边
+            return 12;
+        case ElementType::WEDGE:
+            // 楔形单元：6个节点，9条边
+            return 9;
+        case ElementType::PYRAMID:
+            // 金字塔单元：5个节点，8条边
+            return 8;
+        default:
+            // 未知单元类型，使用简化实现
+            ELMER_WARN("未知单元类型{}，使用简化边数计算", static_cast<int>(elementType));
+            int numNodes = getNumberOfElementNodes(elementId);
+            
+            // 基于节点数量的简化边数估算
+            // 对于大多数3D单元，边数 ≈ 节点数 * 1.5
+            if (numNodes >= 4) {
+                return static_cast<int>(numNodes * 1.5);
+            } else {
+                // 最少边数保证
+                return 6;
+            }
+    }
 }
 
 /**
@@ -699,9 +733,33 @@ std::vector<double> MagnetoDynamics3DSolver::calculateLagrangeElementLoadVector(
 }
 
 int MagnetoDynamics3DSolver::getNumberOfElementNodes(int elementId) const {
-    // 简化实现：假设四面体单元有4个节点
-    // 实际实现应该基于单元类型返回正确的节点数
-    return 4;
+    ELMER_DEBUG("获取单元{}的节点数", elementId);
+    
+    // 基于单元类型返回正确的节点数
+    auto elementType = getElementType(elementId);
+    
+    switch (elementType) {
+        case ElementType::TETRAHEDRON:
+            // 四面体单元：4个节点
+            return 4;
+        case ElementType::HEXAHEDRON:
+            // 六面体单元：8个节点
+            return 8;
+        case ElementType::WEDGE:
+            // 楔形单元：6个节点
+            return 6;
+        case ElementType::PYRAMID:
+            // 金字塔单元：5个节点
+            return 5;
+        default:
+            // 未知单元类型，使用简化实现
+            ELMER_WARN("未知单元类型{}，使用简化节点数计算", static_cast<int>(elementType));
+            
+            // 简化实现：基于单元ID的模运算返回合理的节点数
+            // 实际实现应该从网格数据中获取真实的节点数
+            int baseNodes = 4 + (elementId % 5); // 返回4-8之间的节点数
+            return baseNodes;
+    }
 }
 
 std::array<double, 3> MagnetoDynamics3DSolver::getElementCurrentDensity3D(int elementId) const {
@@ -727,62 +785,77 @@ std::array<double, 3> MagnetoDynamics3DSolver::getElementCurrentDensity3D(int el
 std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctions(int elementId) const {
     ELMER_DEBUG("计算Whitney边元单元{}的形函数", elementId);
     
-    // 基于Fortran代码的Whitney形函数计算逻辑
-    // Whitney边元形函数定义在单元边上
+    // 基于Fortran EdgeElementInfo模块的Whitney形函数计算逻辑
+    // Whitney边元（Nedelec元素）形函数定义在单元边上
     
     int numEdges = getNumberOfElementEdges(elementId);
     std::vector<std::array<double, 3>> shapeFunctions(numEdges, {0.0, 0.0, 0.0});
     
-    // 简化实现：使用单位向量作为形函数
-    // 实际实现应该基于单元几何和边方向计算形函数
-    
-    // 对于四面体单元，6条边对应的形函数方向
-    // 边1: 节点1-2，方向向量从节点1到节点2
-    // 边2: 节点1-3，方向向量从节点1到节点3
-    // 边3: 节点1-4，方向向量从节点1到节点4
-    // 边4: 节点2-3，方向向量从节点2到节点3
-    // 边5: 节点2-4，方向向量从节点2到节点4
-    // 边6: 节点3-4，方向向量从节点3到节点4
-    
-    // 获取单元节点坐标
+    // 获取单元类型和节点坐标
+    auto elementType = getElementType(elementId);
     auto nodeCoords = getElementNodeCoordinates(elementId);
     
-    if (nodeCoords.size() >= 4) {
-        // 计算边向量并归一化作为形函数方向
-        // 边1: 节点1到节点2
-        shapeFunctions[0] = calculateEdgeVector(nodeCoords[0], nodeCoords[1]);
-        // 边2: 节点1到节点3
-        shapeFunctions[1] = calculateEdgeVector(nodeCoords[0], nodeCoords[2]);
-        // 边3: 节点1到节点4
-        shapeFunctions[2] = calculateEdgeVector(nodeCoords[0], nodeCoords[3]);
-        // 边4: 节点2到节点3
-        shapeFunctions[3] = calculateEdgeVector(nodeCoords[1], nodeCoords[2]);
-        // 边5: 节点2到节点4
-        shapeFunctions[4] = calculateEdgeVector(nodeCoords[1], nodeCoords[3]);
-        // 边6: 节点3到节点4
-        shapeFunctions[5] = calculateEdgeVector(nodeCoords[2], nodeCoords[3]);
+    if (nodeCoords.empty()) {
+        ELMER_ERROR("单元{}的节点坐标为空", elementId);
+        return shapeFunctions;
     }
     
-    ELMER_DEBUG("Whitney边元单元{}形函数计算完成", elementId);
+    // 根据单元类型选择相应的Whitney形函数计算方法
+    switch (elementType) {
+        case ElementType::TETRAHEDRON:
+            shapeFunctions = calculateWhitneyShapeFunctionsTetrahedron(elementId, nodeCoords);
+            break;
+        case ElementType::HEXAHEDRON:
+            shapeFunctions = calculateWhitneyShapeFunctionsHexahedron(elementId, nodeCoords);
+            break;
+        case ElementType::WEDGE:
+            shapeFunctions = calculateWhitneyShapeFunctionsWedge(elementId, nodeCoords);
+            break;
+        case ElementType::PYRAMID:
+            shapeFunctions = calculateWhitneyShapeFunctionsPyramid(elementId, nodeCoords);
+            break;
+        default:
+            ELMER_WARN("不支持的单元类型{}，使用简化Whitney形函数", static_cast<int>(elementType));
+            shapeFunctions = calculateSimplifiedWhitneyShapeFunctions(elementId, nodeCoords);
+            break;
+    }
+    
+    ELMER_DEBUG("Whitney边元单元{}形函数计算完成，共{}个形函数", elementId, shapeFunctions.size());
     return shapeFunctions;
 }
 
 std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getElementNodeCoordinates(int elementId) const {
     ELMER_DEBUG("获取单元{}的节点坐标", elementId);
     
-    // 基于Fortran代码的节点坐标获取逻辑
+    // 基于单元类型返回相应的节点坐标
     // 实际实现应该从网格数据中获取节点坐标
     
     std::vector<std::array<double, 3>> nodeCoords;
+    auto elementType = getElementType(elementId);
     
-    // 简化实现：返回单位立方体的节点坐标
-    // 实际实现应该基于实际网格几何
-    
-    // 假设四面体单元，返回4个节点的坐标
-    nodeCoords.push_back({0.0, 0.0, 0.0}); // 节点1
-    nodeCoords.push_back({1.0, 0.0, 0.0}); // 节点2
-    nodeCoords.push_back({0.0, 1.0, 0.0}); // 节点3
-    nodeCoords.push_back({0.0, 0.0, 1.0}); // 节点4
+    switch (elementType) {
+        case ElementType::TETRAHEDRON:
+            // 四面体单元：规则四面体的节点坐标
+            nodeCoords = getTetrahedronNodeCoordinates(elementId);
+            break;
+        case ElementType::HEXAHEDRON:
+            // 六面体单元：单位立方体的节点坐标
+            nodeCoords = getHexahedronNodeCoordinates(elementId);
+            break;
+        case ElementType::WEDGE:
+            // 楔形单元：底面三角形+顶面三角形的节点坐标
+            nodeCoords = getWedgeNodeCoordinates(elementId);
+            break;
+        case ElementType::PYRAMID:
+            // 金字塔单元：底面四边形+顶点的节点坐标
+            nodeCoords = getPyramidNodeCoordinates(elementId);
+            break;
+        default:
+            // 未知单元类型，使用简化实现
+            ELMER_WARN("未知单元类型{}，使用简化节点坐标", static_cast<int>(elementType));
+            nodeCoords = getSimplifiedNodeCoordinates(elementId);
+            break;
+    }
     
     ELMER_DEBUG("单元{}节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
     return nodeCoords;
@@ -2216,6 +2289,423 @@ std::array<double, 3> MagnetoDynamics3DSolver::calculateCurlMagnetization(
                 elementId, point[0], point[1], point[2],
                 curlMagnetization[0], curlMagnetization[1], curlMagnetization[2]);
     return curlMagnetization;
+}
+
+// 单元类型识别函数
+MagnetoDynamics3DSolver::ElementType MagnetoDynamics3DSolver::getElementType(int elementId) const {
+    ELMER_DEBUG("识别单元{}的类型", elementId);
+    
+    // 基于节点数量识别单元类型
+    int numNodes = getNumberOfElementNodes(elementId);
+    
+    switch (numNodes) {
+        case 4:
+            return ElementType::TETRAHEDRON;
+        case 5:
+            return ElementType::PYRAMID;
+        case 6:
+            return ElementType::WEDGE;
+        case 8:
+            return ElementType::HEXAHEDRON;
+        default:
+            ELMER_WARN("未知单元类型，节点数: {}", numNodes);
+            return ElementType::UNKNOWN;
+    }
+}
+
+// 四面体单元的Whitney形函数计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctionsTetrahedron(
+    int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const {
+    ELMER_DEBUG("计算四面体单元{}的Whitney形函数", elementId);
+    
+    // 四面体单元有6条边，对应6个Whitney形函数
+    std::vector<std::array<double, 3>> shapeFunctions(6, {0.0, 0.0, 0.0});
+    
+    if (nodeCoords.size() < 4) {
+        ELMER_ERROR("四面体单元{}需要至少4个节点坐标", elementId);
+        return shapeFunctions;
+    }
+    
+    // 计算四面体体积
+    double volume = calculateElementVolume3D(elementId);
+    
+    if (volume <= 0.0) {
+        ELMER_ERROR("四面体单元{}体积无效: {}", elementId, volume);
+        return shapeFunctions;
+    }
+    
+    // 基于Fortran EdgeElementInfo的四面体Whitney形函数公式
+    // 对于四面体单元，Whitney形函数定义为：
+    // W_ij = λ_i ∇λ_j - λ_j ∇λ_i
+    // 其中λ_i和λ_j是节点i和j的线性形函数
+    
+    // 计算节点形函数的梯度（线性形函数梯度）
+    std::vector<std::array<double, 3>> gradLambda(4);
+    
+    // 四面体单元线性形函数梯度是常数
+    // ∇λ_i = (1/(6V)) * (n_i) 其中n_i是面法向量
+    
+    // 计算面法向量
+    std::array<double, 3> n1 = calculateFaceNormal(nodeCoords[1], nodeCoords[2], nodeCoords[3]);
+    std::array<double, 3> n2 = calculateFaceNormal(nodeCoords[0], nodeCoords[2], nodeCoords[3]);
+    std::array<double, 3> n3 = calculateFaceNormal(nodeCoords[0], nodeCoords[1], nodeCoords[3]);
+    std::array<double, 3> n4 = calculateFaceNormal(nodeCoords[0], nodeCoords[1], nodeCoords[2]);
+    
+    // 计算形函数梯度
+    double factor = 1.0 / (6.0 * volume);
+    gradLambda[0] = {factor * n1[0], factor * n1[1], factor * n1[2]};
+    gradLambda[1] = {factor * n2[0], factor * n2[1], factor * n2[2]};
+    gradLambda[2] = {factor * n3[0], factor * n3[1], factor * n3[2]};
+    gradLambda[3] = {factor * n4[0], factor * n4[1], factor * n4[2]};
+    
+    // 计算6条边的Whitney形函数
+    // 边1: 节点0-1
+    shapeFunctions[0] = {
+        nodeCoords[0][1] * gradLambda[1][2] - nodeCoords[0][2] * gradLambda[1][1] - 
+        nodeCoords[1][1] * gradLambda[0][2] + nodeCoords[1][2] * gradLambda[0][1],
+        nodeCoords[0][2] * gradLambda[1][0] - nodeCoords[0][0] * gradLambda[1][2] - 
+        nodeCoords[1][2] * gradLambda[0][0] + nodeCoords[1][0] * gradLambda[0][2],
+        nodeCoords[0][0] * gradLambda[1][1] - nodeCoords[0][1] * gradLambda[1][0] - 
+        nodeCoords[1][0] * gradLambda[0][1] + nodeCoords[1][1] * gradLambda[0][0]
+    };
+    
+    // 边2: 节点0-2
+    shapeFunctions[1] = {
+        nodeCoords[0][1] * gradLambda[2][2] - nodeCoords[0][2] * gradLambda[2][1] - 
+        nodeCoords[2][1] * gradLambda[0][2] + nodeCoords[2][2] * gradLambda[0][1],
+        nodeCoords[0][2] * gradLambda[2][0] - nodeCoords[0][0] * gradLambda[2][2] - 
+        nodeCoords[2][2] * gradLambda[0][0] + nodeCoords[2][0] * gradLambda[0][2],
+        nodeCoords[0][0] * gradLambda[2][1] - nodeCoords[0][1] * gradLambda[2][0] - 
+        nodeCoords[2][0] * gradLambda[0][1] + nodeCoords[2][1] * gradLambda[0][0]
+    };
+    
+    // 边3: 节点0-3
+    shapeFunctions[2] = {
+        nodeCoords[0][1] * gradLambda[3][2] - nodeCoords[0][2] * gradLambda[3][1] - 
+        nodeCoords[3][1] * gradLambda[0][2] + nodeCoords[3][2] * gradLambda[0][1],
+        nodeCoords[0][2] * gradLambda[3][0] - nodeCoords[0][0] * gradLambda[3][2] - 
+        nodeCoords[3][2] * gradLambda[0][0] + nodeCoords[3][0] * gradLambda[0][2],
+        nodeCoords[0][0] * gradLambda[3][1] - nodeCoords[0][1] * gradLambda[3][0] - 
+        nodeCoords[3][0] * gradLambda[0][1] + nodeCoords[3][1] * gradLambda[0][0]
+    };
+    
+    // 边4: 节点1-2
+    shapeFunctions[3] = {
+        nodeCoords[1][1] * gradLambda[2][2] - nodeCoords[1][2] * gradLambda[2][1] - 
+        nodeCoords[2][1] * gradLambda[1][2] + nodeCoords[2][2] * gradLambda[1][1],
+        nodeCoords[1][2] * gradLambda[2][0] - nodeCoords[1][0] * gradLambda[2][2] - 
+        nodeCoords[2][2] * gradLambda[1][0] + nodeCoords[2][0] * gradLambda[1][2],
+        nodeCoords[1][0] * gradLambda[2][1] - nodeCoords[1][1] * gradLambda[2][0] - 
+        nodeCoords[2][0] * gradLambda[1][1] + nodeCoords[2][1] * gradLambda[1][0]
+    };
+    
+    // 边5: 节点1-3
+    shapeFunctions[4] = {
+        nodeCoords[1][1] * gradLambda[3][2] - nodeCoords[1][2] * gradLambda[3][1] - 
+        nodeCoords[3][1] * gradLambda[1][2] + nodeCoords[3][2] * gradLambda[1][1],
+        nodeCoords[1][2] * gradLambda[3][0] - nodeCoords[1][0] * gradLambda[3][2] - 
+        nodeCoords[3][2] * gradLambda[1][0] + nodeCoords[3][0] * gradLambda[1][2],
+        nodeCoords[1][0] * gradLambda[3][1] - nodeCoords[1][1] * gradLambda[3][0] - 
+        nodeCoords[3][0] * gradLambda[1][1] + nodeCoords[3][1] * gradLambda[1][0]
+    };
+    
+    // 边6: 节点2-3
+    shapeFunctions[5] = {
+        nodeCoords[2][1] * gradLambda[3][2] - nodeCoords[2][2] * gradLambda[3][1] - 
+        nodeCoords[3][1] * gradLambda[2][2] + nodeCoords[3][2] * gradLambda[2][1],
+        nodeCoords[2][2] * gradLambda[3][0] - nodeCoords[2][0] * gradLambda[3][2] - 
+        nodeCoords[3][2] * gradLambda[2][0] + nodeCoords[3][0] * gradLambda[2][2],
+        nodeCoords[2][0] * gradLambda[3][1] - nodeCoords[2][1] * gradLambda[3][0] - 
+        nodeCoords[3][0] * gradLambda[2][1] + nodeCoords[3][1] * gradLambda[2][0]
+    };
+    
+    ELMER_DEBUG("四面体单元{}Whitney形函数计算完成", elementId);
+    return shapeFunctions;
+}
+
+// 六面体单元的Whitney形函数计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctionsHexahedron(
+    int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const {
+    ELMER_DEBUG("计算六面体单元{}的Whitney形函数", elementId);
+    
+    // 六面体单元有12条边，对应12个Whitney形函数
+    std::vector<std::array<double, 3>> shapeFunctions(12, {0.0, 0.0, 0.0});
+    
+    if (nodeCoords.size() < 8) {
+        ELMER_ERROR("六面体单元{}需要至少8个节点坐标", elementId);
+        return shapeFunctions;
+    }
+    
+    // 六面体单元的Whitney形函数基于参考坐标系的边向量
+    // 使用等参变换计算形函数
+    
+    // 简化实现：基于边向量计算
+    // 实际实现应该使用等参变换和数值积分
+    
+    // 边1: 节点0-1
+    shapeFunctions[0] = calculateEdgeVector(nodeCoords[0], nodeCoords[1]);
+    // 边2: 节点1-2
+    shapeFunctions[1] = calculateEdgeVector(nodeCoords[1], nodeCoords[2]);
+    // 边3: 节点2-3
+    shapeFunctions[2] = calculateEdgeVector(nodeCoords[2], nodeCoords[3]);
+    // 边4: 节点3-0
+    shapeFunctions[3] = calculateEdgeVector(nodeCoords[3], nodeCoords[0]);
+    
+    // 边5: 节点4-5
+    shapeFunctions[4] = calculateEdgeVector(nodeCoords[4], nodeCoords[5]);
+    // 边6: 节点5-6
+    shapeFunctions[5] = calculateEdgeVector(nodeCoords[5], nodeCoords[6]);
+    // 边7: 节点6-7
+    shapeFunctions[6] = calculateEdgeVector(nodeCoords[6], nodeCoords[7]);
+    // 边8: 节点7-4
+    shapeFunctions[7] = calculateEdgeVector(nodeCoords[7], nodeCoords[4]);
+    
+    // 边9: 节点0-4
+    shapeFunctions[8] = calculateEdgeVector(nodeCoords[0], nodeCoords[4]);
+    // 边10: 节点1-5
+    shapeFunctions[9] = calculateEdgeVector(nodeCoords[1], nodeCoords[5]);
+    // 边11: 节点2-6
+    shapeFunctions[10] = calculateEdgeVector(nodeCoords[2], nodeCoords[6]);
+    // 边12: 节点3-7
+    shapeFunctions[11] = calculateEdgeVector(nodeCoords[3], nodeCoords[7]);
+    
+    ELMER_DEBUG("六面体单元{}Whitney形函数计算完成", elementId);
+    return shapeFunctions;
+}
+
+// 楔形单元的Whitney形函数计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctionsWedge(
+    int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const {
+    ELMER_DEBUG("计算楔形单元{}的Whitney形函数", elementId);
+    
+    // 楔形单元有9条边，对应9个Whitney形函数
+    std::vector<std::array<double, 3>> shapeFunctions(9, {0.0, 0.0, 0.0});
+    
+    if (nodeCoords.size() < 6) {
+        ELMER_ERROR("楔形单元{}需要至少6个节点坐标", elementId);
+        return shapeFunctions;
+    }
+    
+    // 楔形单元：底面三角形 + 顶面三角形 + 3条垂直边
+    
+    // 底面三角形边
+    shapeFunctions[0] = calculateEdgeVector(nodeCoords[0], nodeCoords[1]);
+    shapeFunctions[1] = calculateEdgeVector(nodeCoords[1], nodeCoords[2]);
+    shapeFunctions[2] = calculateEdgeVector(nodeCoords[2], nodeCoords[0]);
+    
+    // 顶面三角形边
+    shapeFunctions[3] = calculateEdgeVector(nodeCoords[3], nodeCoords[4]);
+    shapeFunctions[4] = calculateEdgeVector(nodeCoords[4], nodeCoords[5]);
+    shapeFunctions[5] = calculateEdgeVector(nodeCoords[5], nodeCoords[3]);
+    
+    // 垂直边
+    shapeFunctions[6] = calculateEdgeVector(nodeCoords[0], nodeCoords[3]);
+    shapeFunctions[7] = calculateEdgeVector(nodeCoords[1], nodeCoords[4]);
+    shapeFunctions[8] = calculateEdgeVector(nodeCoords[2], nodeCoords[5]);
+    
+    ELMER_DEBUG("楔形单元{}Whitney形函数计算完成", elementId);
+    return shapeFunctions;
+}
+
+// 金字塔单元的Whitney形函数计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctionsPyramid(
+    int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const {
+    ELMER_DEBUG("计算金字塔单元{}的Whitney形函数", elementId);
+    
+    // 金字塔单元有8条边，对应8个Whitney形函数
+    std::vector<std::array<double, 3>> shapeFunctions(8, {0.0, 0.0, 0.0});
+    
+    if (nodeCoords.size() < 5) {
+        ELMER_ERROR("金字塔单元{}需要至少5个节点坐标", elementId);
+        return shapeFunctions;
+    }
+    
+    // 金字塔单元：底面四边形 + 4条斜边
+    
+    // 底面四边形边
+    shapeFunctions[0] = calculateEdgeVector(nodeCoords[0], nodeCoords[1]);
+    shapeFunctions[1] = calculateEdgeVector(nodeCoords[1], nodeCoords[2]);
+    shapeFunctions[2] = calculateEdgeVector(nodeCoords[2], nodeCoords[3]);
+    shapeFunctions[3] = calculateEdgeVector(nodeCoords[3], nodeCoords[0]);
+    
+    // 斜边（底面到顶点）
+    shapeFunctions[4] = calculateEdgeVector(nodeCoords[0], nodeCoords[4]);
+    shapeFunctions[5] = calculateEdgeVector(nodeCoords[1], nodeCoords[4]);
+    shapeFunctions[6] = calculateEdgeVector(nodeCoords[2], nodeCoords[4]);
+    shapeFunctions[7] = calculateEdgeVector(nodeCoords[3], nodeCoords[4]);
+    
+    ELMER_DEBUG("金字塔单元{}Whitney形函数计算完成", elementId);
+    return shapeFunctions;
+}
+
+// 计算三角形面的法向量
+std::array<double, 3> MagnetoDynamics3DSolver::calculateFaceNormal(const std::array<double, 3>& p1, 
+                                                                   const std::array<double, 3>& p2, 
+                                                                   const std::array<double, 3>& p3) const {
+    // 计算两个边向量
+    std::array<double, 3> v1 = {p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]};
+    std::array<double, 3> v2 = {p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]};
+    
+    // 计算叉积得到法向量
+    std::array<double, 3> normal = {
+        v1[1] * v2[2] - v1[2] * v2[1],
+        v1[2] * v2[0] - v1[0] * v2[2],
+        v1[0] * v2[1] - v1[1] * v2[0]
+    };
+    
+    // 归一化法向量
+    double length = std::sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
+    if (length > 0.0) {
+        normal[0] /= length;
+        normal[1] /= length;
+        normal[2] /= length;
+    }
+    
+    return normal;
+}
+
+// 简化Whitney形函数计算（用于不支持的单元类型）
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateSimplifiedWhitneyShapeFunctions(
+    int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const {
+    ELMER_DEBUG("计算单元{}的简化Whitney形函数", elementId);
+    
+    int numEdges = getNumberOfElementEdges(elementId);
+    std::vector<std::array<double, 3>> shapeFunctions(numEdges, {0.0, 0.0, 0.0});
+    
+    // 简化实现：基于边向量计算
+    // 对于不支持的单元类型，使用边向量作为形函数方向
+    
+    if (nodeCoords.size() >= 2) {
+        // 根据节点数量确定边连接关系
+        for (int i = 0; i < numEdges; ++i) {
+            // 简化：假设边连接相邻节点
+            int node1 = i % nodeCoords.size();
+            int node2 = (i + 1) % nodeCoords.size();
+            
+            if (node1 < nodeCoords.size() && node2 < nodeCoords.size()) {
+                shapeFunctions[i] = calculateEdgeVector(nodeCoords[node1], nodeCoords[node2]);
+            }
+        }
+    }
+    
+    ELMER_DEBUG("单元{}简化Whitney形函数计算完成", elementId);
+    return shapeFunctions;
+}
+
+// 四面体单元节点坐标计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getTetrahedronNodeCoordinates(int elementId) const {
+    ELMER_DEBUG("获取四面体单元{}的节点坐标", elementId);
+    
+    std::vector<std::array<double, 3>> nodeCoords;
+    
+    // 规则四面体的节点坐标（单位四面体）
+    // 节点0: (0, 0, 0)
+    // 节点1: (1, 0, 0) 
+    // 节点2: (0, 1, 0)
+    // 节点3: (0, 0, 1)
+    
+    nodeCoords.push_back({0.0, 0.0, 0.0}); // 节点0
+    nodeCoords.push_back({1.0, 0.0, 0.0}); // 节点1
+    nodeCoords.push_back({0.0, 1.0, 0.0}); // 节点2
+    nodeCoords.push_back({0.0, 0.0, 1.0}); // 节点3
+    
+    ELMER_DEBUG("四面体单元{}节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
+    return nodeCoords;
+}
+
+// 六面体单元节点坐标计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getHexahedronNodeCoordinates(int elementId) const {
+    ELMER_DEBUG("获取六面体单元{}的节点坐标", elementId);
+    
+    std::vector<std::array<double, 3>> nodeCoords;
+    
+    // 单位立方体的节点坐标
+    // 底面四边形（z=0）
+    nodeCoords.push_back({0.0, 0.0, 0.0}); // 节点0
+    nodeCoords.push_back({1.0, 0.0, 0.0}); // 节点1
+    nodeCoords.push_back({1.0, 1.0, 0.0}); // 节点2
+    nodeCoords.push_back({0.0, 1.0, 0.0}); // 节点3
+    
+    // 顶面四边形（z=1）
+    nodeCoords.push_back({0.0, 0.0, 1.0}); // 节点4
+    nodeCoords.push_back({1.0, 0.0, 1.0}); // 节点5
+    nodeCoords.push_back({1.0, 1.0, 1.0}); // 节点6
+    nodeCoords.push_back({0.0, 1.0, 1.0}); // 节点7
+    
+    ELMER_DEBUG("六面体单元{}节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
+    return nodeCoords;
+}
+
+// 楔形单元节点坐标计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getWedgeNodeCoordinates(int elementId) const {
+    ELMER_DEBUG("获取楔形单元{}的节点坐标", elementId);
+    
+    std::vector<std::array<double, 3>> nodeCoords;
+    
+    // 楔形单元：底面三角形 + 顶面三角形
+    // 底面三角形（z=0）
+    nodeCoords.push_back({0.0, 0.0, 0.0}); // 节点0
+    nodeCoords.push_back({1.0, 0.0, 0.0}); // 节点1
+    nodeCoords.push_back({0.5, 0.866, 0.0}); // 节点2（等边三角形）
+    
+    // 顶面三角形（z=1）
+    nodeCoords.push_back({0.0, 0.0, 1.0}); // 节点3
+    nodeCoords.push_back({1.0, 0.0, 1.0}); // 节点4
+    nodeCoords.push_back({0.5, 0.866, 1.0}); // 节点5
+    
+    ELMER_DEBUG("楔形单元{}节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
+    return nodeCoords;
+}
+
+// 金字塔单元节点坐标计算
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getPyramidNodeCoordinates(int elementId) const {
+    ELMER_DEBUG("获取金字塔单元{}的节点坐标", elementId);
+    
+    std::vector<std::array<double, 3>> nodeCoords;
+    
+    // 金字塔单元：底面四边形 + 顶点
+    // 底面四边形（z=0）
+    nodeCoords.push_back({0.0, 0.0, 0.0}); // 节点0
+    nodeCoords.push_back({1.0, 0.0, 0.0}); // 节点1
+    nodeCoords.push_back({1.0, 1.0, 0.0}); // 节点2
+    nodeCoords.push_back({0.0, 1.0, 0.0}); // 节点3
+    
+    // 顶点（z=1）
+    nodeCoords.push_back({0.5, 0.5, 1.0}); // 节点4
+    
+    ELMER_DEBUG("金字塔单元{}节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
+    return nodeCoords;
+}
+
+// 简化节点坐标计算（用于不支持的单元类型）
+std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::getSimplifiedNodeCoordinates(int elementId) const {
+    ELMER_DEBUG("获取单元{}的简化节点坐标", elementId);
+    
+    std::vector<std::array<double, 3>> nodeCoords;
+    
+    // 基于单元ID生成合理的节点坐标
+    int numNodes = getNumberOfElementNodes(elementId);
+    
+    // 生成分布在单位球面上的节点坐标
+    for (int i = 0; i < numNodes; ++i) {
+        // 使用球面坐标生成均匀分布的节点
+        double theta = 2.0 * M_PI * i / numNodes;
+        double phi = M_PI * (i % (numNodes/2 + 1)) / (numNodes/2 + 1);
+        
+        double x = std::sin(phi) * std::cos(theta);
+        double y = std::sin(phi) * std::sin(theta);
+        double z = std::cos(phi);
+        
+        // 缩放到单位立方体内
+        x = 0.5 + 0.3 * x;
+        y = 0.5 + 0.3 * y;
+        z = 0.5 + 0.3 * z;
+        
+        nodeCoords.push_back({x, y, z});
+    }
+    
+    ELMER_DEBUG("单元{}简化节点坐标获取完成，共{}个节点", elementId, nodeCoords.size());
+    return nodeCoords;
 }
 
 

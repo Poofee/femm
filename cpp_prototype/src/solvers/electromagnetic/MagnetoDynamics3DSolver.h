@@ -251,6 +251,37 @@ private:
     std::array<double, 3> getCurrentDensityAtPoint(int elementId, const std::array<double, 3>& point) const;
     std::array<double, 3> getMagnetizationAtPoint(int elementId, const std::array<double, 3>& point) const;
     std::array<double, 3> calculateCurlMagnetization(int elementId, const std::array<double, 3>& point) const;
+    
+    // 单元类型枚举
+    enum class ElementType {
+        TETRAHEDRON = 4,    // 四面体单元
+        HEXAHEDRON = 8,     // 六面体单元
+        WEDGE = 6,          // 楔形单元
+        PYRAMID = 5,        // 金字塔单元
+        UNKNOWN = 0         // 未知单元类型
+    };
+    
+    // 单元类型识别
+    ElementType getElementType(int elementId) const;
+    
+    // 多种单元类型的Whitney形函数计算
+    std::vector<std::array<double, 3>> calculateWhitneyShapeFunctionsTetrahedron(int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const;
+    std::vector<std::array<double, 3>> calculateWhitneyShapeFunctionsHexahedron(int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const;
+    std::vector<std::array<double, 3>> calculateWhitneyShapeFunctionsWedge(int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const;
+    std::vector<std::array<double, 3>> calculateWhitneyShapeFunctionsPyramid(int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const;
+    std::vector<std::array<double, 3>> calculateSimplifiedWhitneyShapeFunctions(int elementId, const std::vector<std::array<double, 3>>& nodeCoords) const;
+    
+    // 几何计算辅助函数
+    std::array<double, 3> calculateFaceNormal(const std::array<double, 3>& p1, 
+                                             const std::array<double, 3>& p2, 
+                                             const std::array<double, 3>& p3) const;
+    
+    // 单元节点坐标计算函数
+    std::vector<std::array<double, 3>> getTetrahedronNodeCoordinates(int elementId) const;
+    std::vector<std::array<double, 3>> getHexahedronNodeCoordinates(int elementId) const;
+    std::vector<std::array<double, 3>> getWedgeNodeCoordinates(int elementId) const;
+    std::vector<std::array<double, 3>> getPyramidNodeCoordinates(int elementId) const;
+    std::vector<std::array<double, 3>> getSimplifiedNodeCoordinates(int elementId) const;
 };
 
 } // namespace elmer

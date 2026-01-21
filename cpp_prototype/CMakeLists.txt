@@ -35,7 +35,9 @@ else()
     message(WARNING "OpenMP not found - parallel features will be disabled")
 endif()
 
-# Create library with simplified structure (no MPI modules)
+# MPI support removed - serial computation only
+
+# Create library (MPI support removed)
 add_library(Elmer
     # Core infrastructure modules
     src/core/base/SolverBase.h
@@ -127,7 +129,7 @@ add_library(Elmer
     src/boundary/BoundaryConditions.cpp
 )
 
-# 设置头文件搜索路径 - 这是关键修复
+# 设置头文件搜索路径
 target_include_directories(Elmer PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/core/base
@@ -141,9 +143,10 @@ target_include_directories(Elmer PUBLIC
     ${CMAKE_SOURCE_DIR}/src/solvers/thermal
     ${CMAKE_SOURCE_DIR}/src/io/input
     ${CMAKE_SOURCE_DIR}/src/boundary
-    ${CMAKE_SOURCE_DIR}/src/parallel/mpi
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )
+
+# MPI支持已移除
 
 # 添加googletest子目录
 add_subdirectory(googletest)

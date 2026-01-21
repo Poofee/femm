@@ -5,7 +5,6 @@
 #include "Types.h"
 #include "SolverRegistry.h"
 #include "BoundaryConditions.h"
-#include "MPICommunicator.h"
 #include "InputFileParser.h"
 #include "LoggerInterface.h"
 #include <algorithm>
@@ -32,7 +31,6 @@ struct SimulationParameters {
     double tolerance = 1e-6;         // 收敛容差
     bool transient = false;          // 瞬态仿真
     bool nonlinear = false;          // 非线性求解
-    bool useMPI = false;             // 使用MPI并行
     int numThreads = 1;              // 线程数
     int numTimeSteps = 100;          // 时间步数
     int outputInterval = 10;         // 输出间隔
@@ -305,7 +303,6 @@ public:
 protected:
     std::shared_ptr<Mesh> mesh_;
     std::shared_ptr<BoundaryConditionManager> bcManager_;
-    std::shared_ptr<MPICommunicator> comm_;
     std::unique_ptr<SolverManager> solverManager_;
     std::unique_ptr<InputFileParser> inputParser_;
     std::shared_ptr<MaterialDatabase> materialDB_;

@@ -13,7 +13,6 @@
 #include <functional>
 #include <vector>
 #include "SolverBase.h"
-#include "MPICommunicator.h"
 
 namespace elmer {
 
@@ -209,7 +208,6 @@ private:
     std::shared_ptr<Mesh> mesh_;
     std::shared_ptr<MaterialDatabase> materialDB_;
     std::shared_ptr<BoundaryConditionManager> bc_;
-    std::shared_ptr<MPICommunicator> comm_;
     
 public:
     SolverManager() = default;
@@ -235,12 +233,7 @@ public:
         bc_ = bc;
     }
     
-    /**
-     * @brief 设置MPI通信器
-     */
-    void setMPICommunicator(std::shared_ptr<MPICommunicator> comm) {
-        comm_ = comm;
-    }
+    // MPI支持已移除
     
     /**
      * @brief 添加求解器
@@ -252,7 +245,6 @@ public:
             if (mesh_) solver->setMesh(mesh_);
             if (materialDB_) solver->setMaterialDatabase(materialDB_);
             if (bc_) solver->setBoundaryConditions(bc_);
-            if (comm_) solver->setMPICommunicator(comm_.get());
             
             solvers_.push_back(solver);
         } else {
@@ -356,9 +348,7 @@ public:
         int timeStepIndex = 0;
         
         while (currentTime < endTime) {
-            if (comm_ && comm_->getRank() == 0) {
-                std::cout << "时间步 " << timeStepIndex << ", 时间 = " << currentTime << std::endl;
-            }
+            std::cout << "时间步 " << timeStepIndex << ", 时间 = " << currentTime << std::endl;
             
             // 执行当前时间步
             if (!executeAll()) {

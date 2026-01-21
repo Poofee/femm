@@ -14,9 +14,6 @@
 #include "Mesh.h"
 #include "MaterialDatabase.h"
 #include "BoundaryConditions.h"
-#ifdef USE_MPI
-#include "MPICommunicator.h"
-#endif
 
 namespace elmer {
 
@@ -42,10 +39,7 @@ struct SolverBaseParameters {
     double timeStep = 0.0;            ///< 时间步长
     int numTimeSteps = 1;             ///< 时间步数
     
-    // MPI并行参数
-    bool useMPI = false;              ///< 是否使用MPI并行
-    int mpiRank = 0;                  ///< MPI进程编号
-    int mpiSize = 1;                  ///< MPI进程总数
+    // 并行参数（MPI支持已移除）
     
     // 输出控制
     bool verbose = true;              ///< 详细输出

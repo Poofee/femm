@@ -54,8 +54,7 @@ ElmerSolver::ElmerSolver()
     // TODO: 初始化默认参数 - 需要从配置文件读取
     // parameters_ 现在是 SimulationParameters 类型，不再需要字符串到double的转换
     
-    // TODO: 初始化MPI通信器 - 需要实现MPI环境初始化
-    comm_ = std::make_shared<MPICommunicator>();
+    // MPI支持已移除，使用串行模式
     
     // TODO: 初始化求解器管理器 - 需要实现求解器注册和查找
     solverManager_ = std::make_unique<SolverManager>();
@@ -232,7 +231,7 @@ void ElmerSolver::addSolver(const std::string& solverName) {
         solver->setMesh(mesh_);
         solver->setMaterialDatabase(materialDB_);
         solver->setBoundaryConditions(bc_);
-        solver->setMPICommunicator(comm_.get());
+        // MPI支持已移除
         
         // 添加到求解器管理器
         solverManager_->addSolver(solver);
@@ -464,42 +463,7 @@ void ElmerSolver::printBanner() {
 
 bool ElmerSolver::initializeParallelEnvironment() {
     ELMER_INFO("初始化并行环境...");
-    
-    // 检查MPI支持
-#ifdef USE_MPI
-    int mpiInitialized = 0;
-    MPI_Initialized(&mpiInitialized);
-    
-    if (!mpiInitialized) {
-        int provided;
-        if (MPI_Init_thread(nullptr, nullptr, MPI_THREAD_SERIALIZED, &provided) != MPI_SUCCESS) {
-            ELMER_ERROR("错误: MPI初始化失败");
-            return false;
-        }
-        
-        if (provided < MPI_THREAD_SERIALIZED) {
-            ELMER_WARN("警告: MPI线程支持级别不足");
-        }
-    }
-    
-    // 获取进程信息
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    
-    ELMER_INFO("MPI进程: {}/{}", rank, size);
-    
-    // 初始化MPI通信器
-    if (!comm_->initialize()) {
-        ELMER_ERROR("错误: MPI通信器初始化失败");
-        return false;
-    }
-    
-    ELMER_INFO("MPI并行环境初始化完成");
-#else
-    ELMER_INFO("MPI支持未启用，使用串行模式");
-#endif
-    
+    ELMER_INFO("MPI支持已移除，使用串行模式");
     return true;
 }
 

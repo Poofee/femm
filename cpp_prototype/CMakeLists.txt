@@ -63,6 +63,18 @@ add_library(Elmer
     src/core/math/IterativeSolver.h
     src/core/math/IterativeSolver.cpp
     
+    # Sparse matrix solver framework
+    src/core/math/SparseMatrix.h
+    src/core/math/SparseMatrix.cpp
+    src/core/math/LinearSolverInterface.h
+    src/core/math/LinearSolverFactory.cpp
+    src/core/math/SuperLUSolver.h
+    src/core/math/SuperLUSolver.cpp
+    src/core/math/SuperLUMTSolver.h
+    src/core/math/SuperLUMTSolver.cpp
+    src/core/math/MumpsSolver.h
+    src/core/math/MumpsSolver.cpp
+    
     # Mesh processing
     src/core/mesh/Mesh.h
     src/core/mesh/MeshIO.h
@@ -183,6 +195,32 @@ target_link_libraries(test_element_description Elmer gtest gtest_main)
 
 # 设置测试程序的头文件搜索路径
 target_include_directories(test_element_description PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# Create sparse solver framework test executable
+add_executable(test_sparse_solver_framework
+    test/test_sparse_solver_framework.cpp
+)
+
+target_link_libraries(test_sparse_solver_framework Elmer gtest gtest_main)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_sparse_solver_framework PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# Create simple sparse solver framework test executable
+add_executable(test_sparse_solver_framework_simple
+    test/test_sparse_solver_framework_simple.cpp
+)
+
+target_link_libraries(test_sparse_solver_framework_simple Elmer gtest gtest_main)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_sparse_solver_framework_simple PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )

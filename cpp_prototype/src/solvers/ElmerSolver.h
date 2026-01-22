@@ -191,11 +191,6 @@ public:
     virtual bool isMeshLoaded() const;
 
     /**
-     * @brief 获取边界条件管理器
-     */
-    virtual std::shared_ptr<BoundaryConditionManager> getBoundaryConditionManager() const;
-    
-    /**
      * @brief 获取网格对象
      */
     virtual std::shared_ptr<Mesh> getMesh() const;
@@ -299,6 +294,16 @@ public:
      * @brief 清理求解器资源
      */
     virtual void cleanup();
+
+    /**
+     * @brief 执行主程序循环
+     */
+    virtual bool executeMainLoop();
+    
+    /**
+     * @brief Elmer求解器主程序
+     */
+    virtual bool elmerSolverMain(int initialize = 0);
 
 protected:
     std::shared_ptr<Mesh> mesh_;

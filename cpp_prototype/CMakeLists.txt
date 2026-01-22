@@ -213,3 +213,37 @@ target_include_directories(test_sparse_solver_framework_simple PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/spdlog/include
 )
+
+# Create ElmerSolver test executable
+add_executable(test_ElmerSolver
+    tests/test_ElmerSolver.cpp
+)
+
+target_link_libraries(test_ElmerSolver Elmer gtest gtest_main)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_ElmerSolver PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# Create basic precision test executable
+add_executable(test_BasicPrecision
+    tests/test_BasicPrecision.cpp
+)
+
+target_link_libraries(test_BasicPrecision Elmer gtest gtest_main)
+
+# 设置测试程序的头文件搜索路径
+target_include_directories(test_BasicPrecision PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/spdlog/include
+)
+
+# 添加测试到CTest
+add_test(NAME test_BasicPrecision COMMAND test_BasicPrecision)
+add_test(NAME test_ElmerSolver COMMAND test_ElmerSolver)
+add_test(NAME test_element_description COMMAND test_element_description)
+add_test(NAME test_simple COMMAND test_simple)
+add_test(NAME test_sparse_solver_framework COMMAND test_sparse_solver_framework)
+add_test(NAME test_sparse_solver_framework_simple COMMAND test_sparse_solver_framework_simple)

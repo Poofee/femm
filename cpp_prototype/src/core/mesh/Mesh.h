@@ -6,9 +6,29 @@
 #include <cstddef>
 #include <cmath>
 #include <iostream>
-#include "core/base/Types.h"
+#include "Types.h"
 
 namespace elmer {
+
+/**
+ * @brief Node structure (compatible with Elmer Fortran code)
+ */
+struct Node {
+    double x; ///< X coordinate
+    double y; ///< Y coordinate
+    double z; ///< Z coordinate
+    
+    Node() : x(0.0), y(0.0), z(0.0) {}
+    Node(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
+    
+    // 计算两点之间的距离
+    double distance(const Node& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        double dz = z - other.z;
+        return std::sqrt(dx*dx + dy*dy + dz*dz);
+    }
+};
 
 /**
  * @brief Node collection management class
@@ -59,6 +79,7 @@ public:
  */
 enum class ElementType {
     UNKNOWN,        // Unknown element type
+    POINT,          // 1-node point element
     LINEAR,         // 2-node line element
     TRIANGLE,       // 3-node triangle element
     QUADRILATERAL,  // 4-node quadrilateral element
@@ -71,28 +92,78 @@ enum class ElementType {
 };
 
 /**
+ * @brief Basis function structure (compatible with Elmer Fortran code)
+ */
+struct BasisFunction {
+    int n; ///< 项数
+    std::vector<int> p; ///< u方向指数
+    std::vector<int> q; ///< v方向指数  
+    std::vector<int> r; ///< w方向指数
+    std::vector<double> coeff; ///< 系数
+    
+    BasisFunction() : n(0) {}
+    BasisFunction(int size) : n(size), p(size), q(size), r(size), coeff(size) {}
+};
+
+/**
+ * @brief Element type structure (compatible with Elmer Fortran code)
+ */
+struct ElementTypeStruct {
+    int elementCode;        // Element code (e.g., 101 for point, 202 for linear, etc.)
+    int numberOfNodes;      // Number of nodes in element
+    int dimension;          // Element dimension (0, 1, 2, or 3)
+    int numberOfBoundaries; // Number of boundaries
+    std::vector<BasisFunction> basisFunctions; ///< 基函数数组
+    
+    ElementTypeStruct() : elementCode(0), numberOfNodes(0), dimension(0), numberOfBoundaries(0) {}
+};
+
+/**
+ * @brief P-type element definition structure (compatible with Elmer Fortran code)
+ */
+struct PTypeDefinition {
+    bool isEdge;            // Whether this is an edge element
+    int polynomialOrder;    // Polynomial order
+    int numberOfBubbles;    // Number of bubble functions
+    
+    PTypeDefinition() : isEdge(false), polynomialOrder(0), numberOfBubbles(0) {}
+};
+
+/**
  * @brief Element data structure
  */
 class Element {
 private:
     std::vector<size_t> nodeIndices_;  // Node indices
-    ElementType type_;                 // Element type
+    ElementTypeStruct type_;           // Element type structure (compatible with Elmer)
+    std::shared_ptr<PTypeDefinition> pDefs_; // P-type element definition (compatible with Elmer)
     int bodyId_;                       // Body ID
     int boundaryId_;                   // Boundary ID (used for boundary elements)
     std::string materialName_;         // Material name
     int id_;                           // Element ID
+    int elementIndex_;                 // Element index (compatible with Elmer)
+    std::vector<int> edgeIndexes_;     // Edge indexes (compatible with Elmer)
     
 public:
-    Element() : type_(ElementType::LINEAR), bodyId_(0), boundaryId_(0), materialName_(""), id_(0) {}
+    Element() : type_(), pDefs_(nullptr), bodyId_(0), boundaryId_(0), materialName_(""), id_(0), elementIndex_(0) {
+        // 默认构造函数，type_已经通过默认构造函数初始化
+    }
     
-    Element(ElementType type, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(0) {}
+    Element(ElementType elementType, int bodyId = 0) 
+        : type_(), pDefs_(nullptr), bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(0), elementIndex_(0) {
+        // 根据ElementType枚举初始化type_结构体
+        initializeTypeStruct(elementType);
+    }
     
-    Element(ElementType type, const std::string& materialName, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(materialName), id_(0) {}
+    Element(ElementType elementType, const std::string& materialName, int bodyId = 0) 
+        : bodyId_(bodyId), boundaryId_(0), materialName_(materialName), id_(0) {
+        initializeTypeStruct(elementType);
+    }
     
-    Element(ElementType type, int id, int bodyId = 0) 
-        : type_(type), bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(id) {}
+    Element(ElementType elementType, int id, int bodyId = 0) 
+        : bodyId_(bodyId), boundaryId_(0), materialName_(""), id_(id) {
+        initializeTypeStruct(elementType);
+    }
     
     // Add node index
     void addNodeIndex(size_t nodeIndex) {
@@ -109,14 +180,34 @@ public:
         return nodeIndices_;
     }
     
+    // Get element type structure (compatible with Elmer Fortran code)
+    const ElementTypeStruct& type() const {
+        return type_;
+    }
+    
     // Get element type
     ElementType getType() const {
-        return type_;
+        return getElementType();
     }
     
     // Set element type
     void setType(ElementType type) {
-        type_ = type;
+        setElementType(type);
+    }
+    
+    // Set element type structure
+    void setType(const ElementTypeStruct& typeStruct) {
+        type_ = typeStruct;
+    }
+    
+    // Get P-type element definition
+    std::shared_ptr<PTypeDefinition> getPDefs() const {
+        return pDefs_;
+    }
+    
+    // Set P-type element definition
+    void setPDefs(const std::shared_ptr<PTypeDefinition>& pDefs) {
+        pDefs_ = pDefs;
     }
     
     // Get body ID
@@ -127,6 +218,50 @@ public:
     // Set body ID
     void setBodyId(int bodyId) {
         bodyId_ = bodyId;
+    }
+    
+    // Get element index
+    int getElementIndex() const {
+        return elementIndex_;
+    }
+    
+    // Set element index
+    void setElementIndex(int elementIndex) {
+        elementIndex_ = elementIndex;
+    }
+    
+    // Get node indexes (compatible with Elmer Fortran code)
+    const std::vector<size_t>& getNodeIndexes() const {
+        return nodeIndices_;
+    }
+    
+    // Get edge indexes
+    const std::vector<int>& getEdgeIndexes() const {
+        return edgeIndexes_;
+    }
+    
+    // Set edge indexes
+    void setEdgeIndexes(const std::vector<int>& edgeIndexes) {
+        edgeIndexes_ = edgeIndexes;
+    }
+    
+    // Get element type as enum (for convenience)
+    ElementType getElementType() const {
+        // 根据elementCode映射到ElementType枚举
+        switch (type_.elementCode) {
+            case 101: return ElementType::POINT;
+            case 202: return ElementType::LINEAR;
+            case 303: return ElementType::TRIANGLE;
+            case 404: return ElementType::QUADRILATERAL;
+            case 504: return ElementType::TETRAHEDRON;
+            case 808: return ElementType::HEXAHEDRON;
+            default: return ElementType::UNKNOWN;
+        }
+    }
+    
+    // Set element type from enum
+    void setElementType(ElementType elementType) {
+        initializeTypeStruct(elementType);
     }
     
     // Get boundary ID
@@ -252,8 +387,11 @@ public:
     
     // Get element type string representation
     std::string getTypeString() const {
-        switch (type_) {
+        switch (getElementType()) {
+            case ElementType::POINT: return "POINT";
             case ElementType::LINEAR: return "LINEAR";
+            case ElementType::TRIANGLE: return "TRIANGLE";
+            case ElementType::QUADRILATERAL: return "QUADRILATERAL";
             case ElementType::QUADRATIC: return "QUADRATIC";
             case ElementType::CUBIC: return "CUBIC";
             case ElementType::TETRAHEDRON: return "TETRAHEDRON";
@@ -292,7 +430,7 @@ public:
         // 实际实现需要更复杂的逻辑
         std::vector<int> edges;
         
-        switch (type_) {
+        switch (getElementType()) {
             case ElementType::LINEAR:
                 // 线性元素：边数 = 节点数
                 for (int i = 0; i < static_cast<int>(nodeIndices_.size()); ++i) {
@@ -324,7 +462,7 @@ public:
         // 实际实现需要更复杂的逻辑
         std::vector<int> faces;
         
-        switch (type_) {
+        switch (getElementType()) {
             case ElementType::LINEAR:
                 // 线性元素：面数 = 节点数 / 2
                 for (int i = 0; i < static_cast<int>(nodeIndices_.size()) / 2; ++i) {
@@ -345,6 +483,83 @@ public:
         }
         
         return faces;
+    }
+    
+private:
+    /**
+     * @brief 根据ElementType枚举初始化type_结构体
+     * @param elementType 元素类型枚举
+     */
+    void initializeTypeStruct(ElementType elementType) {
+        // 根据ElementType枚举设置type_结构体的属性
+        switch (elementType) {
+            case ElementType::POINT:
+                type_.elementCode = 101;
+                type_.numberOfNodes = 1;
+                type_.dimension = 0;
+                type_.numberOfBoundaries = 0;
+                break;
+            case ElementType::LINEAR:
+                type_.elementCode = 202;
+                type_.numberOfNodes = 2;
+                type_.dimension = 1;
+                type_.numberOfBoundaries = 2;
+                break;
+            case ElementType::TRIANGLE:
+                type_.elementCode = 303;
+                type_.numberOfNodes = 3;
+                type_.dimension = 2;
+                type_.numberOfBoundaries = 3;
+                break;
+            case ElementType::QUADRILATERAL:
+                type_.elementCode = 404;
+                type_.numberOfNodes = 4;
+                type_.dimension = 2;
+                type_.numberOfBoundaries = 4;
+                break;
+            case ElementType::TETRAHEDRON:
+                type_.elementCode = 504;
+                type_.numberOfNodes = 4;
+                type_.dimension = 3;
+                type_.numberOfBoundaries = 4;
+                break;
+            case ElementType::HEXAHEDRON:
+                type_.elementCode = 808;
+                type_.numberOfNodes = 8;
+                type_.dimension = 3;
+                type_.numberOfBoundaries = 6;
+                break;
+            case ElementType::PRISM:
+                type_.elementCode = 606;
+                type_.numberOfNodes = 6;
+                type_.dimension = 3;
+                type_.numberOfBoundaries = 5;
+                break;
+            case ElementType::PYRAMID:
+                type_.elementCode = 505;
+                type_.numberOfNodes = 5;
+                type_.dimension = 3;
+                type_.numberOfBoundaries = 5;
+                break;
+            case ElementType::QUADRATIC:
+                type_.elementCode = 203;
+                type_.numberOfNodes = 3;
+                type_.dimension = 1;
+                type_.numberOfBoundaries = 2;
+                break;
+            case ElementType::CUBIC:
+                type_.elementCode = 204;
+                type_.numberOfNodes = 4;
+                type_.dimension = 1;
+                type_.numberOfBoundaries = 2;
+                break;
+            default:
+                type_.elementCode = 0;
+                type_.numberOfNodes = 0;
+                type_.dimension = 0;
+                type_.numberOfBoundaries = 0;
+                break;
+        }
     }
 };
 

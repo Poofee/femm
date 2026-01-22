@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <iostream>
 
 namespace elmer {
 
@@ -840,24 +842,192 @@ bool wedgeOrdering(const std::vector<int>& ordering) {
 }
 
 /**
- * @brief 检查面节点连续性
+ * @brief 获取元素面的节点索引
  * 
- * 检查两个元素在共享面上的节点连续性。
+ * 根据元素类型和面索引获取面的节点索引。
+ * 
+ * @param element 元素对象
+ * @param faceIndex 面索引
+ * @param faceNodes 输出参数，面的节点索引
+ * @return true 如果成功获取，false 否则
  */
-bool CheckFaceNodeContinuity(const Element& element1, const Element& element2,
-                            int faceIndex1, const Mesh& mesh, double tolerance) {
-    // 简单的节点连续性检查
-    // 假设相同节点索引表示连续性
-    if (element1.nodeIndexes.size() != element2.nodeIndexes.size()) {
+bool GetFaceNodes(const Element& element, int faceIndex, std::vector<size_t>& faceNodes) {
+    const auto& nodeIndexes = element.getNodeIndexes();
+    int elementType = element.type().elementCode / 100;
+    
+    // 根据元素类型和面索引确定面的节点
+    switch (elementType) {
+        case 3: // 三角形元素
+            if (faceIndex < 0 || faceIndex >= 3) {
+                ELMER_ERROR("三角形元素面索引超出范围: {}", faceIndex);
+                return false;
+            }
+            faceNodes.resize(2); // 三角形边有2个节点
+            if (faceIndex == 0) { faceNodes[0] = nodeIndexes[0]; faceNodes[1] = nodeIndexes[1]; }
+            else if (faceIndex == 1) { faceNodes[0] = nodeIndexes[1]; faceNodes[1] = nodeIndexes[2]; }
+            else if (faceIndex == 2) { faceNodes[0] = nodeIndexes[2]; faceNodes[1] = nodeIndexes[0]; }
+            break;
+            
+        case 4: // 四边形元素
+            if (faceIndex < 0 || faceIndex >= 4) {
+                ELMER_ERROR("四边形元素面索引超出范围: {}", faceIndex);
+                return false;
+            }
+            faceNodes.resize(2); // 四边形边有2个节点
+            if (faceIndex == 0) { faceNodes[0] = nodeIndexes[0]; faceNodes[1] = nodeIndexes[1]; }
+            else if (faceIndex == 1) { faceNodes[0] = nodeIndexes[1]; faceNodes[1] = nodeIndexes[2]; }
+            else if (faceIndex == 2) { faceNodes[0] = nodeIndexes[2]; faceNodes[1] = nodeIndexes[3]; }
+            else if (faceIndex == 3) { faceNodes[0] = nodeIndexes[3]; faceNodes[1] = nodeIndexes[0]; }
+            break;
+            
+        case 5: // 四面体元素
+            if (faceIndex < 0 || faceIndex >= 4) {
+                ELMER_ERROR("四面体元素面索引超出范围: {}", faceIndex);
+                return false;
+            }
+            faceNodes.resize(3); // 四面体面有3个节点
+            if (faceIndex == 0) { faceNodes[0] = nodeIndexes[0]; faceNodes[1] = nodeIndexes[1]; faceNodes[2] = nodeIndexes[2]; }
+            else if (faceIndex == 1) { faceNodes[0] = nodeIndexes[0]; faceNodes[1] = nodeIndexes[1]; faceNodes[2] = nodeIndexes[3]; }
+            else if (faceIndex == 2) { faceNodes[0] = nodeIndexes[1]; faceNodes[1] = nodeIndexes[2]; faceNodes[2] = nodeIndexes[3]; }
+            else if (faceIndex == 3) { faceNodes[0] = nodeIndexes[2]; faceNodes[1] = nodeIndexes[0]; faceNodes[2] = nodeIndexes[3]; }
+            break;
+            
+        default:
+            ELMER_ERROR("不支持的元素类型: {}", elementType);
+            return false;
+    }
+    
+    ELMER_DEBUG("获取元素类型{}面{}的节点: {}", elementType, faceIndex, faceNodes.size());
+    return true;
+}
+
+/**
+ * @brief 查找共享面
+ * 
+ * 找到元素2中与元素1指定面共享的面。
+ * 
+ * @param element1 第一个元素
+ * @param element2 第二个元素
+ * @param faceIndex1 元素1的面索引
+ * @param faceIndex2 输出参数，元素2的共享面索引
+ * @param mesh 网格对象
+ * @return true 如果找到共享面，false 否则
+ */
+bool FindSharedFace(const Element& element1, const Element& element2,
+                   int faceIndex1, int& faceIndex2, const Mesh& mesh) {
+    // 获取元素1指定面的节点
+    std::vector<size_t> faceNodes1;
+    if (!GetFaceNodes(element1, faceIndex1, faceNodes1)) {
         return false;
     }
     
-    for (size_t i = 0; i < element1.nodeIndexes.size(); ++i) {
-        if (element1.nodeIndexes[i] != element2.nodeIndexes[i]) {
+    // 获取元素2的所有面
+    int element2Type = element2.type().elementCode / 100;
+    int numFaces2 = 0;
+    
+    switch (element2Type) {
+        case 3: numFaces2 = 3; break; // 三角形
+        case 4: numFaces2 = 4; break; // 四边形  
+        case 5: numFaces2 = 4; break; // 四面体
+        default: return false;
+    }
+    
+    // 检查元素2的每个面是否与元素1的面共享节点
+    for (int i = 0; i < numFaces2; ++i) {
+        std::vector<size_t> faceNodes2;
+        if (!GetFaceNodes(element2, i, faceNodes2)) {
+            continue;
+        }
+        
+        // 检查两个面是否共享相同的节点集合
+        if (faceNodes1.size() != faceNodes2.size()) {
+            continue;
+        }
+        
+        // 排序节点以便比较
+        std::vector<size_t> sortedFaceNodes1 = faceNodes1;
+        std::vector<size_t> sortedFaceNodes2 = faceNodes2;
+        
+        std::sort(sortedFaceNodes1.begin(), sortedFaceNodes1.end());
+        std::sort(sortedFaceNodes2.begin(), sortedFaceNodes2.end());
+        
+        bool isShared = true;
+        for (size_t j = 0; j < sortedFaceNodes1.size(); ++j) {
+            if (sortedFaceNodes1[j] != sortedFaceNodes2[j]) {
+                isShared = false;
+                break;
+            }
+        }
+        
+        if (isShared) {
+            faceIndex2 = i;
+            ELMER_DEBUG("找到共享面: 元素1面{} -> 元素2面{}", faceIndex1, faceIndex2);
+            return true;
+        }
+    }
+    
+    ELMER_DEBUG("未找到共享面");
+    return false;
+}
+
+/**
+ * @brief 检查面节点连续性
+ * 
+ * 检查两个元素在共享面上的节点连续性。
+ * 
+ * @param element1 第一个元素
+ * @param element2 第二个元素  
+ * @param faceIndex1 元素1的面索引
+ * @param mesh 网格对象
+ * @param tolerance 容差
+ * @return true 如果节点连续，false 否则
+ */
+bool CheckFaceNodeContinuity(const Element& element1, const Element& element2,
+                            int faceIndex1, const Mesh& mesh, double tolerance) {
+    ELMER_DEBUG("检查面节点连续性，面索引: {}", faceIndex1);
+    
+    // 获取元素1指定面的节点索引
+    std::vector<size_t> faceNodes1;
+    if (!GetFaceNodes(element1, faceIndex1, faceNodes1)) {
+        ELMER_ERROR("无法获取元素1面{}的节点", faceIndex1);
+        return false;
+    }
+    
+    // 找到元素2对应的共享面
+    int faceIndex2 = -1;
+    if (!FindSharedFace(element1, element2, faceIndex1, faceIndex2, mesh)) {
+        ELMER_DEBUG("未找到共享面");
+        return false;
+    }
+    
+    // 获取元素2共享面的节点索引
+    std::vector<size_t> faceNodes2;
+    if (!GetFaceNodes(element2, faceIndex2, faceNodes2)) {
+        ELMER_ERROR("无法获取元素2面{}的节点", faceIndex2);
+        return false;
+    }
+    
+    // 检查面节点数量是否相同
+    if (faceNodes1.size() != faceNodes2.size()) {
+        ELMER_DEBUG("面节点数量不同: {} vs {}", faceNodes1.size(), faceNodes2.size());
+        return false;
+    }
+    
+    // 检查节点连续性（允许节点顺序不同）
+    std::vector<size_t> sortedFaceNodes1 = faceNodes1;
+    std::vector<size_t> sortedFaceNodes2 = faceNodes2;
+    
+    std::sort(sortedFaceNodes1.begin(), sortedFaceNodes1.end());
+    std::sort(sortedFaceNodes2.begin(), sortedFaceNodes2.end());
+    
+    for (size_t i = 0; i < sortedFaceNodes1.size(); ++i) {
+        if (sortedFaceNodes1[i] != sortedFaceNodes2[i]) {
+            ELMER_DEBUG("节点不连续: {} vs {}", sortedFaceNodes1[i], sortedFaceNodes2[i]);
             return false;
         }
     }
     
+    ELMER_DEBUG("面节点连续性检查通过");
     return true;
 }
 
@@ -871,18 +1041,20 @@ bool CheckFaceGeometricContinuity(const Element& element1, const Element& elemen
                                  double tolerance) {
     // 简单的几何连续性检查
     // 使用节点坐标检查几何连续性
-    if (element1.nodeIndexes.size() != element2.nodeIndexes.size()) {
+    if (element1.getNodeIndexes().size() != element2.getNodeIndexes().size()) {
         return false;
     }
     
-    for (size_t i = 0; i < element1.nodeIndexes.size(); ++i) {
-        int node1 = element1.nodeIndexes[i];
-        int node2 = element2.nodeIndexes[i];
+    const auto& nodeList = nodes.getNodes();
+    
+    for (size_t i = 0; i < element1.getNodeIndices().size(); ++i) {
+        int node1 = element1.getNodeIndices()[i];
+        int node2 = element2.getNodeIndices()[i];
         
         // 检查节点坐标是否在容差范围内匹配
-        if (std::abs(nodes.x[node1] - nodes.x[node2]) > tolerance ||
-            std::abs(nodes.y[node1] - nodes.y[node2]) > tolerance ||
-            std::abs(nodes.z[node1] - nodes.z[node2]) > tolerance) {
+        if (std::abs(nodeList[node1].x - nodeList[node2].x) > tolerance ||
+            std::abs(nodeList[node1].y - nodeList[node2].y) > tolerance ||
+            std::abs(nodeList[node1].z - nodeList[node2].z) > tolerance) {
             return false;
         }
     }
@@ -942,19 +1114,22 @@ void GetFaceNormal(const Element& element, int faceIndex, const Nodes& nodes, st
         normal.resize(3);
     }
     
+    // 获取节点集合
+    const auto& nodeList = nodes.getNodes();
+    
     // 对于三角形面，计算法向量
-    if (element.nodeIndexes.size() >= 3) {
-        int node1 = element.nodeIndexes[0];
-        int node2 = element.nodeIndexes[1];
-        int node3 = element.nodeIndexes[2];
+    if (element.getNodeIndices().size() >= 3) {
+        int node1 = element.getNodeIndices()[0];
+        int node2 = element.getNodeIndices()[1];
+        int node3 = element.getNodeIndices()[2];
         
-        double v1x = nodes.x[node2] - nodes.x[node1];
-        double v1y = nodes.y[node2] - nodes.y[node1];
-        double v1z = nodes.z[node2] - nodes.z[node1];
+        double v1x = nodeList[node2].x - nodeList[node1].x;
+        double v1y = nodeList[node2].y - nodeList[node1].y;
+        double v1z = nodeList[node2].z - nodeList[node1].z;
         
-        double v2x = nodes.x[node3] - nodes.x[node1];
-        double v2y = nodes.y[node3] - nodes.y[node1];
-        double v2z = nodes.z[node3] - nodes.z[node1];
+        double v2x = nodeList[node3].x - nodeList[node1].x;
+        double v2y = nodeList[node3].y - nodeList[node1].y;
+        double v2z = nodeList[node3].z - nodeList[node1].z;
         
         // 叉积
         normal[0] = v1y * v2z - v1z * v2y;
@@ -1044,7 +1219,7 @@ void NodalBasisFunctions3D(const Element& element, double u, double v, double w,
                           std::vector<double>& y) {
     ELMER_DEBUG("计算3D节点基函数，坐标({},{},{})", u, v, w);
     
-    const ElementTypeStruct& elt = element.type;
+    const ElementTypeStruct& elt = element.type();
     int nNodes = elt.numberOfNodes;
     
     // 确保输出数组大小正确
@@ -1180,7 +1355,7 @@ void NodalBasisFunctions3DDerivatives(const Element& element, double u, double v
                                      std::vector<double>& dphi_dw) {
     ELMER_DEBUG("计算3D节点基函数导数，坐标({},{},{})", u, v, w);
     
-    const ElementTypeStruct& elt = element.type;
+    const ElementTypeStruct& elt = element.type();
     int nNodes = elt.numberOfNodes;
     
     // 确保输出数组大小正确
@@ -1397,7 +1572,7 @@ bool ElementInfo(const Element& element, const Nodes& nodes,
     
     // 初始化返回值
     bool stat = true;
-    const ElementTypeStruct& elt = element.type;
+    const ElementTypeStruct& elt = element.type();
     int nNodes = elt.numberOfNodes;
     int dim = elt.dimension;
     int cdim = CoordinateSystemDimension();
@@ -1460,9 +1635,9 @@ bool ElementInfo(const Element& element, const Nodes& nodes,
         ELMER_DEBUG("处理P型元素，元素类型：{}", elt.elementCode);
         
         // 获取元素度数信息
-        int bodyId = element.bodyId;
+        int bodyId = element.getBodyId();
         if (bodyId == 0) {
-            ELMER_WARN("元素{}的BodyId为0，使用默认值1", element.elementIndex);
+            ELMER_WARN("元素{}的BodyId为0，使用默认值1", element.getElementIndex());
             bodyId = 1;
         }
         
@@ -1828,11 +2003,18 @@ bool EdgeElementInfo(const Element& element, const Nodes& nodes,
                     bool* tangentialTrMapping) {
     ELMER_DEBUG("计算边元素信息");
     
+    // 添加调试信息确认函数被调用
+    std::cout << "=== EdgeElementInfo函数被调用 ===" << std::endl;
+    std::cout << "元素类型代码: " << element.type().elementCode << std::endl;
+    std::cout << "节点数量: " << nodes.getNodes().size() << std::endl;
+    std::cout << "参数(u,v,w): (" << u << ", " << v << ", " << w << ")" << std::endl;
+    
     // 初始化输出参数
     detF = 1.0;
     
     // 检查是否为点元素（特殊情况）
-    if (element.type.elementCode == 101) {
+    // 简化实现：根据元素类型确定是否为点元素
+    if (element.getType() == ElementType::POINT) {
         detF = 1.0;
         basis.resize(1);
         basis[0] = 1.0;
@@ -1843,21 +2025,25 @@ bool EdgeElementInfo(const Element& element, const Nodes& nodes,
     }
     
     // 获取元素参数
-    int n = element.type.numberOfNodes;
-    int dim = element.type.dimension;
-    int cdim = 3; // 默认3D坐标系
+    int n = element.type().numberOfNodes;
+    int dim = element.type().dimension;
+    int cdim = CoordinateSystemDimension();
     
     // 初始化基函数和导数
     basis.resize(n);
     std::vector<std::vector<double>> dLBasisdx(n, std::vector<double>(3, 0.0));
     
     // 根据元素类型计算基函数
-    int elementTypeCode = element.type.elementCode / 100;
+    int elementTypeCode = element.type().elementCode / 100;
     int dofs = 0;
+    
+    ELMER_DEBUG("计算基函数，元素类型代码: {}, 节点数: {}", elementTypeCode, n);
+    std::cout << "计算基函数，元素类型代码: " << elementTypeCode << ", 节点数: " << n << std::endl;
     
     switch (elementTypeCode) {
         case 2: // 线形元素
             dofs = (basisDegree != nullptr && *basisDegree > 1) ? 2 : 1;
+            ELMER_DEBUG("线形元素，自由度: {}", dofs);
             for (int q = 0; q < n; ++q) {
                 basis[q] = LineNodalPBasis(q + 1, u);
                 dLBasisdx[q][0] = dLineNodalPBasis(q + 1, u);
@@ -1867,6 +2053,7 @@ bool EdgeElementInfo(const Element& element, const Nodes& nodes,
         case 3: // 三角形元素
             if (basisDegree != nullptr && *basisDegree > 1) {
                 dofs = 8;
+                ELMER_DEBUG("三角形元素（高阶），自由度: {}", dofs);
                 // 简化实现：使用标准三角形基函数
                 for (int q = 0; q < n; ++q) {
                     // 简化实现：三角形线性基函数
@@ -1881,6 +2068,7 @@ bool EdgeElementInfo(const Element& element, const Nodes& nodes,
                 }
             } else {
                 dofs = (secondFamily != nullptr && *secondFamily) ? 6 : 3;
+                ELMER_DEBUG("三角形元素（线性），自由度: {}", dofs);
                 for (int q = 0; q < n; ++q) {
                     // 简化实现：三角形线性基函数
                     if (q == 0) { basis[q] = 1.0 - u - v; }
@@ -1891,6 +2079,12 @@ bool EdgeElementInfo(const Element& element, const Nodes& nodes,
                     if (q == 0) { dLBasisdx[q][0] = -1.0; dLBasisdx[q][1] = -1.0; }
                     else if (q == 1) { dLBasisdx[q][0] = 1.0; dLBasisdx[q][1] = 0.0; }
                     else if (q == 2) { dLBasisdx[q][0] = 0.0; dLBasisdx[q][1] = 1.0; }
+                    
+                    ELMER_DEBUG("基函数%d: %f, 导数: [%f, %f]", q, basis[q], dLBasisdx[q][0], dLBasisdx[q][1]);
+                    
+                    // 使用std::cout输出调试信息
+                    std::cout << "三角形元素基函数" << q << ": " << basis[q] 
+                              << ", 导数: [" << dLBasisdx[q][0] << ", " << dLBasisdx[q][1] << "]" << std::endl;
                 }
             }
             break;
@@ -2176,7 +2370,7 @@ bool processBubbleBasis(const Element& element, const Nodes& nodes,
     // 简化实现：处理气泡基函数
     ELMER_DEBUG("处理气泡基函数");
     
-    int n = element.type.numberOfNodes;
+    int n = element.type().numberOfNodes;
     if (basis.size() < static_cast<size_t>(2 * n)) {
         basis.resize(2 * n);
     }
@@ -2209,9 +2403,9 @@ bool processLinePElement(const Element& element, const Nodes& nodes,
     if (bDofs > 0) {
         // 处理边界元素方向
         bool invert = false;
-        if (element.pDefs != nullptr && element.pDefs->isEdge) {
+        if (element.getPDefs() != nullptr && element.getPDefs()->isEdge) {
             // 检查方向
-            std::vector<int> indexes = element.nodeIndexes;
+            std::vector<size_t> indexes = element.getNodeIndexes();
             if (indexes.size() >= 2 && indexes[0] > indexes[1]) {
                 invert = true;
             }
@@ -2266,7 +2460,7 @@ bool processTrianglePElement(const Element& element, const Nodes& nodes,
     int eDofs = getEdgeDOFs(element, p);
     
     // 处理边基函数
-    if (!element.edgeIndexes.empty() && eDofs > 0) {
+    if (!element.getEdgeIndexes().empty() && eDofs > 0) {
         for (int i = 0; i < 3; ++i) { // 三角形有3条边
             // 获取边映射
             std::vector<int> edgeMap = getTriangleEdgeMap(i + 1);
@@ -2277,7 +2471,7 @@ bool processTrianglePElement(const Element& element, const Nodes& nodes,
             
             // 检查方向
             bool invert = false;
-            std::vector<int> indexes = element.nodeIndexes;
+            std::vector<size_t> indexes = element.getNodeIndexes();
             if (indexes.size() > static_cast<size_t>(std::max(locali, localj)) &&
                 indexes[locali] > indexes[localj]) {
                 invert = true;
@@ -2326,8 +2520,11 @@ bool processTrianglePElement(const Element& element, const Nodes& nodes,
         
         // 处理边界元素方向
         std::vector<int> direction(3, 0);
-        if (element.pDefs != nullptr && element.pDefs->isEdge) {
-            direction = getTriangleFaceDirection(element, {1, 2, 3}, element.nodeIndexes);
+        if (element.getPDefs() != nullptr && element.getPDefs()->isEdge) {
+            // 转换nodeIndexes类型为int以匹配函数签名
+            std::vector<size_t> nodeIndexes = element.getNodeIndexes();
+            std::vector<int> intIndexes(nodeIndexes.begin(), nodeIndexes.end());
+            direction = getTriangleFaceDirection(element, {1, 2, 3}, intIndexes);
         }
         
         // 处理气泡基函数
@@ -2338,7 +2535,7 @@ bool processTrianglePElement(const Element& element, const Nodes& nodes,
                 dLBasisdx.push_back(std::vector<double>(3, 0.0));
                 
                 // 计算气泡基函数
-                if (element.pDefs != nullptr && element.pDefs->isEdge) {
+                if (element.getPDefs() != nullptr && element.getPDefs()->isEdge) {
                     basis[q] = TriangleEBubblePBasis(i, j, u, v, direction);
                     std::vector<double> bubbleDeriv = dTriangleEBubblePBasis(i, j, u, v, direction);
                     if (bubbleDeriv.size() >= 2) {
@@ -2399,101 +2596,130 @@ bool ElementMetric(int nBasis, const Element& element, const Nodes& nodes,
                   std::vector<std::vector<double>>& ltoGMap) {
     ELMER_DEBUG("计算元素度量张量");
     
-    // 初始化度量张量
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            elmMetric[i][j] = 0.0;
-        }
-    }
+    // 参考Fortran源代码的完整实现
+    // 1. 计算全局坐标对局部坐标的偏导数：dx(i,j) = ∂x_i/∂ξ_j
+    // 2. 计算协变度量张量：G(i,j) = sum_k dx(k,i) * dx(k,j)
+    // 3. 计算度量张量的行列式
+    // 4. 转换为逆变度量张量
     
-    // 计算雅可比矩阵：J_ij = sum_k (x_k) * (dphi_k/du_j)
-    // 其中x_k是节点k的坐标，dphi_k/du_j是基函数k对局部坐标j的导数
-    std::vector<std::vector<double>> jacobian(3, std::vector<double>(3, 0.0));
+    const auto& nodeList = nodes.getNodes();
+    int dim = element.type().dimension;
+    int cdim = CoordinateSystemDimension();
     
-    for (int k = 0; k < nBasis; ++k) {
-        // 获取节点k的坐标
-        double x = nodes.x[k];
-        double y = nodes.y[k];
-        double z = nodes.z[k];
-        
-        // 计算雅可比矩阵
-        for (int i = 0; i < 3; ++i) {
-            jacobian[0][i] += x * dLBasisdx[k][i]; // dx/du_i
-            jacobian[1][i] += y * dLBasisdx[k][i]; // dy/du_i
-            jacobian[2][i] += z * dLBasisdx[k][i]; // dz/du_i
-        }
-    }
+    // 初始化变量
+    std::vector<std::vector<double>> dx(3, std::vector<double>(3, 0.0)); // 全局坐标对局部坐标的偏导数
+    std::vector<std::vector<double>> G(3, std::vector<double>(3, 0.0));  // 协变度量张量
     
-    // 计算度量张量：g_ij = sum_k J_ki * J_kj
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            elmMetric[i][j] = 0.0;
-            for (int k = 0; k < 3; ++k) {
-                elmMetric[i][j] += jacobian[k][i] * jacobian[k][j];
+    // 1. 计算全局坐标对局部坐标的偏导数
+    // dx(i,j) = sum_k (dLBasisdx(k,j) * coord_k_i)
+    for (int j = 0; j < dim; ++j) {
+        for (int k = 0; k < nBasis; ++k) {
+            dx[0][j] += dLBasisdx[k][j] * nodeList[k].x;
+            dx[1][j] += dLBasisdx[k][j] * nodeList[k].y;
+            dx[2][j] += dLBasisdx[k][j] * nodeList[k].z;
+            
+            // 调试信息：显示每个节点的贡献
+            if (dim == 2 && k < 3) {
+                std::cout << "节点" << k << ": 坐标(" << nodeList[k].x << ", " << nodeList[k].y 
+                          << "), 导数[" << dLBasisdx[k][0] << ", " << dLBasisdx[k][1] 
+                          << "], 贡献dx0: " << (dLBasisdx[k][j] * nodeList[k].x) << std::endl;
             }
         }
     }
     
-    // 计算雅可比矩阵行列式（直接计算雅可比矩阵的行列式，而不是度量张量的行列式）
-    if (element.type.dimension == 1) {
-        detJ = std::abs(jacobian[0][0]);
-    } else if (element.type.dimension == 2) {
-        double det = jacobian[0][0] * jacobian[1][1] - jacobian[0][1] * jacobian[1][0];
-        if (det <= 0.0) {
-            ELMER_ERROR("二维元素雅可比行列式非正：{}", det);
-            return false;
+    // 2. 计算协变度量张量 G = dx^T * dx
+    for (int i = 0; i < dim; ++i) {
+        for (int j = 0; j < dim; ++j) {
+            double s = 0.0;
+            for (int k = 0; k < cdim; ++k) {
+                s += dx[k][i] * dx[k][j];
+            }
+            G[i][j] = s;
         }
-        detJ = std::abs(det);
-    } else if (element.type.dimension == 3) {
-        double det = jacobian[0][0] * (jacobian[1][1] * jacobian[2][2] - jacobian[1][2] * jacobian[2][1]) -
-                    jacobian[0][1] * (jacobian[1][0] * jacobian[2][2] - jacobian[1][2] * jacobian[2][0]) +
-                    jacobian[0][2] * (jacobian[1][0] * jacobian[2][1] - jacobian[1][1] * jacobian[2][0]);
-        if (det <= 0.0) {
-            ELMER_ERROR("三维元素雅可比行列式非正：{}", det);
-            return false;
-        }
-        detJ = std::abs(det);
-    } else {
-        ELMER_ERROR("不支持的维度：{}", element.type.dimension);
-        return false;
     }
     
-    // 计算局部到全局的映射矩阵（雅可比矩阵的逆）
-    if (element.type.dimension == 1) {
-        ltoGMap[0][0] = 1.0 / elmMetric[0][0];
-    } else if (element.type.dimension == 2) {
-        double det = elmMetric[0][0] * elmMetric[1][1] - elmMetric[0][1] * elmMetric[1][0];
-        if (std::abs(det) < 1e-12) {
-            ELMER_ERROR("二维元素度量矩阵奇异");
-            return false;
-        }
-        ltoGMap[0][0] = elmMetric[1][1] / det;
-        ltoGMap[0][1] = -elmMetric[0][1] / det;
-        ltoGMap[1][0] = -elmMetric[1][0] / det;
-        ltoGMap[1][1] = elmMetric[0][0] / det;
-    } else if (element.type.dimension == 3) {
-        double det = elmMetric[0][0] * (elmMetric[1][1] * elmMetric[2][2] - elmMetric[1][2] * elmMetric[2][1]) -
-                    elmMetric[0][1] * (elmMetric[1][0] * elmMetric[2][2] - elmMetric[1][2] * elmMetric[2][0]) +
-                    elmMetric[0][2] * (elmMetric[1][0] * elmMetric[2][1] - elmMetric[1][1] * elmMetric[2][0]);
-        if (std::abs(det) < 1e-12) {
-            ELMER_ERROR("三维元素度量矩阵奇异");
-            return false;
-        }
-        
-        ltoGMap[0][0] = (elmMetric[1][1] * elmMetric[2][2] - elmMetric[1][2] * elmMetric[2][1]) / det;
-        ltoGMap[0][1] = (elmMetric[0][2] * elmMetric[2][1] - elmMetric[0][1] * elmMetric[2][2]) / det;
-        ltoGMap[0][2] = (elmMetric[0][1] * elmMetric[1][2] - elmMetric[0][2] * elmMetric[1][1]) / det;
-        
-        ltoGMap[1][0] = (elmMetric[1][2] * elmMetric[2][0] - elmMetric[1][0] * elmMetric[2][2]) / det;
-        ltoGMap[1][1] = (elmMetric[0][0] * elmMetric[2][2] - elmMetric[0][2] * elmMetric[2][0]) / det;
-        ltoGMap[1][2] = (elmMetric[0][2] * elmMetric[1][0] - elmMetric[0][0] * elmMetric[1][2]) / det;
-        
-        ltoGMap[2][0] = (elmMetric[1][0] * elmMetric[2][1] - elmMetric[1][1] * elmMetric[2][0]) / det;
-        ltoGMap[2][1] = (elmMetric[0][1] * elmMetric[2][0] - elmMetric[0][0] * elmMetric[2][1]) / det;
-        ltoGMap[2][2] = (elmMetric[0][0] * elmMetric[1][1] - elmMetric[0][1] * elmMetric[1][0]) / det;
+    // 调试信息：显示dx矩阵和G矩阵的值
+    if (dim == 2) {
+        std::cout << "dx矩阵: [[" << dx[0][0] << ", " << dx[0][1] << "], [" 
+                  << dx[1][0] << ", " << dx[1][1] << "]]" << std::endl;
+        std::cout << "G矩阵: [[" << G[0][0] << ", " << G[0][1] << "], [" 
+                  << G[1][0] << ", " << G[1][1] << "]]" << std::endl;
     }
     
-    ELMER_DEBUG("元素度量计算完成，雅可比行列式：{}", detJ);
+    // 3. 计算度量张量的行列式并根据维度处理
+    double detG = 0.0;
+    double eps = std::pow(std::numeric_limits<double>::epsilon(), dim);
+    
+    switch (dim) {
+        case 1: // 一维元素
+            detG = G[0][0];
+            if (detG <= eps) {
+                ELMER_ERROR("一维元素度量张量行列式非正：{}", detG);
+                return false;
+            }
+            elmMetric[0][0] = 1.0 / detG;
+            detJ = std::sqrt(detG);
+            break;
+            
+        case 2: // 二维元素
+            detG = G[0][0] * G[1][1] - G[0][1] * G[1][0];
+            std::cout << "二维度量张量行列式: " << detG << std::endl;
+            if (detG <= eps) {
+                std::cout << "二维元素度量张量行列式非正：" << detG << std::endl;
+                return false;
+            }
+            // 转换为逆变度量张量
+            elmMetric[0][0] = G[1][1] / detG;
+            elmMetric[0][1] = -G[0][1] / detG;
+            elmMetric[1][0] = -G[1][0] / detG;
+            elmMetric[1][1] = G[0][0] / detG;
+            detJ = std::sqrt(detG);
+            break;
+            
+        case 3: // 三维元素
+            detG = G[0][0] * (G[1][1] * G[2][2] - G[1][2] * G[2][1]) +
+                   G[0][1] * (G[1][2] * G[2][0] - G[1][0] * G[2][2]) +
+                   G[0][2] * (G[1][0] * G[2][1] - G[1][1] * G[2][0]);
+            if (detG <= eps) {
+                ELMER_ERROR("三维元素度量张量行列式非正：{}", detG);
+                return false;
+            }
+            // 转换为逆变度量张量（使用矩阵求逆）
+            {
+                double invDetG = 1.0 / detG;
+                elmMetric[0][0] = (G[1][1] * G[2][2] - G[1][2] * G[2][1]) * invDetG;
+                elmMetric[0][1] = (G[0][2] * G[2][1] - G[0][1] * G[2][2]) * invDetG;
+                elmMetric[0][2] = (G[0][1] * G[1][2] - G[0][2] * G[1][1]) * invDetG;
+                
+                elmMetric[1][0] = (G[1][2] * G[2][0] - G[1][0] * G[2][2]) * invDetG;
+                elmMetric[1][1] = (G[0][0] * G[2][2] - G[0][2] * G[2][0]) * invDetG;
+                elmMetric[1][2] = (G[0][2] * G[1][0] - G[0][0] * G[1][2]) * invDetG;
+                
+                elmMetric[2][0] = (G[1][0] * G[2][1] - G[1][1] * G[2][0]) * invDetG;
+                elmMetric[2][1] = (G[0][1] * G[2][0] - G[0][0] * G[2][1]) * invDetG;
+                elmMetric[2][2] = (G[0][0] * G[1][1] - G[0][1] * G[1][0]) * invDetG;
+            }
+            detJ = std::sqrt(detG);
+            break;
+            
+        default:
+            ELMER_ERROR("不支持的维度：{}", dim);
+            return false;
+    }
+    
+    // 4. 计算局部到全局的映射矩阵 LtoGMap
+    // LtoGMap(i,j) = sum_k dx(i,k) * elmMetric(k,j)
+    for (int i = 0; i < cdim; ++i) {
+        for (int j = 0; j < dim; ++j) {
+            double s = 0.0;
+            for (int k = 0; k < dim; ++k) {
+                s += dx[i][k] * elmMetric[k][j];
+            }
+            ltoGMap[i][j] = s;
+        }
+    }
+    
+    ELMER_DEBUG("元素度量计算完成，度量张量行列式平方根：{}", detJ);
     return true;
 }
 
@@ -2513,7 +2739,7 @@ int CoordinateSystemDimension() {
 bool isPElement(const Element& element) {
     // 简化实现：对于测试中的标准元素类型（303、404、504），返回false
     // 这样会使用标准的基函数计算而不是P型元素处理
-    int elementCode = element.type.elementCode;
+    int elementCode = element.type().elementCode;
     
     // 测试中使用的标准元素类型
     if (elementCode == 303 || elementCode == 404 || elementCode == 504) {
@@ -2547,8 +2773,8 @@ void GlobalSecondDerivatives(const Element& elm, const Nodes& nodes,
     ELMER_DEBUG("计算全局二阶导数");
     
     // 简化实现：将局部二阶导数转换为全局二阶导数
-    int n = elm.type.numberOfNodes;
-    int dim = elm.type.dimension;
+    int n = elm.type().numberOfNodes;
+    int dim = elm.type().dimension;
     
     // 初始化输出矩阵
     values.resize(n);

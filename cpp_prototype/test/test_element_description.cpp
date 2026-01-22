@@ -26,35 +26,46 @@ protected:
 
     void setupTriangleElement() {
         // 三角形元素设置
-        triangleElement.type.elementCode = 303; // 三角形元素代码
-        triangleElement.type.numberOfNodes = 3;
-        triangleElement.type.dimension = 2;
+        elmer::ElementTypeStruct triangleType;
+        triangleType.elementCode = 303; // 三角形元素代码
+        triangleType.numberOfNodes = 3;
+        triangleType.dimension = 2;
+        triangleElement.setType(triangleType);
         
-        triangleNodes.x = {0.0, 1.0, 0.0};
-        triangleNodes.y = {0.0, 0.0, 1.0};
-        triangleNodes.z = {0.0, 0.0, 0.0};
+        // 使用addNode方法添加节点
+        triangleNodes.addNode(0.0, 0.0, 0.0);
+        triangleNodes.addNode(1.0, 0.0, 0.0);
+        triangleNodes.addNode(0.0, 1.0, 0.0);
     }
 
     void setupQuadElement() {
         // 四边形元素设置
-        quadElement.type.elementCode = 404; // 四边形元素代码
-        quadElement.type.numberOfNodes = 4;
-        quadElement.type.dimension = 2;
+        elmer::ElementTypeStruct quadType;
+        quadType.elementCode = 404; // 四边形元素代码
+        quadType.numberOfNodes = 4;
+        quadType.dimension = 2;
+        quadElement.setType(quadType);
         
-        quadNodes.x = {0.0, 1.0, 1.0, 0.0};
-        quadNodes.y = {0.0, 0.0, 1.0, 1.0};
-        quadNodes.z = {0.0, 0.0, 0.0, 0.0};
+        // 使用addNode方法添加节点
+        quadNodes.addNode(0.0, 0.0, 0.0);
+        quadNodes.addNode(1.0, 0.0, 0.0);
+        quadNodes.addNode(1.0, 1.0, 0.0);
+        quadNodes.addNode(0.0, 1.0, 0.0);
     }
 
     void setupTetraElement() {
         // 四面体元素设置
-        tetraElement.type.elementCode = 504; // 四面体元素代码
-        tetraElement.type.numberOfNodes = 4;
-        tetraElement.type.dimension = 3;
+        elmer::ElementTypeStruct tetraType;
+        tetraType.elementCode = 504; // 四面体元素代码
+        tetraType.numberOfNodes = 4;
+        tetraType.dimension = 3;
+        tetraElement.setType(tetraType);
         
-        tetraNodes.x = {0.0, 1.0, 0.0, 0.0};
-        tetraNodes.y = {0.0, 0.0, 1.0, 0.0};
-        tetraNodes.z = {0.0, 0.0, 0.0, 1.0};
+        // 使用addNode方法添加节点
+        tetraNodes.addNode(0.0, 0.0, 0.0);
+        tetraNodes.addNode(1.0, 0.0, 0.0);
+        tetraNodes.addNode(0.0, 1.0, 0.0);
+        tetraNodes.addNode(0.0, 0.0, 1.0);
     }
 
     Element triangleElement;
@@ -272,33 +283,44 @@ protected:
     }
 
     void setupTriangleElement() {
-        triangleElement.type.elementCode = 303;
-        triangleElement.type.numberOfNodes = 3;
-        triangleElement.type.dimension = 2;
+        elmer::ElementTypeStruct triangleType;
+        triangleType.elementCode = 303;
+        triangleType.numberOfNodes = 3;
+        triangleType.dimension = 2;
+        triangleElement.setType(triangleType);
         
-        triangleNodes.x = {0.0, 1.0, 0.0};
-        triangleNodes.y = {0.0, 0.0, 1.0};
-        triangleNodes.z = {0.0, 0.0, 0.0};
+        // 使用addNode方法添加节点
+        triangleNodes.addNode(0.0, 0.0, 0.0);
+        triangleNodes.addNode(1.0, 0.0, 0.0);
+        triangleNodes.addNode(0.0, 1.0, 0.0);
     }
 
     void setupQuadElement() {
-        quadElement.type.elementCode = 404;
-        quadElement.type.numberOfNodes = 4;
-        quadElement.type.dimension = 2;
+        elmer::ElementTypeStruct quadType;
+        quadType.elementCode = 404;
+        quadType.numberOfNodes = 4;
+        quadType.dimension = 2;
+        quadElement.setType(quadType);
         
-        quadNodes.x = {0.0, 1.0, 1.0, 0.0};
-        quadNodes.y = {0.0, 0.0, 1.0, 1.0};
-        quadNodes.z = {0.0, 0.0, 0.0, 0.0};
+        // 使用addNode方法添加节点
+        quadNodes.addNode(0.0, 0.0, 0.0);
+        quadNodes.addNode(1.0, 0.0, 0.0);
+        quadNodes.addNode(1.0, 1.0, 0.0);
+        quadNodes.addNode(0.0, 1.0, 0.0);
     }
 
     void setupTetraElement() {
-        tetraElement.type.elementCode = 504;
-        tetraElement.type.numberOfNodes = 4;
-        tetraElement.type.dimension = 3;
+        elmer::ElementTypeStruct tetraType;
+        tetraType.elementCode = 504;
+        tetraType.numberOfNodes = 4;
+        tetraType.dimension = 3;
+        tetraElement.setType(tetraType);
         
-        tetraNodes.x = {0.0, 1.0, 0.0, 0.0};
-        tetraNodes.y = {0.0, 0.0, 1.0, 0.0};
-        tetraNodes.z = {0.0, 0.0, 0.0, 1.0};
+        // 使用addNode方法添加节点
+        tetraNodes.addNode(0.0, 0.0, 0.0);
+        tetraNodes.addNode(1.0, 0.0, 0.0);
+        tetraNodes.addNode(0.0, 1.0, 0.0);
+        tetraNodes.addNode(0.0, 0.0, 1.0);
     }
 
     Element triangleElement;

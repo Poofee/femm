@@ -28,27 +28,7 @@ using Real = double;
  */
 using Integer = int;
 
-/**
- * @brief 节点结构
- * 
- * 描述有限元节点的基本信息。
- */
-struct Node {
-    double x; ///< x坐标
-    double y; ///< y坐标
-    double z; ///< z坐标
-    
-    Node() : x(0.0), y(0.0), z(0.0) {}
-    Node(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
-    
-    // 计算两点之间的距离
-    double distance(const Node& other) const {
-        double dx = x - other.x;
-        double dy = y - other.y;
-        double dz = z - other.z;
-        return std::sqrt(dx*dx + dy*dy + dz*dz);
-    }
-};
+// Node structure is now defined in Mesh.h to maintain compatibility with Elmer Fortran code
 
 // 前向声明，解决循环依赖问题
 class Vector;

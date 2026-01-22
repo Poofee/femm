@@ -1,6 +1,7 @@
 #include "MagnetoDynamics3DSolver.h"
 #include "LoggerFactory.h"
 #include "CommonConstants.h"
+#include "ElementDescription.h"
 #include <cmath>
 
 // 数学常量定义（C++17兼容）
@@ -785,39 +786,61 @@ std::array<double, 3> MagnetoDynamics3DSolver::getElementCurrentDensity3D(int el
 std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::calculateWhitneyShapeFunctions(int elementId) const {
     ELMER_DEBUG("计算Whitney边元单元{}的形函数", elementId);
     
-    // 基于Fortran EdgeElementInfo模块的Whitney形函数计算逻辑
-    // Whitney边元（Nedelec元素）形函数定义在单元边上
+    // 使用已移植的ElementDescription接口计算Whitney形函数
+    // 基于EdgeElementInfo函数实现
     
     int numEdges = getNumberOfElementEdges(elementId);
     std::vector<std::array<double, 3>> shapeFunctions(numEdges, {0.0, 0.0, 0.0});
     
-    // 获取单元类型和节点坐标
-    auto elementType = getElementType(elementId);
-    auto nodeCoords = getElementNodeCoordinates(elementId);
+    // 获取单元和节点信息
+    auto element = getElement(elementId);
+    auto nodes = getElementNodes(elementId);
     
-    if (nodeCoords.empty()) {
-        ELMER_ERROR("单元{}的节点坐标为空", elementId);
+    if (nodes.numberOfNodes() == 0) {
+        ELMER_ERROR("单元{}的节点信息为空", elementId);
         return shapeFunctions;
     }
     
-    // 根据单元类型选择相应的Whitney形函数计算方法
-    switch (elementType) {
-        case ElementType::TETRAHEDRON:
-            shapeFunctions = calculateWhitneyShapeFunctionsTetrahedron(elementId, nodeCoords);
-            break;
-        case ElementType::HEXAHEDRON:
-            shapeFunctions = calculateWhitneyShapeFunctionsHexahedron(elementId, nodeCoords);
-            break;
-        case ElementType::WEDGE:
-            shapeFunctions = calculateWhitneyShapeFunctionsWedge(elementId, nodeCoords);
-            break;
-        case ElementType::PYRAMID:
-            shapeFunctions = calculateWhitneyShapeFunctionsPyramid(elementId, nodeCoords);
-            break;
-        default:
-            ELMER_WARN("不支持的单元类型{}，使用简化Whitney形函数", static_cast<int>(elementType));
-            shapeFunctions = calculateSimplifiedWhitneyShapeFunctions(elementId, nodeCoords);
-            break;
+    // 使用EdgeElementInfo函数计算边元基函数
+    // 在单元中心点(u,v,w) = (0,0,0)处计算
+    double u = 0.0, v = 0.0, w = 0.0;
+    
+    // 准备EdgeElementInfo函数参数
+    std::vector<std::vector<double>> F; // 梯度矩阵F
+    std::vector<std::vector<double>> G; // 梯度矩阵G
+    double detF = 0.0; // 雅可比行列式
+    std::vector<double> basis; // H1基函数
+    std::vector<std::vector<double>> edgeBasis; // 边元基函数
+    std::vector<std::vector<double>> rotBasis; // 旋度基函数
+    std::vector<std::vector<double>> dBasisdx; // 全局导数
+    bool secondFamily = false; // 第二族标志
+    int basisDegree = 1; // 基函数阶数
+    bool applyPiolaTransform = true; // 应用Piola变换
+    std::vector<std::vector<double>> readyEdgeBasis; // 预计算边元基函数
+    std::vector<std::vector<double>> readyRotBasis; // 预计算旋度基函数
+    bool tangentialTrMapping = false; // 切向变换映射
+    
+    // 调用EdgeElementInfo函数
+    bool result = EdgeElementInfo(element, nodes, u, v, w,
+                                 &F, &G, detF, basis, edgeBasis,
+                                 &rotBasis, &dBasisdx, &secondFamily, &basisDegree,
+                                 &applyPiolaTransform, &readyEdgeBasis, &readyRotBasis,
+                                 &tangentialTrMapping);
+    
+    if (!result) {
+        ELMER_ERROR("EdgeElementInfo计算失败，单元{}", elementId);
+        return shapeFunctions;
+    }
+    
+    // 将边元基函数转换为输出格式
+    if (edgeBasis.size() >= static_cast<size_t>(numEdges)) {
+        for (int i = 0; i < numEdges; ++i) {
+            if (edgeBasis[i].size() >= 3) {
+                shapeFunctions[i][0] = edgeBasis[i][0];
+                shapeFunctions[i][1] = edgeBasis[i][1];
+                shapeFunctions[i][2] = edgeBasis[i][2];
+            }
+        }
     }
     
     ELMER_DEBUG("Whitney边元单元{}形函数计算完成，共{}个形函数", elementId, shapeFunctions.size());
@@ -2167,31 +2190,60 @@ std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::evaluateShapeFunctio
     int elementId, const std::array<double, 3>& point) const {
     ELMER_DEBUG("在点({}, {}, {})处计算形函数", point[0], point[1], point[2]);
     
-    // 基于Fortran代码的形函数计算
-    // 在给定参考坐标点处计算Whitney形函数值
+    // 使用已移植的ElementDescription接口计算Whitney形函数
+    // 基于EdgeElementInfo函数在指定点处计算
     
     int numEdges = getNumberOfElementEdges(elementId);
     std::vector<std::array<double, 3>> shapeFunctions(numEdges, {0.0, 0.0, 0.0});
     
-    // 获取单元节点坐标
-    auto nodeCoords = getElementNodeCoordinates(elementId);
+    // 获取单元和节点信息
+    auto element = getElement(elementId);
+    auto nodes = getElementNodes(elementId);
     
-    if (nodeCoords.size() >= 4) {
-        // 计算四面体单元的Whitney形函数
-        // 基于边向量的归一化计算
-        
-        // 边1: 节点1到节点2
-        shapeFunctions[0] = calculateEdgeVector(nodeCoords[0], nodeCoords[1]);
-        // 边2: 节点1到节点3
-        shapeFunctions[1] = calculateEdgeVector(nodeCoords[0], nodeCoords[2]);
-        // 边3: 节点1到节点4
-        shapeFunctions[2] = calculateEdgeVector(nodeCoords[0], nodeCoords[3]);
-        // 边4: 节点2到节点3
-        shapeFunctions[3] = calculateEdgeVector(nodeCoords[1], nodeCoords[2]);
-        // 边5: 节点2到节点4
-        shapeFunctions[4] = calculateEdgeVector(nodeCoords[1], nodeCoords[3]);
-        // 边6: 节点3到节点4
-        shapeFunctions[5] = calculateEdgeVector(nodeCoords[2], nodeCoords[3]);
+    if (nodes.numberOfNodes() == 0) {
+        ELMER_ERROR("单元{}的节点信息为空", elementId);
+        return shapeFunctions;
+    }
+    
+    // 使用EdgeElementInfo函数在指定点处计算边元基函数
+    double u = point[0], v = point[1], w = point[2];
+    
+    // 准备EdgeElementInfo函数参数
+    std::vector<std::vector<double>> F; // 梯度矩阵F
+    std::vector<std::vector<double>> G; // 梯度矩阵G
+    double detF = 0.0; // 雅可比行列式
+    std::vector<double> basis; // H1基函数
+    std::vector<std::vector<double>> edgeBasis; // 边元基函数
+    std::vector<std::vector<double>> rotBasis; // 旋度基函数
+    std::vector<std::vector<double>> dBasisdx; // 全局导数
+    bool secondFamily = false; // 第二族标志
+    int basisDegree = 1; // 基函数阶数
+    bool applyPiolaTransform = true; // 应用Piola变换
+    std::vector<std::vector<double>> readyEdgeBasis; // 预计算边元基函数
+    std::vector<std::vector<double>> readyRotBasis; // 预计算旋度基函数
+    bool tangentialTrMapping = false; // 切向变换映射
+    
+    // 调用EdgeElementInfo函数
+    bool result = EdgeElementInfo(element, nodes, u, v, w,
+                                 &F, &G, detF, basis, edgeBasis,
+                                 &rotBasis, &dBasisdx, &secondFamily, &basisDegree,
+                                 &applyPiolaTransform, &readyEdgeBasis, &readyRotBasis,
+                                 &tangentialTrMapping);
+    
+    if (!result) {
+        ELMER_ERROR("EdgeElementInfo计算失败，单元{}", elementId);
+        return shapeFunctions;
+    }
+    
+    // 将边元基函数转换为输出格式
+    if (edgeBasis.size() >= static_cast<size_t>(numEdges)) {
+        for (int i = 0; i < numEdges; ++i) {
+            if (edgeBasis[i].size() >= 3) {
+                shapeFunctions[i][0] = edgeBasis[i][0];
+                shapeFunctions[i][1] = edgeBasis[i][1];
+                shapeFunctions[i][2] = edgeBasis[i][2];
+            }
+        }
     }
     
     ELMER_DEBUG("形函数在点({}, {}, {})处计算完成", point[0], point[1], point[2]);
@@ -2202,30 +2254,58 @@ std::vector<std::array<double, 3>> MagnetoDynamics3DSolver::evaluateCurlShapeFun
     int elementId, const std::array<double, 3>& point) const {
     ELMER_DEBUG("在点({}, {}, {})处计算旋度形函数", point[0], point[1], point[2]);
     
-    // 基于Fortran代码的旋度形函数计算
-    // Whitney形函数的旋度计算
+    // 使用已移植的ElementDescription接口计算旋度形函数
+    // 基于EdgeElementInfo函数在指定点处计算旋度基函数
     
     int numEdges = getNumberOfElementEdges(elementId);
     std::vector<std::array<double, 3>> curlShapeFunctions(numEdges, {0.0, 0.0, 0.0});
     
-    // 对于四面体单元，Whitney形函数的旋度是常数
-    // 基于单元几何计算旋度值
+    // 获取单元和节点信息
+    auto element = getElement(elementId);
+    auto nodes = getElementNodes(elementId);
     
-    // 获取单元节点坐标
-    auto nodeCoords = getElementNodeCoordinates(elementId);
+    if (nodes.numberOfNodes() == 0) {
+        ELMER_ERROR("单元{}的节点信息为空", elementId);
+        return curlShapeFunctions;
+    }
     
-    if (nodeCoords.size() >= 4) {
-        // 计算四面体体积
-        double volume = calculateElementVolume3D(elementId);
-        
-        if (volume > 0.0) {
-            // 旋度形函数计算
-            // 对于四面体单元，旋度形函数与边长度和体积相关
-            
-            // 简化实现：使用单位向量
-            // 实际实现应该基于精确的旋度计算
-            for (int i = 0; i < numEdges; ++i) {
-                curlShapeFunctions[i] = {1.0, 0.0, 0.0}; // 简化实现
+    // 使用EdgeElementInfo函数在指定点处计算旋度基函数
+    double u = point[0], v = point[1], w = point[2];
+    
+    // 准备EdgeElementInfo函数参数
+    std::vector<std::vector<double>> F; // 梯度矩阵F
+    std::vector<std::vector<double>> G; // 梯度矩阵G
+    double detF = 0.0; // 雅可比行列式
+    std::vector<double> basis; // H1基函数
+    std::vector<std::vector<double>> edgeBasis; // 边元基函数
+    std::vector<std::vector<double>> rotBasis; // 旋度基函数
+    std::vector<std::vector<double>> dBasisdx; // 全局导数
+    bool secondFamily = false; // 第二族标志
+    int basisDegree = 1; // 基函数阶数
+    bool applyPiolaTransform = true; // 应用Piola变换
+    std::vector<std::vector<double>> readyEdgeBasis; // 预计算边元基函数
+    std::vector<std::vector<double>> readyRotBasis; // 预计算旋度基函数
+    bool tangentialTrMapping = false; // 切向变换映射
+    
+    // 调用EdgeElementInfo函数
+    bool result = EdgeElementInfo(element, nodes, u, v, w,
+                                 &F, &G, detF, basis, edgeBasis,
+                                 &rotBasis, &dBasisdx, &secondFamily, &basisDegree,
+                                 &applyPiolaTransform, &readyEdgeBasis, &readyRotBasis,
+                                 &tangentialTrMapping);
+    
+    if (!result) {
+        ELMER_ERROR("EdgeElementInfo计算失败，单元{}", elementId);
+        return curlShapeFunctions;
+    }
+    
+    // 将旋度基函数转换为输出格式
+    if (rotBasis.size() >= static_cast<size_t>(numEdges)) {
+        for (int i = 0; i < numEdges; ++i) {
+            if (rotBasis[i].size() >= 3) {
+                curlShapeFunctions[i][0] = rotBasis[i][0];
+                curlShapeFunctions[i][1] = rotBasis[i][1];
+                curlShapeFunctions[i][2] = rotBasis[i][2];
             }
         }
     }
@@ -2311,6 +2391,70 @@ MagnetoDynamics3DSolver::ElementType MagnetoDynamics3DSolver::getElementType(int
             ELMER_WARN("未知单元类型，节点数: {}", numNodes);
             return ElementType::UNKNOWN;
     }
+}
+
+// 获取单元信息
+elmer::Element MagnetoDynamics3DSolver::getElement(int elementId) const {
+    ELMER_DEBUG("获取单元{}的信息", elementId);
+    
+    elmer::Element element;
+    
+    // 设置单元类型
+    auto elementType = getElementType(elementId);
+    int numNodes = getNumberOfElementNodes(elementId);
+    
+    // 根据单元类型设置元素类型
+    elmer::ElementType meshElementType;
+    switch (elementType) {
+        case MagnetoDynamics3DSolver::ElementType::TETRAHEDRON:
+            meshElementType = elmer::ElementType::TETRAHEDRON;
+            break;
+        case MagnetoDynamics3DSolver::ElementType::HEXAHEDRON:
+            meshElementType = elmer::ElementType::HEXAHEDRON;
+            break;
+        case MagnetoDynamics3DSolver::ElementType::WEDGE:
+            meshElementType = elmer::ElementType::PRISM; // WEDGE对应PRISM
+            break;
+        case MagnetoDynamics3DSolver::ElementType::PYRAMID:
+            meshElementType = elmer::ElementType::PYRAMID;
+            break;
+        default:
+            meshElementType = elmer::ElementType::UNKNOWN;
+            break;
+    }
+    
+    element.setType(meshElementType);
+    element.setId(elementId);
+    element.setBodyId(1); // 简化实现
+    
+    // 设置节点索引（简化实现）
+    std::vector<size_t> nodeIndices(numNodes);
+    for (int i = 0; i < numNodes; ++i) {
+        nodeIndices[i] = elementId * 100 + i; // 简化索引生成
+    }
+    element.setNodeIndices(nodeIndices);
+    
+    ELMER_DEBUG("单元{}信息获取完成，类型: {}", elementId, static_cast<int>(meshElementType));
+    return element;
+}
+
+// 获取单元节点信息
+elmer::Nodes MagnetoDynamics3DSolver::getElementNodes(int elementId) const {
+    ELMER_DEBUG("获取单元{}的节点信息", elementId);
+    
+    elmer::Nodes nodes;
+    
+    // 获取节点坐标
+    auto nodeCoords = getElementNodeCoordinates(elementId);
+    int numNodes = static_cast<int>(nodeCoords.size());
+    
+    // 添加节点到Nodes对象
+    for (int i = 0; i < numNodes; ++i) {
+        nodes.addNode(nodeCoords[i][0], nodeCoords[i][1], nodeCoords[i][2]);
+    }
+    
+    ELMER_DEBUG("单元{}节点信息获取完成，共{}个节点", elementId, numNodes);
+    return nodes;
 }
 
 // 四面体单元的Whitney形函数计算

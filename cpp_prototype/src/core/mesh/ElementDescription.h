@@ -9,6 +9,8 @@
 #pragma once
 
 #include "Types.h"
+#include "BoundaryConditions.h"
+#include "Mesh.h"
 #include <vector>
 #include <memory>
 
@@ -51,17 +53,6 @@ struct BoundaryContinuity {
 };
 
 /**
- * @brief 边界条件类型枚举
- * 
- * 定义边界条件的类型。
- */
-enum class BoundaryConditionType {
-    DIRICHLET,  ///< Dirichlet边界条件
-    NEUMANN,    ///< Neumann边界条件
-    ROBIN       ///< Robin边界条件
-};
-
-/**
  * @brief 简单边界条件结构
  * 
  * 描述边界条件的简化信息，用于元素描述模块。
@@ -76,168 +67,13 @@ struct SimpleBoundaryCondition {
         boundaryIndex(idx), type(t), value(v) {}
 };
 
-/**
- * @brief 基函数结构
- * 
- * 描述有限元基函数的系数和指数。
- */
-struct BasisFunction {
-    int n; ///< 项数
-    std::vector<int> p; ///< u方向指数
-    std::vector<int> q; ///< v方向指数  
-    std::vector<int> r; ///< w方向指数
-    std::vector<double> coeff; ///< 系数
-    
-    BasisFunction() : n(0) {}
-    BasisFunction(int size) : n(size), p(size), q(size), r(size), coeff(size) {}
-};
+// BasisFunction is now defined in Mesh.h to maintain compatibility with Elmer Fortran code
 
-/**
- * @brief 元素类型结构
- * 
- * 描述有限元元素的类型信息，包括节点数、维度、基函数等。
- */
-struct ElementTypeStruct {
-    int numberOfNodes; ///< 节点数量
-    int dimension; ///< 维度
-    int elementCode; ///< 元素代码
-    int numberOfBoundaries; ///< 边界数量
-    std::vector<BasisFunction> basisFunctions; ///< 基函数数组
-    
-    ElementTypeStruct() : numberOfNodes(0), dimension(0), elementCode(0), numberOfBoundaries(0) {}
-};
+// ElementTypeStruct is now defined in Mesh.h to maintain compatibility with Elmer Fortran code
 
 
 
-/**
- * @brief P型元素定义结构
- * 
- * 描述P型元素的附加信息。
- */
-struct PElementDefs {
-    bool isEdge; ///< 是否为边界元素
-    bool serendipity; ///< 是否为Serendipity型元素
-    int tetraType; ///< 四面体类型
-    
-    PElementDefs() : isEdge(false), serendipity(false), tetraType(0) {}
-};
 
-/**
- * @brief 元素结构
- * 
- * 描述有限元元素的基本信息。
- */
-struct Element {
-    ElementTypeStruct type; ///< 元素类型
-    int index; ///< 元素索引
-    int elementIndex; ///< 元素全局索引
-    int bodyId; ///< 体ID
-    int status; ///< 元素状态
-    std::vector<int> nodeIndexes; ///< 元素节点索引
-    std::vector<int> edgeIndexes; ///< 元素边索引
-    std::vector<int> faceIndexes; ///< 元素面索引
-    std::vector<int> bubbleIndexes; ///< 气泡索引
-    PElementDefs* pDefs; ///< P型元素定义（可选）
-    
-    Element() : index(0), elementIndex(0), bodyId(0), status(0), pDefs(nullptr) {}
-    
-    /**
-     * @brief 获取元素的边信息
-     * @return 边索引向量
-     */
-    std::vector<int> getEdges() const {
-        return edgeIndexes;
-    }
-    
-    /**
-     * @brief 获取元素的面信息
-     * @return 面索引向量
-     */
-    std::vector<int> getFaces() const {
-        return faceIndexes;
-    }
-};
-
-/**
- * @brief 节点坐标结构
- * 
- * 描述有限元节点的坐标信息。
- */
-struct Nodes {
-    std::vector<double> x; ///< x坐标数组
-    std::vector<double> y; ///< y坐标数组
-    std::vector<double> z; ///< z坐标数组
-    
-    Nodes() = default;
-    Nodes(int size) : x(size), y(size), z(size) {}
-    
-    /**
-     * @brief 获取节点坐标
-     * @param index 节点索引
-     * @return Node 节点对象
-     */
-    Node getNode(int index) const {
-        if (index < 0 || index >= static_cast<int>(x.size())) {
-            return Node();
-        }
-        return Node(x[index], y[index], z[index]);
-    }
-};
-
-/**
- * @brief 面结构
- * 
- * 描述有限元网格中的面信息。
- */
-struct Face {
-    int index; ///< 面索引
-    std::vector<int> nodeIndexes; ///< 面上的节点索引
-    int bDofs; ///< 面上的自由度数量
-    int pDegree; ///< P型元素的度数
-    
-    Face() : index(0), bDofs(0), pDegree(0) {}
-    Face(int idx, const std::vector<int>& nodes) : 
-        index(idx), nodeIndexes(nodes), bDofs(0), pDegree(0) {}
-};
-
-/**
- * @brief 边结构
- * 
- * 描述有限元网格中的边信息。
- */
-struct Edge {
-    int index; ///< 边索引
-    std::vector<int> nodeIndexes; ///< 边上的节点索引
-    int bDofs; ///< 边上的自由度数量
-    int pDegree; ///< P型元素的度数
-    
-    Edge() : index(0), bDofs(0), pDegree(0) {}
-    Edge(int idx, const std::vector<int>& nodes) : 
-        index(idx), nodeIndexes(nodes), bDofs(0), pDegree(0) {}
-};
-
-/**
- * @brief 网格结构
- * 
- * 描述有限元网格的基本信息。
- */
-struct Mesh {
-    int numberOfElements; ///< 元素数量
-    int numberOfNodes; ///< 节点数量
-    int numberOfEdges; ///< 边数量
-    int numberOfFaces; ///< 面数量
-    int maxEdgeDofs; ///< 最大边自由度数量
-    int maxFaceDofs; ///< 最大面自由度数量
-    int minEdgeDofs; ///< 最小边自由度数量
-    int minFaceDofs; ///< 最小面自由度数量
-    std::vector<Element> elements; ///< 元素数组
-    std::vector<Node> nodes; ///< 节点对象数组
-    std::vector<Edge> edges; ///< 边数组
-    std::vector<Face> faces; ///< 面数组
-    
-    Mesh() : numberOfElements(0), numberOfNodes(0), numberOfEdges(0), numberOfFaces(0),
-             maxEdgeDofs(0), maxFaceDofs(0), minEdgeDofs(0), minFaceDofs(0) {}
-};
 
 /**
  * @brief 计算全局一阶导数（内部版本）

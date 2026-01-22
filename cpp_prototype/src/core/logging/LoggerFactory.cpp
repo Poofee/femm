@@ -15,7 +15,7 @@ namespace elmer {
 
 namespace {
     // 默认日志级别
-    LogLevel g_defaultLevel = LogLevel::INFO;
+    LogLevel g_defaultLevel = LogLevel::DEBUG;
     
     // 默认日志文件名
     std::string g_logFile;

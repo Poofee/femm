@@ -2,6 +2,7 @@
 
 #include "MagnetoDynamicsSolverBase.h"
 #include "ElectromagneticMaterial.h"
+#include "core/mesh/Mesh.h"
 #include <memory>
 #include <vector>
 #include <array>
@@ -96,6 +97,10 @@ protected:
     bool calculateWhitneyCurlShapeFunctions(int elementId, std::vector<std::array<double, 3>>& curlShapeFuncs) const;
     std::vector<std::array<double, 3>> calculateWhitneyShapeFunctions(int elementId) const;
     std::vector<std::array<double, 3>> calculateWhitneyCurlShapeFunctions(int elementId) const;
+    
+    // 单元和节点信息获取方法
+    Element getElement(int elementId) const;
+    Nodes getElementNodes(int elementId) const;
     
     // Lagrange单元特定方法
     std::vector<double> calculateLagrangeShapeFunctions(int elementId) const;

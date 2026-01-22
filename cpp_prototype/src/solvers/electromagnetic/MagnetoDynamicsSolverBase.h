@@ -189,7 +189,7 @@ protected:
     MagnetoDynamicsResults results_;
     
     // 网格和材料
-    std::shared_ptr<Mesh> mesh_;
+    std::shared_ptr<elmer::Mesh> mesh_;
     std::shared_ptr<MaterialDatabase> materialDB_;
     std::shared_ptr<BoundaryConditionManager> bcManager_;
     

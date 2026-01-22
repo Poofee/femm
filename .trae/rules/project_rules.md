@@ -75,7 +75,9 @@ cpp_prototype/
 **错误示例**:
 ```cpp
 #include "../solvers/ElmerSolver.h"           // 禁止相对路径
+去掉 ../solvers/
 #include "d:/project/src/solvers/ElmerSolver.h" // 禁止绝对路径
+去掉 d:/project/src/solvers/
 ```
 
 **规范要求**:

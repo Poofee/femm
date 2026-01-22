@@ -2,7 +2,7 @@
 // 实现MUMPS 5.6.2 MPI并行版本的封装
 
 #include "MumpsSolver.h"
-#include "../logging/LoggerFactory.h"
+#include "LoggerFactory.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>

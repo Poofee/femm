@@ -297,42 +297,6 @@ public:
 };
 
 /**
- * @brief 求解器工厂类
- */
-class SolverFactory {
-public:
-    /**
-     * @brief 创建求解器实例
-     * @param type 求解器类型
-     * @return 求解器指针
-     */
-    static std::unique_ptr<LinearSolver> CreateSolver(SolverType type);
-    
-    /**
-     * @brief 从字符串创建求解器
-     * @param solver_name 求解器名称（"superlu", "mumps", 等）
-     * @return 求解器指针
-     */
-    static std::unique_ptr<LinearSolver> CreateSolver(const std::string& solver_name);
-    
-    /**
-     * @brief 获取可用的求解器列表
-     */
-    static std::vector<std::string> GetAvailableSolvers();
-    
-    /**
-     * @brief 检查求解器是否可用
-     */
-    static bool IsSolverAvailable(SolverType type);
-    static bool IsSolverAvailable(const std::string& solver_name);
-    
-    /**
-     * @brief 获取求解器推荐配置
-     */
-    static SolverParameters GetRecommendedParameters(SolverType type);
-};
-
-/**
  * @brief 求解器管理器类
  * 
  * 管理多个求解器实例，提供统一的接口

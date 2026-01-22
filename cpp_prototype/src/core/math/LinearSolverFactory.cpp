@@ -1,7 +1,7 @@
 // LinearSolverFactory.cpp - 求解器工厂和管理器实现
 // 提供求解器的动态创建和管理功能
 
-#include "LinearSolverInterface.h"
+#include "LinearSolverFactory.h"
 #include "SuperLUSolver.h"
 #include "SuperLUMTSolver.h"
 #include "MumpsSolver.h"
@@ -16,7 +16,7 @@ namespace elmer {
 // SolverFactory 实现
 // ============================================================================
 
-std::unique_ptr<LinearSolver> SolverFactory::CreateSolver(SolverType type) {
+std::unique_ptr<LinearSolver> LinearSolverFactory::CreateSolver(SolverType type) {
     switch (type) {
         case SolverType::SUPERLU:
             return std::make_unique<SuperLUSolver>();
@@ -47,7 +47,7 @@ std::unique_ptr<LinearSolver> SolverFactory::CreateSolver(SolverType type) {
     }
 }
 
-std::unique_ptr<LinearSolver> SolverFactory::CreateSolver(const std::string& solver_name) {
+std::unique_ptr<LinearSolver> LinearSolverFactory::CreateSolver(const std::string& solver_name) {
     static const std::map<std::string, SolverType> solver_map = {
         {"superlu", SolverType::SUPERLU},
         {"superlu_mt", SolverType::SUPERLU_MT},
@@ -69,11 +69,16 @@ std::unique_ptr<LinearSolver> SolverFactory::CreateSolver(const std::string& sol
     throw SolverException(SolverType::CUSTOM, "未知的求解器名称: " + solver_name);
 }
 
-std::vector<std::string> SolverFactory::GetAvailableSolvers() {
+std::vector<SolverType> LinearSolverFactory::GetAvailableSolverTypes() {
+    return {SolverType::SUPERLU, SolverType::SUPERLU_MT, SolverType::MUMPS, 
+            SolverType::PETSC, SolverType::UMFPACK, SolverType::EIGEN};
+}
+
+std::vector<std::string> LinearSolverFactory::GetAvailableSolverNames() {
     return {"superlu", "superlu_mt", "mumps", "petsc", "umfpack", "eigen"};
 }
 
-bool SolverFactory::IsSolverAvailable(SolverType type) {
+bool LinearSolverFactory::IsSolverAvailable(SolverType type) {
     switch (type) {
         case SolverType::SUPERLU:
         case SolverType::SUPERLU_MT:
@@ -92,7 +97,7 @@ bool SolverFactory::IsSolverAvailable(SolverType type) {
     }
 }
 
-bool SolverFactory::IsSolverAvailable(const std::string& solver_name) {
+bool LinearSolverFactory::IsSolverAvailable(const std::string& solver_name) {
     static const std::map<std::string, SolverType> solver_map = {
         {"superlu", SolverType::SUPERLU},
         {"superlu_mt", SolverType::SUPERLU_MT},
@@ -113,7 +118,7 @@ bool SolverFactory::IsSolverAvailable(const std::string& solver_name) {
     return false;
 }
 
-SolverParameters SolverFactory::GetRecommendedParameters(SolverType type) {
+SolverParameters LinearSolverFactory::GetRecommendedParameters(SolverType type) {
     SolverParameters params;
     
     switch (type) {
@@ -423,146 +428,5 @@ void IterativeSolver::SetPreconditioner(std::shared_ptr<LinearSolver> preconditi
     preconditioner_ = preconditioner;
 }
 
-// ============================================================================
-// 具体求解器类的SolveMultiple实现
-// ============================================================================
-
-bool SuperLUSolver::SolveMultiple(const std::vector<std::shared_ptr<Vector>>& B, std::vector<std::shared_ptr<Vector>>& X) {
-    if (!is_initialized_) {
-        UpdateStatus(false, "求解器未初始化");
-        return false;
-    }
-    
-    if (B.empty()) {
-        UpdateStatus(false, "右端项为空");
-        return false;
-    }
-    
-    if (!matrix_factorized_) {
-        if (!Factorize()) {
-            UpdateStatus(false, "矩阵分解失败");
-            return false;
-        }
-    }
-    
-    X.resize(B.size());
-    bool all_success = true;
-    
-    RecordTime(false); // 开始求解计时
-    
-    for (size_t i = 0; i < B.size(); ++i) {
-        // 检查向量大小是否匹配
-        if (!X[i] || X[i]->Size() != B[i]->Size()) {
-            // 如果大小不匹配或向量未初始化，需要重新创建向量
-            X[i] = Vector::Create(B[i]->Size());
-        }
-        if (!BackSubstitute(*B[i], *X[i])) {
-            all_success = false;
-            break;
-        }
-    }
-    
-    RecordTime(false); // 结束求解计时
-    
-    if (all_success) {
-        UpdateStatus(true, "SuperLU多右端项求解成功");
-    } else {
-        UpdateStatus(false, "SuperLU多右端项求解失败");
-    }
-    
-    return all_success;
-}
-
-bool SuperLUMTSolver::SolveMultiple(const std::vector<std::shared_ptr<Vector>>& B, std::vector<std::shared_ptr<Vector>>& X) {
-    if (!is_initialized_) {
-        UpdateStatus(false, "求解器未初始化");
-        return false;
-    }
-    
-    if (B.empty()) {
-        UpdateStatus(false, "右端项为空");
-        return false;
-    }
-    
-    if (!matrix_factorized_) {
-        if (!Factorize()) {
-            UpdateStatus(false, "矩阵分解失败");
-            return false;
-        }
-    }
-    
-    X.resize(B.size());
-    bool all_success = true;
-    
-    RecordTime(false); // 开始求解计时
-    
-    for (size_t i = 0; i < B.size(); ++i) {
-        // 检查向量大小是否匹配
-        if (!X[i] || X[i]->Size() != B[i]->Size()) {
-            // 如果大小不匹配或向量未初始化，需要重新创建向量
-            X[i] = Vector::Create(B[i]->Size());
-        }
-        if (!BackSubstitute(*B[i], *X[i])) {
-            all_success = false;
-            break;
-        }
-    }
-    
-    RecordTime(false); // 结束求解计时
-    
-    if (all_success) {
-        UpdateStatus(true, "SuperLU_MT多右端项求解成功");
-    } else {
-        UpdateStatus(false, "SuperLU_MT多右端项求解失败");
-    }
-    
-    return all_success;
-}
-
-bool MumpsSolver::SolveMultiple(const std::vector<std::shared_ptr<Vector>>& B, std::vector<std::shared_ptr<Vector>>& X) {
-    if (!is_initialized_) {
-        UpdateStatus(false, "求解器未初始化");
-        return false;
-    }
-    
-    if (B.empty()) {
-        UpdateStatus(false, "右端项为空");
-        return false;
-    }
-    
-    if (!matrix_factorized_) {
-        if (!Factorize()) {
-            UpdateStatus(false, "矩阵分解失败");
-            return false;
-        }
-    }
-    
-    X.resize(B.size());
-    bool all_success = true;
-    
-    RecordTime(false); // 开始求解计时
-    
-    for (size_t i = 0; i < B.size(); ++i) {
-        // 检查向量大小是否匹配
-        if (!X[i] || X[i]->Size() != B[i]->Size()) {
-            // 如果大小不匹配或向量未初始化，需要重新创建向量
-            X[i] = Vector::Create(B[i]->Size());
-        }
-        if (!BackSubstitute(*B[i], *X[i])) {
-            all_success = false;
-            break;
-        }
-    }
-    
-    RecordTime(false); // 结束求解计时
-    
-    if (all_success) {
-        UpdateStatus(true, "MUMPS多右端项求解成功");
-    } else {
-        UpdateStatus(false, "MUMPS多右端项求解失败");
-    }
-    
-    return all_success;
-}
 
 } // namespace elmer

@@ -2,7 +2,7 @@
 // 实现SuperLU_MT多线程版本的封装
 
 #include "SuperLUMTSolver.h"
-#include "../logging/LoggerFactory.h"
+#include "LoggerFactory.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>

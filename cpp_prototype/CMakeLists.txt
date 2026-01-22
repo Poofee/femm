@@ -7,31 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set compiler flags
 if(MSVC)
-    # /W4: 启用所有警告
-    # /utf-8: 使用UTF-8编码
-    # 禁用常见无害警告:
-    # /wd4100: 未引用形参警告 (C4100)
-    # /wd4244: 类型转换警告 (C4244)
-    # /wd4267: size_t转换警告 (C4267)
-    # /wd4101: 未引用局部变量警告 (C4101)
-    # /wd4189: 局部变量已初始化但不引用警告 (C4189)
-    # 添加宏定义:
-    # _CRT_SECURE_NO_WARNINGS: 禁用CRT安全警告
-    # _SCL_SECURE_NO_WARNINGS: 禁用STL安全警告
-    # NOMINMAX: 禁用min/max宏定义冲突
-    # WIN32_LEAN_AND_MEAN: 减少Windows头文件包含
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8 /wd4100 /wd4244 /wd4267 /wd4101 /wd4189")
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS -DNOMINMAX -DWIN32_LEAN_AND_MEAN)
-    
-    # 设置运行时库为静态链接 (/MT) - 确保所有库使用相同的运行时库
+    # 首先设置运行时库类型，这必须在任何其他标志之前设置
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
     
-    # 强制使用静态运行时库
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-    else()
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
-    endif()
+    # 设置编译器标志
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /utf-8 /wd4100 /wd4244 /wd4267 /wd4101 /wd4189")
+    
+    # 设置特定构建类型的标志
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MT")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT")
+    
+    # 添加宏定义
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS -DNOMINMAX -DWIN32_LEAN_AND_MEAN)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 endif()
